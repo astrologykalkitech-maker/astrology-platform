@@ -1,5 +1,7 @@
 "use client";
 
+import AssignedLeadsTest from "./assigned-leads-test";
+
 import { useState, useTransition } from "react";
 import {
   signUp,
@@ -935,6 +937,8 @@ export default function AuthTestClient({ initialProfile }: AuthTestClientProps) 
           )}
         </section>
       </div>
+
+      {profile?.role === "astrologer" && <AssignedLeadsTest />}
 
       {/* 4. SECURITY ASSURANCES NOTE */}
       <section className="bg-zinc-900/60 border border-zinc-800/80 rounded-lg p-4 text-xs text-zinc-400 space-y-1.5">
