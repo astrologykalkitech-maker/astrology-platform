@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { CelestialBackground } from "@/components/astrologer/CelestialBackground";
 import { Logo } from "@/components/astrologer/Logo";
+import { Ornament } from "@/components/astrologer/ui/Ornament";
 
 type Mode = "login" | "signup";
 
@@ -86,7 +87,8 @@ export function AuthShell({ mode, children }: { mode: Mode; children: ReactNode 
             {content.eyebrow && (
               <p className="font-display text-2xl text-champagne">{content.eyebrow}</p>
             )}
-            <p className="mt-3 font-display text-5xl font-semibold leading-[1.15]">
+            <Ornament className="mt-4 max-w-[180px]" />
+            <p className="mt-4 font-display text-5xl font-semibold leading-[1.15]">
               {content.heading.map((line) => (
                 <span key={line} className="block">
                   {line}
@@ -101,7 +103,7 @@ export function AuthShell({ mode, children }: { mode: Mode; children: ReactNode 
           <ul className="mt-10 space-y-4">
             {content.features.map(({ label, icon: Icon }) => (
               <li key={label} className="flex items-center gap-3 text-ivory/90">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-champagne/40 bg-white/5 text-champagne">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-gold/50 bg-gold/10 text-champagne">
                   <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 </span>
                 <span className="text-sm font-medium">{label}</span>
@@ -115,7 +117,8 @@ export function AuthShell({ mode, children }: { mode: Mode; children: ReactNode 
             <Logo />
           </div>
 
-          <div className="rounded-2xl bg-ivory p-6 text-ink shadow-2xl ring-1 ring-gold/25 sm:p-8">
+          <div className="rise-in relative overflow-hidden rounded-2xl bg-ivory p-6 text-ink shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)] ring-1 ring-gold/40 sm:p-8">
+            <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-gold to-transparent" />
             <AuthTabs mode={mode} />
             <div className="mt-6">{children}</div>
           </div>

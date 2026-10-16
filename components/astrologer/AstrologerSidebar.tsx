@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { CelestialBackground } from "@/components/astrologer/CelestialBackground";
 import { Logo } from "@/components/astrologer/Logo";
+import { Ornament } from "@/components/astrologer/ui/Ornament";
 
 type NavItem = {
   href: string;
@@ -92,19 +93,21 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne ${
+                className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne ${
                   active
-                    ? "gold-gradient text-white shadow-md"
-                    : "text-ivory/75 hover:bg-white/8 hover:text-white"
+                    ? "bg-gradient-to-r from-gold/30 via-gold/10 to-transparent text-champagne ring-1 ring-gold/30"
+                    : "text-ivory/75 hover:translate-x-0.5 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-gold" />}
+                <Icon className={`h-[18px] w-[18px] ${active ? "text-gold" : ""}`} aria-hidden="true" />
                 {item.label}
               </Link>
             );
           })}
 
-          <p className="mt-6 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/40">
+          <Ornament className="mt-5 px-2" />
+          <p className="mt-3 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
             Coming soon
           </p>
 
@@ -112,7 +115,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
             <div
               key={label}
               aria-disabled="true"
-              className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-ivory/40"
+              className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-ivory/55"
             >
               <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
               <span>{label}</span>

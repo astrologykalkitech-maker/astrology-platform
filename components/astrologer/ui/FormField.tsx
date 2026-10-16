@@ -35,7 +35,7 @@ export function FormField({
           id={id}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`h-11 w-full rounded-xl border bg-white px-3.5 text-sm text-ink transition-colors placeholder:text-muted/70 focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-gold ${
+          className={`h-11 w-full rounded-xl border bg-ivory/70 px-3.5 text-sm text-ink transition-all placeholder:text-muted/70 focus-visible:bg-white focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-gold focus-visible:shadow-[0_0_0_4px_rgba(197,138,43,0.15)] ${
             error ? "border-red-400" : "border-line hover:border-gold/50"
           } ${trailing ? "pr-12" : ""} ${className}`}
           {...rest}

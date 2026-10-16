@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
@@ -21,6 +21,16 @@ export function AstrologerHeader({
   onMenuClick,
 }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const pageTitle = pathname.startsWith("/astrologer/leads/")
+    ? "Lead Details"
+    : pathname.startsWith("/astrologer/leads")
+      ? "My Leads"
+      : pathname.startsWith("/astrologer/profile/edit")
+        ? "Edit Profile"
+        : pathname.startsWith("/astrologer/profile")
+          ? "My Profile"
+          : "Dashboard";
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +48,7 @@ export function AstrologerHeader({
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-line bg-ivory/90 px-4 backdrop-blur sm:px-8">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-gold/25 bg-ivory/85 px-4 backdrop-blur sm:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -49,9 +59,11 @@ export function AstrologerHeader({
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
-        <p className="hidden items-center gap-2 text-sm font-medium text-muted lg:flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-gold" aria-hidden="true" />
-          Astrologer Portal
+        <p className="flex items-center gap-2 text-sm font-medium text-muted">
+          <span className="hidden h-1.5 w-1.5 rounded-full bg-gold lg:inline-block" aria-hidden="true" />
+          <span className="hidden lg:inline">Astrologer Portal</span>
+          <span className="hidden text-gold lg:inline" aria-hidden="true">/</span>
+          <span className="font-display text-base font-semibold text-midnight">{pageTitle}</span>
         </p>
       </div>
 

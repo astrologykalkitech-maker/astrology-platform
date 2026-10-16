@@ -7,16 +7,18 @@
 
 /* JyotishSetu design tokens */
 @theme {
-  --color-midnight: #101426;
-  --color-plum: #211631;
-  --color-gold: #c58a2b;
-  --color-gold-deep: #8c5c15;
-  --color-champagne: #e8c77e;
-  --color-ivory: #fbf7ef;
-  --color-parchment: #f3ead8;
-  --color-ink: #1f1b2e;
-  --color-muted: #6b6679;
-  --color-line: #eadfc9;
+  --color-midnight: #151027;
+  --color-plum: #29183b;
+  --color-teal: #135e5a;
+  --color-emerald: #176b50;
+  --color-gold: #c49a4a;
+  --color-gold-deep: #8a6420;
+  --color-champagne: #e8d4a6;
+  --color-ivory: #fffcf6;
+  --color-parchment: #f7f0e3;
+  --color-ink: #25202b;
+  --color-muted: #79717c;
+  --color-line: #e6d8bc;
 }
 
 @theme inline {
@@ -42,14 +44,46 @@ body {
 
 @layer components {
   .gold-gradient {
-    background-image: linear-gradient(180deg, #b07a1e 0%, #8c5c15 100%);
+    background-image:
+      linear-gradient(180deg, rgba(232, 212, 166, 0.35) 0, transparent 1px),
+      linear-gradient(180deg, #a87d2e 0%, #84601f 100%);
+  }
+
+  .gold-text {
+    background-image: linear-gradient(90deg, #b58a35, #e8d4a6 50%, #b58a35);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .portal-bg {
+    background:
+      radial-gradient(ellipse 55% 35% at 90% -5%, rgba(196, 154, 74, 0.18), transparent 70%),
+      radial-gradient(ellipse 45% 30% at 0% 100%, rgba(19, 94, 90, 0.08), transparent 70%),
+      linear-gradient(180deg, #fbf6ea 0%, #f7f0e3 100%);
   }
 
   .celestial-surface {
     background:
-      radial-gradient(ellipse at 20% 0%, rgba(197, 138, 43, 0.18), transparent 55%),
-      radial-gradient(ellipse at 90% 100%, rgba(120, 70, 160, 0.25), transparent 50%),
-      linear-gradient(165deg, #101426 0%, #211631 100%);
+      radial-gradient(ellipse at 15% 0%, rgba(196, 154, 74, 0.2), transparent 55%),
+      radial-gradient(ellipse at 95% 100%, rgba(19, 94, 90, 0.28), transparent 55%),
+      radial-gradient(ellipse at 60% 40%, rgba(41, 24, 59, 0.9), transparent 70%),
+      linear-gradient(165deg, #151027 0%, #29183b 100%);
+  }
+
+  .rise-in {
+    animation: rise-in 0.5s ease-out both;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

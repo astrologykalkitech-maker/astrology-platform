@@ -25,7 +25,7 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
   }, [menuOpen]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-ivory text-ink">
+    <div className="flex min-h-screen flex-col portal-bg text-ink">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-midnight"
@@ -60,7 +60,7 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
           tabIndex={-1}
           className="flex-1 px-4 py-6 outline-none sm:px-8 sm:py-8"
         >
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          <div className="rise-in mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
     </div>

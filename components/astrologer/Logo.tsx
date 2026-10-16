@@ -3,51 +3,41 @@ type LogoProps = {
   showTagline?: boolean;
 };
 
-const RAYS = Array.from({ length: 12 }, (_, i) => {
-  const angle = (i * Math.PI) / 6;
-  return {
-    x1: (24 + 13 * Math.cos(angle)).toFixed(2),
-    y1: (24 + 13 * Math.sin(angle)).toFixed(2),
-    x2: (24 + 20 * Math.cos(angle)).toFixed(2),
-    y2: (24 + 20 * Math.sin(angle)).toFixed(2),
-  };
-});
+const pt = (r: number, deg: number) => {
+  const a = (deg * Math.PI) / 180;
+  return `${(24 + r * Math.cos(a)).toFixed(2)},${(24 + r * Math.sin(a)).toFixed(2)}`;
+};
+const star = (outer: number, inner: number) =>
+  Array.from({ length: 16 }, (_, i) => pt(i % 2 === 0 ? outer : inner, -90 + i * 22.5)).join(" ");
+
+/** Emblem: eight-pointed celestial star inside a lotus ring. */
+function Emblem({ light }: { light: boolean }) {
+  const line = light ? "#E8D4A6" : "#8A6420";
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10 shrink-0" aria-hidden="true">
+      <circle cx="24" cy="24" r="22" fill="none" stroke={line} strokeWidth="0.8" strokeOpacity="0.7" />
+      {Array.from({ length: 8 }, (_, i) => (
+        <ellipse key={i} cx="24" cy="7.5" rx="2.6" ry="4.6" transform={`rotate(${i * 45} 24 24)`} fill="none" stroke={line} strokeWidth="0.9" />
+      ))}
+      <polygon points={star(13, 6.2)} fill="#C49A4A" fillOpacity="0.28" stroke="#C49A4A" strokeWidth="1.1" strokeLinejoin="round" />
+      <circle cx="24" cy="24" r="3" fill="#C49A4A" />
+      <circle cx="24" cy="24" r="1.2" fill={light ? "#151027" : "#FFFCF6"} />
+    </svg>
+  );
+}
 
 export function Logo({ tone = "light", showTagline = true }: LogoProps) {
   const isLight = tone === "light";
 
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <svg viewBox="0 0 48 48" className="h-9 w-9 shrink-0" aria-hidden="true">
-        <circle
-          cx="24"
-          cy="24"
-          r="9"
-          fill="none"
-          stroke={isLight ? "#E8C77E" : "#C58A2B"}
-          strokeWidth="2"
-        />
-        <circle cx="24" cy="24" r="4.5" fill="#C58A2B" />
-        {RAYS.map((ray, i) => (
-          <line
-            key={i}
-            {...ray}
-            stroke={isLight ? "#E8C77E" : "#C58A2B"}
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        ))}
-      </svg>
+    <span className="inline-flex items-center gap-3">
+      <Emblem light={isLight} />
       <span className="flex flex-col leading-tight">
-        <span
-          className={`font-display text-xl font-semibold tracking-wide ${
-            isLight ? "text-champagne" : "text-midnight"
-          }`}
-        >
+        <span className={`font-display text-xl font-semibold tracking-wide ${isLight ? "text-champagne" : "text-midnight"}`}>
           JyotishSetu
         </span>
         {showTagline && (
-          <span className={`text-[10px] tracking-wide ${isLight ? "text-ivory/60" : "text-muted"}`}>
+          <span className={`text-[10px] tracking-wide ${isLight ? "text-ivory/65" : "text-muted"}`}>
             Bridging Wisdom, Connecting Lives
           </span>
         )}
