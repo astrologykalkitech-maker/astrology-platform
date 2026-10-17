@@ -1,69 +1,17 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import styles from "./astrologers.module.css";
+import styles from "../customer.module.css"; // Layout CSS
 
 const astrologers = [
-  {
-    name: "Aarav Sharma",
-    slug: "aarav-sharma",
-    specialty: "Vedic Astrology",
-    experience: "8 years",
-    rating: 4.9,
-    price: 499,
-    language: "Hindi, English",
-    icon: "☀",
-    description:
-      "Personal guidance for career, relationships and life decisions.",
-  },
-  {
-    name: "Meera Joshi",
-    slug: "meera-joshi",
-    specialty: "Love & Relationships",
-    experience: "6 years",
-    rating: 4.8,
-    price: 399,
-    language: "Hindi, English",
-    icon: "☾",
-    description:
-      "Thoughtful guidance for relationships and personal growth.",
-  },
-  {
-    name: "Rudra Verma",
-    slug: "rudra-verma",
-    specialty: "Career & Finance",
-    experience: "10 years",
-    rating: 4.9,
-    price: 599,
-    language: "Hindi",
-    icon: "✦",
-    description:
-      "Explore career choices and financial goals with clarity.",
-  },
-  {
-    name: "Ananya Mishra",
-    slug: "ananya-mishra",
-    specialty: "Numerology",
-    experience: "5 years",
-    rating: 4.7,
-    price: 349,
-    language: "Hindi, English",
-    icon: "✧",
-    description:
-      "Numerology-based insights for your personal journey.",
-  },
+  { name: "Aarav Sharma", slug: "aarav-sharma", specialty: "Vedic Astrology", experience: "8 years", rating: 4.9, price: 499, language: "Hindi, English", icon: "☀", description: "Personal guidance for career, relationships and life decisions." },
+  { name: "Meera Joshi", slug: "meera-joshi", specialty: "Love & Relationships", experience: "6 years", rating: 4.8, price: 399, language: "Hindi, English", icon: "☾", description: "Thoughtful guidance for relationships and personal growth." },
+  { name: "Rudra Verma", slug: "rudra-verma", specialty: "Career & Finance", experience: "10 years", rating: 4.9, price: 599, language: "Hindi", icon: "✦", description: "Explore career choices and financial goals with clarity." },
+  { name: "Ananya Mishra", slug: "ananya-mishra", specialty: "Numerology", experience: "5 years", rating: 4.7, price: 349, language: "Hindi, English", icon: "✧", description: "Numerology-based insights for your personal journey." },
 ];
 
-const categories = [
-  "All",
-  "Vedic Astrology",
-  "Love & Relationships",
-  "Career & Finance",
-  "Numerology",
-];
-
+const categories = ["All", "Vedic Astrology", "Love & Relationships", "Career & Finance", "Numerology"];
 type SortOption = "recommended" | "rating" | "price";
 
 export default function FindAstrologersPage() {
@@ -73,231 +21,85 @@ export default function FindAstrologersPage() {
 
   const filteredAstrologers = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     const results = astrologers.filter((astrologer) => {
-      const searchableText = [
-        astrologer.name,
-        astrologer.specialty,
-        astrologer.language,
-        astrologer.description,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const matchesSearch = searchableText.includes(query);
-      const matchesCategory =
-        category === "All" || astrologer.specialty === category;
-
-      return matchesSearch && matchesCategory;
+      const searchableText = [astrologer.name, astrologer.specialty, astrologer.language, astrologer.description].join(" ").toLowerCase();
+      return searchableText.includes(query) && (category === "All" || astrologer.specialty === category);
     });
 
-    if (sort === "rating") {
-      return [...results].sort(
-        (a, b) => b.rating - a.rating || a.price - b.price
-      );
-    }
-
-    if (sort === "price") {
-      return [...results].sort(
-        (a, b) => a.price - b.price || b.rating - a.rating
-      );
-    }
-
+    if (sort === "rating") return [...results].sort((a, b) => b.rating - a.rating);
+    if (sort === "price") return [...results].sort((a, b) => a.price - b.price);
     return results;
   }, [search, category, sort]);
 
-  function resetFilters() {
-    setSearch("");
-    setCategory("All");
-    setSort("recommended");
-  }
-
   return (
-    <main className={styles.page}>
-      <header className={styles.topbar}>
-        <Link href="/customer" className={styles.brand}>
-          <span className={styles.logo} aria-hidden="true">
-            ✦
-          </span>
-          <span>
-            <strong>AstroConnect</strong>
-            <small>Your cosmic guide</small>
-          </span>
-        </Link>
+    <>
+      <Link href="/customer" style={{ textDecoration: 'none', color: '#65418c', fontSize: '12px', display: 'inline-block', marginBottom: '15px' }}>
+        <i className="fa-solid fa-arrow-left"></i> Back to Dashboard
+      </Link>
 
-        <Link href="/customer" className={styles.backLink}>
-          ← Customer Dashboard
-        </Link>
-      </header>
+      <h1 style={{ fontSize: '22px', color: '#30213e', margin: '0 0 10px 0' }}>Find Your Astrologer ✦</h1>
+      <p className={styles.muted} style={{ marginBottom: '20px' }}>Discover a guide who understands your questions.</p>
 
-      <section className={styles.content}>
-        <p className={styles.eyebrow}>YOUR PERSONAL COSMIC GUIDE</p>
+      {/* Search Bar */}
+      <div className={styles.field} style={{ marginBottom: '15px' }}>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, specialty..."
+          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+        />
+      </div>
 
-        <h1>
-          Find Your Astrologer <span aria-hidden="true">✦</span>
-        </h1>
+      {/* Categories */}
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '15px' }}>
+        {categories.map((item) => (
+          <button
+            key={item}
+            onClick={() => setCategory(item)}
+            style={{
+              padding: '6px 12px', borderRadius: '20px', border: '1px solid #ddd', fontSize: '11px', whiteSpace: 'nowrap',
+              background: category === item ? '#65418c' : '#fff', color: category === item ? '#fff' : '#555'
+            }}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
 
-        <p className={styles.subtitle}>
-          Discover a guide who understands your questions and helps you explore
-          your next steps.
-        </p>
-
-        <div className={styles.hero}>
-          <div>
-            <span className={styles.heroLabel}>
-              YOUR JOURNEY, YOUR CHOICE
-            </span>
-            <h2>A little guidance can bring a new perspective.</h2>
-            <p>
-              Explore specialties and find the right match for your needs.
-            </p>
-          </div>
-
-          <div className={styles.heroMoon} aria-hidden="true">
-            ☾
-          </div>
-        </div>
-
-        <div className={styles.searchArea}>
-          <label htmlFor="astrologer-search">
-            Search astrologers
-          </label>
-
-          <input
-            id="astrologer-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, specialty, language..."
-            autoComplete="off"
-          />
-        </div>
-
-        <div className={styles.filters} aria-label="Astrologer categories">
-          {categories.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={
-                category === item
-                  ? styles.selectedFilter
-                  : styles.filter
-              }
-              aria-pressed={category === item}
-              onClick={() => setCategory(item)}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.resultsHeading}>
-          <div>
-            <h2>Meet our astrologers</h2>
-            <p aria-live="polite">
-              {filteredAstrologers.length}{" "}
-              {filteredAstrologers.length === 1
-                ? "profile"
-                : "profiles"}{" "}
-              found
-            </p>
-          </div>
-
-          <label>
-            <span className={styles.sortLabel}>Sort by</span>
-            <select
-              aria-label="Sort astrologers"
-              value={sort}
-              onChange={(event) =>
-                setSort(event.target.value as SortOption)
-              }
-            >
-              <option value="recommended">Recommended</option>
-              <option value="rating">Highest rated</option>
-              <option value="price">Price: low to high</option>
-            </select>
-          </label>
-        </div>
-
-        {filteredAstrologers.length > 0 ? (
-          <div className={styles.grid}>
-            {filteredAstrologers.map((astrologer) => (
-              <article
-                className={styles.card}
-                key={astrologer.slug}
-              >
-                <div className={styles.cardTop}>
-                  <div
-                    className={styles.avatar}
-                    aria-hidden="true"
-                  >
-                    {astrologer.icon}
-                  </div>
-
-                  <span
-                    className={styles.rating}
-                    aria-label={`Rating ${astrologer.rating} out of 5`}
-                  >
-                    ★ {astrologer.rating}
-                  </span>
+      {/* List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {filteredAstrologers.map((astro) => (
+          <div key={astro.slug} className={styles.panel} style={{ margin: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ width: '50px', height: '50px', background: '#f4edfb', color: '#65418c', display: 'grid', placeItems: 'center', borderRadius: '50%', fontSize: '24px' }}>
+                  {astro.icon}
                 </div>
-
-                <h3>{astrologer.name}</h3>
-
-                <p className={styles.specialty}>
-                  {astrologer.specialty}
-                </p>
-
-                <p className={styles.description}>
-                  {astrologer.description}
-                </p>
-
-                <div className={styles.meta}>
-                  <span>◷ {astrologer.experience} experience</span>
-                  <span>◎ {astrologer.language}</span>
+                <div>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#30213e' }}>{astro.name}</h3>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>{astro.specialty}</p>
                 </div>
-
-                <div className={styles.cardBottom}>
-                  <div className={styles.price}>
-                    <strong>₹{astrologer.price}</strong>
-                    <small>/ consultation</small>
-                  </div>
-
-                  <Link
-                    href={`/customer/astrologers/${astrologer.slug}`}
-                    className={styles.viewButton}
-                    aria-label={`View profile of ${astrologer.name}`}
-                  >
-                    View Profile ↗
-                  </Link>
-                </div>
-              </article>
-            ))}
+              </div>
+              <span style={{ background: '#fff6df', color: '#c4953c', padding: '4px 8px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }}>
+                ★ {astro.rating}
+              </span>
+            </div>
+            
+            <p style={{ fontSize: '12px', color: '#555', margin: '12px 0' }}>{astro.description}</p>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+              <div>
+                <strong style={{ fontSize: '16px', color: '#30213e' }}>₹{astro.price}</strong>
+                <small style={{ fontSize: '10px', color: '#888' }}> / consult</small>
+              </div>
+              <Link href={`/customer/astrologers/${astro.slug}`} className={styles.primaryButton} style={{ textDecoration: 'none' }}>
+                View Profile <i className="fa-solid fa-arrow-right"></i>
+              </Link>
+            </div>
           </div>
-        ) : (
-          <div className={styles.empty} role="status">
-            <span aria-hidden="true">☾</span>
-            <h3>No astrologers found</h3>
-            <p>
-              Try another name, language or specialty.
-            </p>
-
-            <button type="button" onClick={resetFilters}>
-              Reset filters
-            </button>
-          </div>
-        )}
-
-        <div className={styles.demoNote}>
-          Preview only: astrologer profiles, ratings and prices are
-          sample data.
-        </div>
-      </section>
-
-      <footer className={styles.footer}>
-        ✦ AstroConnect{" "}
-        <span>Your questions, our guidance.</span>
-      </footer>
-    </main>
+        ))}
+      </div>
+    </>
   );
 }

@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Naye Royal Theme ke Fonts
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const cinzel = Cinzel({
   subsets: ["latin"],
+  variable: "--font-cinzel",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "AstroConnect | Your Questions, Our Guidance",
+  title: "JyotishSetu | Find Clarity in Life",
   description:
-    "Find clarity and thoughtful astrology guidance with AstroConnect.",
+    "Connect with experienced astrologers for guidance in love, career, marriage, finance and more.",
 };
 
 export default function RootLayout({
@@ -26,8 +29,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
     >
+      <head>
+        {/* Font Awesome CDN - Icons ke liye zaroori hai */}
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
