@@ -48,9 +48,9 @@ export function LeadStatusActions({ assignmentId, status }: { assignmentId: stri
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           {status === "assigned" && (
-            <Button onClick={() => change("contacted")} loading={pending === "contacted"} disabled={pending !== null}>
+            <Button variant="goldLight" onClick={() => change("contacted")} loading={pending === "contacted"} disabled={pending !== null}>
               Mark as Contacted
             </Button>
           )}

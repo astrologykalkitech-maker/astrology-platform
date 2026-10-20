@@ -9,6 +9,7 @@
 @theme {
   --color-midnight: #151027;
   --color-plum: #29183b;
+  --color-maroon: #55252b;
   --color-teal: #135e5a;
   --color-emerald: #176b50;
   --color-gold: #c49a4a;
@@ -66,7 +67,7 @@ body {
   .celestial-surface {
     background:
       radial-gradient(ellipse at 15% 0%, rgba(196, 154, 74, 0.2), transparent 55%),
-      radial-gradient(ellipse at 95% 100%, rgba(19, 94, 90, 0.28), transparent 55%),
+      radial-gradient(ellipse at 95% 100%, rgba(85, 37, 43, 0.55), transparent 55%),
       radial-gradient(ellipse at 60% 40%, rgba(41, 24, 59, 0.9), transparent 70%),
       linear-gradient(165deg, #151027 0%, #29183b 100%);
   }

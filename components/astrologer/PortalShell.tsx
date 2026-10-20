@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AstrologerHeader } from "@/components/astrologer/AstrologerHeader";
 import { AstrologerSidebar } from "@/components/astrologer/AstrologerSidebar";
+import { BottomNav } from "@/components/astrologer/BottomNav";
 
 type PortalShellProps = {
   displayName: string;
@@ -33,6 +34,8 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
         Skip to content
       </a>
 
+      <BottomNav menuOpen={menuOpen} onMore={() => setMenuOpen(true)} />
+
       {menuOpen && (
         <button
           type="button"
@@ -58,9 +61,9 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 py-6 outline-none sm:px-8 sm:py-8"
+          className="flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
         >
-          <div className="rise-in mx-auto w-full max-w-6xl">{children}</div>
+          <div className="rise-in mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
       </div>
     </div>

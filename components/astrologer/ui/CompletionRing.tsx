@@ -10,7 +10,7 @@ export function CompletionRing({ percent, dark = false }: { percent: number; dar
           strokeDasharray={c} strokeDashoffset={c - (c * percent) / 100}
         />
       </svg>
-      <span className={`absolute inset-0 flex items-center justify-center font-display text-lg font-semibold tabular-nums ${dark ? "text-champagne" : "text-midnight"}`}>
+      <span className={`absolute inset-0 flex items-center justify-center font-display text-lg font-semibold lining-nums tabular-nums ${dark ? "text-champagne" : "text-midnight"}`}>
         {percent}%
       </span>
     </div>

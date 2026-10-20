@@ -1,6 +1,7 @@
 type LogoProps = {
   tone?: "light" | "dark";
   showTagline?: boolean;
+  tagline?: string;
 };
 
 const pt = (r: number, deg: number) => {
@@ -26,7 +27,7 @@ function Emblem({ light }: { light: boolean }) {
   );
 }
 
-export function Logo({ tone = "light", showTagline = true }: LogoProps) {
+export function Logo({ tone = "light", showTagline = true, tagline = "Bridging Wisdom, Connecting Lives" }: LogoProps) {
   const isLight = tone === "light";
 
   return (
@@ -37,8 +38,8 @@ export function Logo({ tone = "light", showTagline = true }: LogoProps) {
           JyotishSetu
         </span>
         {showTagline && (
-          <span className={`text-[10px] tracking-wide ${isLight ? "text-ivory/65" : "text-muted"}`}>
-            Bridging Wisdom, Connecting Lives
+          <span className={`text-[10px] tracking-wide max-[360px]:hidden ${isLight ? "text-ivory/65" : "text-muted"}`}>
+            {tagline}
           </span>
         )}
       </span>
