@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -71,51 +72,65 @@ export default async function ProfilePage() {
       <Card className="overflow-hidden border-gold/30">
         <div aria-hidden="true" className="h-1.5 bg-gradient-to-r from-maroon via-gold to-maroon" />
 
-        <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:p-7">
-          <span className="mx-auto shrink-0 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep p-1 shadow-lg sm:mx-0">
-            <Avatar
-              name={profile.display_name}
-              src={profile.profile_photo_url}
-              size="xl"
-              className="!h-28 !w-28 ring-4 !ring-white sm:!h-32 sm:!w-32"
+        <div className="relative">
+          {/* Painted banner: a short strip on phones, the full card background from tablet up. */}
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 h-28 overflow-hidden sm:inset-0 sm:h-auto">
+            <Image
+              src="/images/jyotishsetu/profile-banner.webp"
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 1024px) 70vw, 100vw"
+              className="object-cover object-[85%_30%] sm:object-[center_45%]"
             />
-          </span>
-
-          <div className="min-w-0 flex-1 text-center sm:text-left">
-            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 sm:justify-start">
-              <h1 className="font-display text-2xl font-semibold text-midnight sm:text-3xl">{profile.display_name}</h1>
-              {approved ? (
-                <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald">
-                  <BadgeCheck className="h-5 w-5" aria-hidden="true" /> Verified
-                </span>
-              ) : (
-                <ApprovalBadge status={profile.approval_status} />
-              )}
-            </div>
-
-            <p className="mt-1.5 text-sm text-ink/85">
-              {profile.specializations.join(", ") || "Add your specializations"}
-            </p>
-
-            <ul className="mt-2.5 space-y-1 text-sm text-muted">
-              <li className="flex items-center justify-center gap-2 sm:justify-start">
-                <Languages className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
-                <span>{profile.languages.join(", ") || "Add your languages"}</span>
-              </li>
-              <li className="flex items-center justify-center gap-2 sm:justify-start">
-                <Briefcase className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
-                <span>Exp: {formatExperience(profile.experience_years)}</span>
-              </li>
-              <li className="flex items-center justify-center gap-2 sm:justify-start">
-                <MapPin className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
-                <span>{formatLocation(profile.city, profile.state)}</span>
-              </li>
-            </ul>
           </div>
 
-          <Link href="/astrologer/profile/edit" className={buttonStyles({ variant: "goldLight", className: "w-full shrink-0 sm:w-auto" })}>
-            <PencilLine className="h-4 w-4" aria-hidden="true" /> Edit Profile
-          </Link>
+          <div className="relative flex flex-col items-center gap-4 px-5 pb-6 pt-14 sm:flex-row sm:gap-6 sm:px-7 sm:py-7">
+            <span className="shrink-0 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep p-1 shadow-lg">
+              <Avatar
+                name={profile.display_name}
+                src={profile.profile_photo_url}
+                size="xl"
+                className="!h-28 !w-28 ring-4 !ring-white sm:!h-32 sm:!w-32"
+              />
+            </span>
+
+            <div className="min-w-0 text-center sm:max-w-[27rem] sm:rounded-2xl sm:bg-ivory/90 sm:p-4 sm:text-left sm:shadow-sm sm:ring-1 sm:ring-gold/25 sm:backdrop-blur-sm">
+              <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 sm:justify-start">
+                <h1 className="font-display text-2xl font-semibold text-midnight">{profile.display_name}</h1>
+                {approved ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-emerald">
+                    <BadgeCheck className="h-5 w-5" aria-hidden="true" /> Verified
+                  </span>
+                ) : (
+                  <ApprovalBadge status={profile.approval_status} />
+                )}
+              </div>
+
+              <p className="mt-1 text-sm text-ink/85">
+                {profile.specializations.join(", ") || "Add your specializations"}
+              </p>
+
+              <ul className="mt-2 space-y-1 text-sm text-ink/70">
+                <li className="flex items-center justify-center gap-2 sm:justify-start">
+                  <Languages className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
+                  <span>{profile.languages.join(", ") || "Add your languages"}</span>
+                </li>
+                <li className="flex items-center justify-center gap-2 sm:justify-start">
+                  <Briefcase className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
+                  <span>Exp: {formatExperience(profile.experience_years)}</span>
+                </li>
+                <li className="flex items-center justify-center gap-2 sm:justify-start">
+                  <MapPin className="h-4 w-4 shrink-0 text-gold-deep" aria-hidden="true" />
+                  <span>{formatLocation(profile.city, profile.state)}</span>
+                </li>
+              </ul>
+
+              <Link href="/astrologer/profile/edit" className={buttonStyles({ variant: "goldLight", size: "sm", className: "mt-3 w-full sm:w-auto" })}>
+                <PencilLine className="h-4 w-4" aria-hidden="true" /> Edit Profile
+              </Link>
+            </div>
+          </div>
         </div>
 
         <dl className="grid grid-cols-2 divide-x divide-y divide-line border-t border-line bg-parchment/50 sm:grid-cols-4 sm:divide-y-0">
