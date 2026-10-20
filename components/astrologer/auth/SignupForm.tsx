@@ -9,20 +9,29 @@ import { Button, buttonStyles } from "@/components/astrologer/ui/Button";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
 import { FormField } from "@/components/astrologer/ui/FormField";
 import { PasswordField } from "@/components/astrologer/ui/PasswordField";
-import {
-  validateEmail,
-  validateFullName,
-  validateNewPassword,
-} from "@/lib/astrologer/form-validation";
+import { validateEmail, validateFullName, validateNewPassword } from "@/lib/astrologer/form-validation";
 
-type FieldErrors = {
-  fullName?: string | null;
-  email?: string | null;
-  password?: string | null;
+type FieldErrors = { fullName?: string | null; email?: string | null; password?: string | null };
+type Role = "astrologer" | "customer";
+
+const COPY: Record<Role, { title: string; subtitle: string; redirect: string; afterConfirm: string }> = {
+  astrologer: {
+    title: "Sign up as an astrologer",
+    subtitle: "Create your account, then set up your professional profile.",
+    redirect: "/astrologer/dashboard",
+    afterConfirm: "Confirm your email, then log in to set up your profile.",
+  },
+  customer: {
+    title: "Sign up as a customer",
+    subtitle: "Create your account to connect with approved astrologers.",
+    redirect: "/",
+    afterConfirm: "Confirm your email, then log in.",
+  },
 };
 
-export function SignupForm() {
+export function SignupForm({ role = "astrologer" }: { role?: Role }) {
   const router = useRouter();
+  const copy = COPY[role];
   const [isPending, startTransition] = useTransition();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -44,13 +53,8 @@ export function SignupForm() {
     if (nextErrors.fullName || nextErrors.email || nextErrors.password) return;
 
     startTransition(async () => {
-      // The role is fixed to "astrologer" on this page.
-      const result = await signUp({
-        full_name: fullName,
-        email,
-        password,
-        role: "astrologer",
-      });
+      // The role is fixed by the page. The server validates it again and never accepts "admin".
+      const result = await signUp({ full_name: fullName, email, password, role });
 
       if (!result.success) {
         setFormError(result.error);
@@ -64,7 +68,7 @@ export function SignupForm() {
         return;
       }
 
-      router.replace("/astrologer/dashboard");
+      router.replace(copy.redirect);
       router.refresh();
     });
   }
@@ -75,18 +79,12 @@ export function SignupForm() {
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-parchment text-gold-deep">
           <MailCheck className="h-7 w-7" aria-hidden="true" />
         </span>
-        <h1 className="mt-4 font-display text-2xl font-semibold text-midnight">
-          Check your email
-        </h1>
+        <h1 className="mt-3 font-display text-2xl font-semibold text-midnight">Check your email</h1>
         <p className="mt-2 text-sm text-muted">
           We sent a confirmation link to{" "}
-          <strong className="break-all text-midnight">{confirmationEmail}</strong>.
-          Confirm your email, then log in to set up your profile.
+          <strong className="break-all text-midnight">{confirmationEmail}</strong>. {copy.afterConfirm}
         </p>
-        <Link
-          href="/astrologer/login"
-          className={buttonStyles({ size: "lg", fullWidth: true, className: "mt-6" })}
-        >
+        <Link href={`/${role}/login`} className={buttonStyles({ size: "lg", fullWidth: true, className: "mt-5" })}>
           Go to login
         </Link>
       </div>
@@ -95,14 +93,10 @@ export function SignupForm() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-semibold text-midnight">
-        Sign up as an astrologer
-      </h1>
-      <p className="mt-1 text-sm text-muted">
-        Create your account, then set up your professional profile.
-      </p>
+      <h1 className="font-display text-2xl font-semibold text-midnight">{copy.title}</h1>
+      <p className="mt-0.5 text-sm text-muted">{copy.subtitle}</p>
 
-      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-3">
         {formError && <FormAlert>{formError}</FormAlert>}
 
         <FormField
@@ -146,10 +140,10 @@ export function SignupForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted">
+      <p className="mt-4 text-center text-sm text-muted">
         Already have an account?{" "}
         <Link
-          href="/astrologer/login"
+          href={`/${role}/login`}
           className="font-semibold text-gold-deep underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-gold"
         >
           Log in

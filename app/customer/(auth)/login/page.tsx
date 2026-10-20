@@ -1,0 +1,21 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { AuthShell } from "@/components/astrologer/auth/AuthShell";
+import { LoginForm } from "@/components/astrologer/auth/LoginForm";
+import { getCurrentProfile } from "@/lib/auth/session";
+
+export const metadata: Metadata = { title: "Customer Login" };
+
+export default async function CustomerLoginPage() {
+  // Already signed in as a customer: skip the login screen.
+  const profile = await getCurrentProfile();
+  if (profile?.role === "customer") {
+    redirect("/");
+  }
+
+  return (
+    <AuthShell mode="login" role="customer">
+      <LoginForm role="customer" />
+    </AuthShell>
+  );
+}
