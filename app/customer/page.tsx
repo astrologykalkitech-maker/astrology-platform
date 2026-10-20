@@ -1,5 +1,4 @@
 "use client";
-
 import React from 'react';
 import Link from 'next/link';
 import styles from './customer.module.css';
@@ -7,75 +6,75 @@ import styles from './customer.module.css';
 export default function CustomerDashboard() {
   return (
     <>
-      <div className={styles.welcome}>
-        <p className={styles.eyebrow}>YOUR PERSONAL COSMIC SPACE</p>
-        <h1>Welcome, Dolly ✦</h1>
-        <p className={styles.muted}>A little clarity can open a world of possibilities.</p>
-        <span className={styles.datePill}>☼ Your journey, your pace</span>
-      </div>
-
       <section className={styles.hero}>
-        <div className={styles.heroText}>
-          <p className={styles.heroEyebrow}>YOUR JOURNEY STARTS HERE</p>
-          <h2>Find clarity. <br/>Discover your <em>path.</em></h2>
-          <p>Share your questions and take the next step.</p>
-          <Link href="/customer/astrologers" className={styles.primaryButton} style={{ textDecoration: 'none' }}>
-            Find Astrologers <i className="fa-solid fa-arrow-right"></i>
-          </Link>
-        </div>
+        <h1>Welcome back,<br/>Dolly Vishwakarma</h1>
+        <p>Find clarity and guidance for your life decisions with the wisdom of Vedic Astrology.</p>
       </section>
 
-      <div className={styles.sectionTitle}>
-        <h2>Enquiries at a glance</h2>
-        <p>Keep track of your guidance journey.</p>
-      </div>
-
-      <div className={styles.stats}>
-        <Stat title="Total" value={3} icon="▤" tone="purple" />
-        <Stat title="Pending" value={1} icon="◷" tone="orange" />
-        <Stat title="Assigned" value={1} icon="✧" tone="blue" />
-        <Stat title="Completed" value={1} icon="✓" tone="green" />
-      </div>
-
-      <section className={styles.panel}>
-        <div className={styles.panelHeading}>
-          <h2>Recent Enquiries</h2>
-          {/* YAHAN FIX KIYA HAI: /customer/chats ko /customer/enquiries kiya hai */}
-          <Link href="/customer/enquiries" className={styles.outlineButton} style={{ textDecoration: 'none' }}>
-            View All
-          </Link>
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <div className={styles.statIcon} style={{ background: '#f3e8ff', color: '#9333ea' }}><i className="fa-solid fa-list"></i></div>
+          <div className={styles.statInfo}><small>Total Enquiries</small><strong>03</strong></div>
         </div>
-        <div className={styles.tableWrap}>
-          <table>
-            <thead><tr><th>ID</th><th>Category</th><th>Status</th></tr></thead>
+        <div className={styles.statCard}>
+          <div className={styles.statIcon} style={{ background: '#ffedd5', color: '#ea580c' }}><i className="fa-solid fa-clock"></i></div>
+          <div className={styles.statInfo}><small>Pending</small><strong>01</strong></div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statIcon} style={{ background: '#dbeafe', color: '#2563eb' }}><i className="fa-solid fa-spinner"></i></div>
+          <div className={styles.statInfo}><small>Assigned</small><strong>01</strong></div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statIcon} style={{ background: '#dcfce7', color: '#16a34a' }}><i className="fa-solid fa-check"></i></div>
+          <div className={styles.statInfo}><small>Completed</small><strong>01</strong></div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <h3>Recent Enquiries</h3>
+            <Link href="/customer/enquiries" style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none', fontWeight: 600 }}>View All</Link>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>ID</th><th>Category</th><th>Date</th><th>Status</th></tr>
+            </thead>
             <tbody>
               <tr>
-                <td>ENQ-103</td>
+                <td style={{ fontWeight: 600 }}>ENQ-103</td>
                 <td>Career</td>
-                <td><span className={`${styles.status} ${styles.pending}`}>Pending</span></td>
+                <td>14 Oct 2026</td>
+                <td><span className={`${styles.badge} ${styles['badge-pending']}`}>Pending</span></td>
               </tr>
               <tr>
-                <td>ENQ-102</td>
+                <td style={{ fontWeight: 600 }}>ENQ-102</td>
                 <td>Love</td>
-                <td><span className={`${styles.status} ${styles.assigned}`}>Assigned</span></td>
+                <td>12 Oct 2026</td>
+                <td><span className={`${styles.badge} ${styles['badge-assigned']}`}>Assigned</span></td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600 }}>ENQ-101</td>
+                <td>Health</td>
+                <td>09 Oct 2026</td>
+                <td><span className={`${styles.badge} ${styles['badge-completed']}`}>Completed</span></td>
               </tr>
             </tbody>
           </table>
         </div>
-      </section>
-    </>
-  );
-}
 
-function Stat({ title, value, icon, tone }: { title: string, value: number, icon: string, tone: string }) {
-  const toneClass = { purple: styles.purple, orange: styles.orange, blue: styles.blue, green: styles.green }[tone];
-  return (
-    <article className={styles.stat}>
-      <span className={`${styles.statIcon} ${toneClass}`}>{icon}</span>
-      <div>
-        <small>{title}</small>
-        <strong>{value}</strong>
+        <div className={styles.card}>
+          <div className={styles.cardHeader}><h3>Quick Actions</h3></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <Link href="/customer/astrologers" className={styles.btnGold} style={{ justifyContent: 'center' }}>
+              <i className="fa-solid fa-magnifying-glass"></i> Find Astrologers
+            </Link>
+            <Link href="/customer/enquiries/new" className={styles.btnGold} style={{ justifyContent: 'center', background: '#fff', color: 'var(--gold)', border: '1px solid var(--gold)' }}>
+              <i className="fa-solid fa-plus"></i> New Enquiry
+            </Link>
+          </div>
+        </div>
       </div>
-    </article>
+    </>
   );
 }
