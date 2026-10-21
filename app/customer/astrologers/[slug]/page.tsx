@@ -60,7 +60,7 @@ export default function AstrologerProfilePage() {
       if (!Array.isArray(parsed) || !parsed.every(isCustomerDemoBooking)) throw new Error("Invalid format");
       localStorage.setItem(CUSTOMER_BOOKINGS_STORAGE_KEY, JSON.stringify([booking, ...parsed]));
       setSavedBooking(true);
-    } catch (error) {
+    } catch {
       setBookingNotice("Could not save booking.");
     }
   }

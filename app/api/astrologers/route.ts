@@ -110,7 +110,10 @@ export async function GET(request: Request) {
           city,
           state,
           consultation_fee,
-          profile_photo_url
+          profile_photo_url,
+          is_featured,
+          featured_until,
+          ranking_priority
         `,
         { count: "exact" }
       )
@@ -138,8 +141,11 @@ export async function GET(request: Request) {
       query = query.lte("consultation_fee", maxFee);
     }
 
+    // Owner-governed public ranking: featured listings first, then highest priority score, then newest
     const { data, error, count } = await query
-      .order("display_name", { ascending: true })
+      .order("is_featured", { ascending: false })
+      .order("ranking_priority", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(from, from + limit - 1);
 
     if (error) {

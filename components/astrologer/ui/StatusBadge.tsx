@@ -11,9 +11,13 @@ const TONES: Record<Tone, string> = {
 };
 
 const APPROVAL: Record<ApprovalStatus, { label: string; tone: Tone }> = {
+  draft: { label: "Draft", tone: "gray" },
   pending: { label: "Pending review", tone: "amber" },
+  changes_requested: { label: "Changes requested", tone: "amber" },
   approved: { label: "Approved", tone: "green" },
   rejected: { label: "Rejected", tone: "red" },
+  suspended: { label: "Suspended", tone: "red" },
+  archived: { label: "Archived", tone: "gray" },
 };
 
 const ASSIGNMENT: Record<AssignmentStatus, { label: string; tone: Tone }> = {

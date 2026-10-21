@@ -33,8 +33,8 @@ function NewEnquiryForm() {
       
       router.push('/customer/enquiries');
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit enquiry.");
     } finally {
       setLoading(false);
     }

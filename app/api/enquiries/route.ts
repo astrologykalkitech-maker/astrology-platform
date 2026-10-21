@@ -1,9 +1,20 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isValidUUID } from "@/lib/validations/lead";
 
 type EnquiryBody = {
   astrologer_id?: unknown;
   subject?: unknown;
   message?: unknown;
+  source_type?: unknown;
+  source_url?: unknown;
+  utm_source?: unknown;
+  utm_medium?: unknown;
+  utm_campaign?: unknown;
+  customer_name?: unknown;
+  contact_email?: unknown;
+  contact_phone?: unknown;
+  priority?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -19,18 +30,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const { astrologer_id, subject, message } = body;
+    const {
+      astrologer_id,
+      subject,
+      message,
+      source_url,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      customer_name,
+      contact_email,
+      contact_phone,
+      priority,
+    } = body;
 
-    if (
-      typeof astrologer_id !== "string" ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(astrologer_id)
-    ) {
-      return Response.json(
-        { error: "Valid astrologer_id is required." },
-        { status: 400 }
-      );
-    }
-
+    // Validate subject & message
     if (
       typeof subject !== "string" ||
       !subject.trim() ||
@@ -67,70 +81,142 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: astrologer, error: astrologerError } = await supabase
-      .from("astrologer_profiles")
+    // Determine lead type: direct or platform
+    let targetAstrologerId: string | null = null;
+    let isDirectLead = false;
+
+    if (astrologer_id && typeof astrologer_id === "string") {
+      if (!isValidUUID(astrologer_id)) {
+        return Response.json(
+          { error: "Valid astrologer_id is required." },
+          { status: 400 }
+        );
+      }
+
+      // Verify approved astrologer
+      const { data: astrologer, error: astrologerError } = await supabase
+        .from("astrologer_profiles")
+        .select("id")
+        .eq("id", astrologer_id)
+        .eq("approval_status", "approved")
+        .maybeSingle();
+
+      if (astrologerError || !astrologer) {
+        return Response.json(
+          { error: "Approved astrologer not found." },
+          { status: 404 }
+        );
+      }
+
+      targetAstrologerId = astrologer.id;
+      isDirectLead = true;
+    }
+
+    // Anti-duplication check: prevent duplicate submissions within 60 seconds
+    const adminSupabase = await createAdminClient();
+    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+
+    const { data: duplicateLead } = await adminSupabase
+      .from("leads")
       .select("id")
-      .eq("id", astrologer_id)
-      .eq("approval_status", "approved")
+      .eq("customer_id", user.id)
+      .eq("subject", subject.trim())
+      .gte("created_at", oneMinuteAgo)
       .maybeSingle();
 
-    if (astrologerError) {
-      console.error("Astrologer lookup failed:", astrologerError.message);
+    if (duplicateLead) {
       return Response.json(
-        { error: "Unable to verify astrologer." },
-        { status: 500 }
+        {
+          error: "An identical enquiry was recently received. Please wait a moment before submitting again.",
+          lead_id: duplicateLead.id,
+        },
+        { status: 429 }
       );
     }
 
-    if (!astrologer) {
-      return Response.json(
-        { error: "Approved astrologer not found." },
-        { status: 404 }
-      );
-    }
+    // Fetch direct lead routing policy from platform settings
+    const { data: directPolicyRow } = await adminSupabase
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "direct_lead_routing_policy")
+      .maybeSingle();
 
-    const { data: profile, error: profileError } = await supabase
+    const directRoutingPolicy = (directPolicyRow?.value as string) ?? "immediate_route";
+
+    const { data: profile } = await supabase
       .from("profiles")
-      .select("id, role")
+      .select("id, role, full_name")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profileError) {
-      console.error("Customer profile lookup failed:", profileError.message);
-      return Response.json(
-        { error: "Unable to verify customer profile." },
-        { status: 500 }
-      );
-    }
+    const validatedCustomerName =
+      (typeof customer_name === "string" && customer_name.trim()) ||
+      profile?.full_name ||
+      "Platform Customer";
 
-    if (!profile || profile.role !== "customer") {
-      return Response.json(
-        { error: "A customer account is required to submit an enquiry." },
-        { status: 403 }
-      );
-    }
+    // Direct lead status depends on policy:
+    // If 'immediate_route', mark 'assigned'. If 'require_moderation', leave 'new' in central inbox.
+    const shouldImmediatelyAssign = isDirectLead && directRoutingPolicy === "immediate_route";
+    const initialStatus = shouldImmediatelyAssign ? "assigned" : "new";
 
-    const { data, error } = await supabase
+    // Insert lead into central table
+    const leadInsertPayload = {
+      customer_id: user.id,
+      astrologer_id: targetAstrologerId,
+      subject: subject.trim(),
+      message: message.trim(),
+      status: initialStatus,
+      source_type: isDirectLead ? "direct" : "platform",
+      source_url: typeof source_url === "string" ? source_url.slice(0, 500) : null,
+      utm_source: typeof utm_source === "string" ? utm_source.slice(0, 100) : null,
+      utm_medium: typeof utm_medium === "string" ? utm_medium.slice(0, 100) : null,
+      utm_campaign: typeof utm_campaign === "string" ? utm_campaign.slice(0, 100) : null,
+      customer_name: validatedCustomerName,
+      contact_email: typeof contact_email === "string" ? contact_email.trim() : user.email ?? null,
+      contact_phone: typeof contact_phone === "string" ? contact_phone.trim() : null,
+      priority: typeof priority === "string" && ["low", "medium", "high", "urgent"].includes(priority) ? priority : "medium",
+      qualification_status: "unqualified",
+    };
+
+    const { data: lead, error: insertError } = await adminSupabase
       .from("leads")
-      .insert({
-        customer_id: user.id,
-        astrologer_id,
-        subject: subject.trim(),
-        message: message.trim(),
-        status: "new",
-      })
-      .select("id, customer_id, astrologer_id, subject, message, status, created_at")
+      .insert(leadInsertPayload)
+      .select("*")
       .single();
 
-    if (error) {
-      console.error("Enquiry creation failed:", error.message);
+    if (insertError || !lead) {
+      console.error("Lead creation failed:", insertError?.message);
       return Response.json(
-        { error: "Unable to create enquiry. Please check your account permissions." },
+        { error: "Unable to create enquiry. Please try again." },
         { status: 500 }
       );
     }
 
-    return Response.json({ data }, { status: 201 });
+    // If direct lead and immediate routing policy is active, create assignment and record initial assignment history
+    if (shouldImmediatelyAssign && targetAstrologerId) {
+      const { error: assignError } = await adminSupabase.from("lead_assignments").insert({
+        lead_id: lead.id,
+        astrologer_id: targetAstrologerId,
+        status: "assigned",
+      });
+
+      if (assignError) {
+        console.error("Direct lead assignment record failed:", assignError.message);
+      }
+
+      const { error: histError } = await adminSupabase.from("lead_assignment_history").insert({
+        lead_id: lead.id,
+        new_astrologer_id: targetAstrologerId,
+        action: "assign",
+        reason: "Direct customer enquiry to listing (immediate_route policy)",
+      });
+
+      if (histError) {
+        console.error("Direct lead assignment history failed:", histError.message);
+      }
+    }
+
+    return Response.json({ data: lead }, { status: 201 });
   } catch (error) {
     console.error("Enquiry API error:", error);
     return Response.json(
