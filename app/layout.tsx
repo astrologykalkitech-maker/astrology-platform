@@ -1,36 +1,24 @@
-import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Inter, Playfair_Display } from "next/font/google";
+import type { Metadata } from "next";
+import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 
+// Naye Royal Theme ke Fonts
 const inter = Inter({
+  subsets: ["latin"],
   variable: "--font-inter",
-  subsets: ["latin"],
   display: "swap",
 });
 
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
+const cinzel = Cinzel({
   subsets: ["latin"],
+  variable: "--font-cinzel",
   display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "JyotishSetu",
-    template: "%s | JyotishSetu",
-  },
-  description: "JyotishSetu: bridging wisdom, connecting lives.",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
+  title: "JyotishSetu | Find Clarity in Life",
+  description:
+    "Connect with experienced astrologers for guidance in love, career, marriage, finance and more.",
 };
 
 export default function RootLayout({
@@ -41,8 +29,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${playfair.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
     >
+      <head>
+        {/* Font Awesome CDN - Icons ke liye zaroori hai */}
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
