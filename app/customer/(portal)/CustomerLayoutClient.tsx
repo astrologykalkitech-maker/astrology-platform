@@ -2,17 +2,35 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { signOut } from '@/app/actions/auth';
 import styles from './customer.module.css';
 
-export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+interface CustomerLayoutClientProps {
+  children: React.ReactNode;
+  customerName: string;
+  userInitial: string;
+}
 
-  // Tumhare purane routes waise hi hain
+export default function CustomerLayoutClient({
+  children,
+  customerName,
+  userInitial,
+}: CustomerLayoutClientProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+
   const isHome = pathname === '/customer';
   const isEnquiries = pathname.includes('/enquiries');
   const isOffers = pathname.includes('/offers');
-  const isProfile = pathname.includes('/login') || pathname.includes('/profile');
+  const isAstrologers = pathname.includes('/astrologers');
+  const isBookings = pathname.includes('/bookings');
+
+  async function handleSignOut() {
+    await signOut();
+    router.push('/customer/login');
+    router.refresh();
+  }
 
   return (
     <div className={styles.layoutWrapper}>
@@ -37,12 +55,22 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             <Link href="/customer/enquiries" className={`${styles.navItem} ${isEnquiries ? styles.active : ''}`}>
               <i className="fa-solid fa-clipboard-list"></i> Enquiries
             </Link>
+            <Link href="/customer/astrologers" className={`${styles.navItem} ${isAstrologers ? styles.active : ''}`}>
+              <i className="fa-solid fa-user-astronaut"></i> Astrologers
+            </Link>
+            <Link href="/customer/bookings" className={`${styles.navItem} ${isBookings ? styles.active : ''}`}>
+              <i className="fa-solid fa-calendar-check"></i> Bookings
+            </Link>
             <Link href="/customer/offers" className={`${styles.navItem} ${isOffers ? styles.active : ''}`}>
               <i className="fa-solid fa-gift"></i> Offers
             </Link>
-            <Link href="/customer/login" className={`${styles.navItem} ${isProfile ? styles.active : ''}`}>
-              <i className="fa-regular fa-user"></i> Profile
-            </Link>
+            <button
+              onClick={handleSignOut}
+              className={styles.navItem}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+            </button>
           </div>
 
           <div className={styles.sidebarFooter}>
@@ -57,8 +85,17 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <i className="fa-solid fa-wand-magic-sparkles"></i> AstroConnect
         </Link>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <Link href="/customer/notification" style={{ color: '#f4d79e' }}><i className="fa-regular fa-bell" style={{ fontSize: '18px' }}></i></Link>
-          <Link href="/customer/login" className={styles.profileIcon} style={{ width: '30px', height: '30px', fontSize: '12px' }}>D</Link>
+          <Link href="/customer/notification" style={{ color: '#f4d79e' }}>
+            <i className="fa-regular fa-bell" style={{ fontSize: '18px' }}></i>
+          </Link>
+          <button
+            onClick={handleSignOut}
+            className={styles.profileIcon}
+            style={{ width: '30px', height: '30px', fontSize: '12px', border: 'none', cursor: 'pointer' }}
+            title="Sign Out"
+          >
+            {userInitial}
+          </button>
         </div>
       </header>
 
@@ -72,10 +109,21 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             <input type="text" placeholder="Search astrologers, services..." />
           </div>
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <Link href="/customer/notification" style={{ color: '#666' }}><i className="fa-regular fa-bell" style={{ fontSize: '18px', cursor: 'pointer' }}></i></Link>
+            <Link href="/customer/notification" style={{ color: '#666' }}>
+              <i className="fa-regular fa-bell" style={{ fontSize: '18px', cursor: 'pointer' }}></i>
+            </Link>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>Dolly Vishwakarma</span>
-              <Link href="/customer/login" className={styles.profileIcon} style={{ width: '35px', height: '35px', fontSize: '14px' }}>D</Link>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>
+                {customerName}
+              </span>
+              <button
+                onClick={handleSignOut}
+                className={styles.profileIcon}
+                style={{ width: '35px', height: '35px', fontSize: '14px', border: 'none', cursor: 'pointer' }}
+                title="Click to sign out"
+              >
+                {userInitial}
+              </button>
             </div>
           </div>
         </div>
@@ -100,10 +148,14 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           <i className="fa-solid fa-gift"></i>
           <span>Offers</span>
         </Link>
-        <Link href="/customer/login" className={`${styles.bottomNavItem} ${isProfile ? styles.active : ''}`}>
-          <i className="fa-regular fa-user"></i>
-          <span>Profile</span>
-        </Link>
+        <button
+          onClick={handleSignOut}
+          className={styles.bottomNavItem}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+        >
+          <i className="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>Logout</span>
+        </button>
       </nav>
 
     </div>

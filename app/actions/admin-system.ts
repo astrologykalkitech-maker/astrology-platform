@@ -9,6 +9,7 @@ import { requireAdminPermission, requireSuperAdmin } from "@/lib/auth/admin-guar
 import { logAdminAction } from "@/lib/admin/audit";
 import type { AdminAuditLog, PlatformSetting } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
+import { validatePlatformSettingValue } from "@/lib/validations/admin";
 
 export interface AuditLogsFilter {
   action?: string;
@@ -69,11 +70,11 @@ export async function getAdminAuditLogs(
 }
 
 /**
- * Fetch all platform settings.
+ * Fetch all platform settings (Super Admin only).
  */
 export async function getPlatformSettings(): Promise<AuthResult<PlatformSetting[]>> {
   try {
-    await requireAdminPermission("listing.read");
+    await requireSuperAdmin();
 
     const supabase = await createAdminClient();
     const { data, error } = await supabase
@@ -105,16 +106,9 @@ export async function updatePlatformSetting(
   try {
     const { user, profile } = await requireSuperAdmin();
 
-    const allowedSettings = new Set([
-      "lead_auto_distribution_enabled",
-      "lead_routing_priority",
-      "max_open_leads_per_consultant",
-      "direct_lead_routing_policy",
-      "maintenance_mode",
-    ]);
-
-    if (!allowedSettings.has(key)) {
-      return { success: false, error: `Invalid platform setting key: ${key}` };
+    const validation = validatePlatformSettingValue(key, value);
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
     }
 
     const supabase = await createAdminClient();

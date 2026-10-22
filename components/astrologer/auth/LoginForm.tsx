@@ -55,6 +55,19 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
         return;
       }
 
+      // Route users to their appropriate dashboard based on their role
+      if (result.data.role === "super_admin" || result.data.role === "admin") {
+        router.replace("/super-admin");
+        router.refresh();
+        return;
+      }
+
+      if (result.data.role === "consultant_admin") {
+        router.replace("/admin");
+        router.refresh();
+        return;
+      }
+
       // The role comes from public.profiles. An account of the wrong type must not stay signed in here.
       if (result.data.role !== role) {
         await signOut();

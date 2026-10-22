@@ -17,15 +17,22 @@ export interface LogAdminActionParams {
   ipAddress?: string | null;
 }
 
+export interface AuditLogResult {
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Records an immutable administrative audit log entry.
- * Never throws an uncaught error to prevent breaking user flows.
+ * Explicitly inspects Supabase error return value and guarantees error visibility.
  */
-export async function logAdminAction(params: LogAdminActionParams): Promise<void> {
+export async function logAdminAction(
+  params: LogAdminActionParams
+): Promise<AuditLogResult> {
   try {
     const supabase = await createAdminClient();
 
-    await supabase.from("admin_audit_logs").insert({
+    const { error } = await supabase.from("admin_audit_logs").insert({
       actor_id: params.actorId,
       actor_role: params.actorRole,
       action: params.action,
@@ -37,7 +44,20 @@ export async function logAdminAction(params: LogAdminActionParams): Promise<void
       ip_address: params.ipAddress ?? null,
       outcome: params.outcome ?? "success",
     });
+
+    if (error) {
+      console.error("[AdminAuditLog Insert Error]", {
+        action: params.action,
+        error: error.message,
+        code: error.code,
+      });
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
   } catch (err) {
-    console.error("[AdminAuditLog Error]", err);
+    const message = err instanceof Error ? err.message : "Failed to write audit log";
+    console.error("[AdminAuditLog Exception]", message);
+    return { success: false, error: message };
   }
 }

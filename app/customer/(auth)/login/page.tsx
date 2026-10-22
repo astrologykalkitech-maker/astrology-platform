@@ -7,10 +7,19 @@ import { getCurrentProfile } from "@/lib/auth/session";
 export const metadata: Metadata = { title: "Customer Login" };
 
 export default async function CustomerLoginPage() {
-  // Already signed in as a customer: skip the login screen.
+  // Already signed in: redirect to appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect("/");
+    redirect("/customer");
+  }
+  if (profile?.role === "super_admin" || profile?.role === "admin") {
+    redirect("/super-admin");
+  }
+  if (profile?.role === "consultant_admin") {
+    redirect("/admin");
+  }
+  if (profile?.role === "astrologer") {
+    redirect("/astrologer/dashboard");
   }
 
   return (

@@ -84,6 +84,25 @@ export default function AstrologerProfilePage() {
               <span>{astrologer.languages}</span>
             </div>
             <p className={styles.description}>{astrologer.description}</p>
+            <div style={{ marginTop: '15px' }}>
+              <Link
+                href={`/customer/enquiries/new?astrologerName=${encodeURIComponent(astrologer.name)}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  background: 'var(--gold)',
+                  color: '#fff',
+                  textDecoration: 'none',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                }}
+              >
+                <i className="fa-solid fa-paper-plane"></i> Contact This Astrologer
+              </Link>
+            </div>
           </div>
         </div>
 

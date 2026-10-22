@@ -99,7 +99,10 @@ export async function updateConsultantPermissions(
     const oldPerms = (beforePerms ?? []).map((p) => p.permission_key);
 
     // Remove existing permissions
-    await supabase.from("admin_permissions").delete().eq("user_id", userId);
+    const { error: deleteErr } = await supabase.from("admin_permissions").delete().eq("user_id", userId);
+    if (deleteErr) {
+      return { success: false, error: `Failed to clear previous permissions: ${deleteErr.message}` };
+    }
 
     // Insert new permissions
     if (permissions.length > 0) {
@@ -112,7 +115,17 @@ export async function updateConsultantPermissions(
       const { error: insertErr } = await supabase.from("admin_permissions").insert(rows);
 
       if (insertErr) {
-        return { success: false, error: insertErr.message };
+        // Attempt compensation: restore old permissions to avoid leaving account stripped of permissions
+        if (oldPerms.length > 0) {
+          await supabase.from("admin_permissions").insert(
+            oldPerms.map((p) => ({
+              user_id: userId,
+              permission_key: p,
+              granted_by: user.id,
+            }))
+          );
+        }
+        return { success: false, error: `Failed to grant permissions: ${insertErr.message}` };
       }
     }
 
@@ -188,7 +201,7 @@ export async function inviteConsultantAdmin(
     const newUserId = inviteData.user.id;
 
     // Ensure public.profiles record has consultant_admin role
-    await supabase.from("profiles").upsert(
+    const { error: profileErr } = await supabase.from("profiles").upsert(
       {
         id: newUserId,
         full_name: fullName,
@@ -196,6 +209,14 @@ export async function inviteConsultantAdmin(
       },
       { onConflict: "id" }
     );
+
+    if (profileErr) {
+      console.error("[Invite Consultant Profile Error]", profileErr);
+      return {
+        success: false,
+        error: `Invitation was generated, but profile creation failed: ${profileErr.message}`,
+      };
+    }
 
     // Audit log
     await logAdminAction({

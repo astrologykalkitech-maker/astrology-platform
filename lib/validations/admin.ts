@@ -267,3 +267,57 @@ export function validateConsultantPermissionsInput(raw: unknown): AdminValidatio
     },
   };
 }
+
+/**
+ * Validates platform setting values per known key schema.
+ */
+export function validatePlatformSettingValue(
+  key: string,
+  value: unknown
+): AdminValidationResult<{ key: string; value: unknown }> {
+  switch (key) {
+    case "lead_auto_distribution_enabled":
+    case "maintenance_mode": {
+      if (typeof value !== "boolean") {
+        return { valid: false, error: `Setting '${key}' must be a boolean (true or false).` };
+      }
+      return { valid: true, data: { key, value } };
+    }
+
+    case "max_open_leads_per_consultant": {
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 500) {
+        return {
+          valid: false,
+          error: "Setting 'max_open_leads_per_consultant' must be an integer between 1 and 500.",
+        };
+      }
+      return { valid: true, data: { key, value } };
+    }
+
+    case "direct_lead_routing_policy": {
+      const allowed = new Set(["immediate_route", "require_moderation"]);
+      if (typeof value !== "string" || !allowed.has(value)) {
+        return {
+          valid: false,
+          error: "Setting 'direct_lead_routing_policy' must be either 'immediate_route' or 'require_moderation'.",
+        };
+      }
+      return { valid: true, data: { key, value } };
+    }
+
+    case "lead_routing_priority": {
+      const allowed = new Set(["round_robin", "capacity", "specialization", "balanced"]);
+      if (typeof value !== "string" || !allowed.has(value)) {
+        return {
+          valid: false,
+          error: "Setting 'lead_routing_priority' must be one of: 'round_robin', 'capacity', 'specialization', 'balanced'.",
+        };
+      }
+      return { valid: true, data: { key, value } };
+    }
+
+    default:
+      return { valid: false, error: `Unrecognized platform setting key: '${key}'.` };
+  }
+}
+

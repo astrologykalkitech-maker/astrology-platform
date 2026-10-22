@@ -30,7 +30,6 @@ export async function getPublicApprovedAstrologers(
       .from("astrologer_profiles")
       .select(SAFE_PUBLIC_FIELDS)
       .eq("approval_status", "approved")
-      .order("is_featured", { ascending: false })
       .order("ranking_priority", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -62,7 +61,27 @@ export async function getPublicApprovedAstrologers(
       return [];
     }
 
-    return data as unknown as PublicAstrologerProfile[];
+    const rawItems = (data as unknown as PublicAstrologerProfile[]) ?? [];
+    const now = Date.now();
+
+    const isCurrentlyFeatured = (item: PublicAstrologerProfile): boolean => {
+      if (!item.is_featured) return false;
+      if (!item.featured_until) return true; // Permanent placement if null
+      return new Date(item.featured_until).getTime() > now;
+    };
+
+    // Sort by: 1. Active featured (desc), 2. Priority score (desc), 3. Created time (desc)
+    rawItems.sort((a, b) => {
+      const aFeatured = isCurrentlyFeatured(a);
+      const bFeatured = isCurrentlyFeatured(b);
+      if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
+      const aPriority = a.ranking_priority ?? 0;
+      const bPriority = b.ranking_priority ?? 0;
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      return 0;
+    });
+
+    return rawItems;
   } catch (err) {
     console.error("[Public Query Exception: getPublicApprovedAstrologers]", err);
     return [];

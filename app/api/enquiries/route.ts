@@ -1,28 +1,26 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { isValidUUID } from "@/lib/validations/lead";
-
-type EnquiryBody = {
-  astrologer_id?: unknown;
-  subject?: unknown;
-  message?: unknown;
-  source_type?: unknown;
-  source_url?: unknown;
-  utm_source?: unknown;
-  utm_medium?: unknown;
-  utm_campaign?: unknown;
-  customer_name?: unknown;
-  contact_email?: unknown;
-  contact_phone?: unknown;
-  priority?: unknown;
-};
+import { validateEnquiryInput } from "@/lib/validations/enquiry";
+import { checkRateLimit, extractClientIp } from "@/lib/security/rate-limit";
 
 export async function POST(request: Request) {
   try {
-    let body: EnquiryBody;
+    // 1. Abuse & Rate Limit Check by Client IP
+    const clientIp = extractClientIp(request);
+    const ipRateLimit = checkRateLimit(`enquiry:ip:${clientIp}`, 10, 60_000);
+    if (!ipRateLimit.allowed) {
+      return Response.json(
+        { error: "Too many enquiries submitted. Please wait before trying again." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(ipRateLimit.retryAfterSeconds) },
+        }
+      );
+    }
 
+    // 2. Parse JSON body safely
+    let rawBody: unknown;
     try {
-      body = (await request.json()) as EnquiryBody;
+      rawBody = await request.json();
     } catch {
       return Response.json(
         { error: "Invalid JSON request body." },
@@ -30,45 +28,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const {
-      astrologer_id,
-      subject,
-      message,
-      source_url,
-      utm_source,
-      utm_medium,
-      utm_campaign,
-      customer_name,
-      contact_email,
-      contact_phone,
-      priority,
-    } = body;
-
-    // Validate subject & message
-    if (
-      typeof subject !== "string" ||
-      !subject.trim() ||
-      subject.trim().length > 200
-    ) {
+    // 3. Schema validation, bounds, and sanitization
+    const validation = validateEnquiryInput(rawBody);
+    if (!validation.valid) {
       return Response.json(
-        { error: "Subject is required and must be at most 200 characters." },
+        { error: validation.error },
         { status: 400 }
       );
     }
 
-    if (
-      typeof message !== "string" ||
-      !message.trim() ||
-      message.trim().length > 5000
-    ) {
-      return Response.json(
-        { error: "Message is required and must be at most 5000 characters." },
-        { status: 400 }
-      );
-    }
+    const input = validation.data;
 
+    // 4. Authenticate caller and enforce 'customer' role
     const supabase = await createClient();
-
     const {
       data: { user },
       error: authError,
@@ -76,151 +48,103 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
       return Response.json(
-        { error: "Please log in to submit an enquiry." },
+        { error: "Please log in as a customer to submit an enquiry." },
         { status: 401 }
       );
     }
 
-    // Determine lead type: direct or platform
-    let targetAstrologerId: string | null = null;
-    let isDirectLead = false;
-
-    if (astrologer_id && typeof astrologer_id === "string") {
-      if (!isValidUUID(astrologer_id)) {
-        return Response.json(
-          { error: "Valid astrologer_id is required." },
-          { status: 400 }
-        );
-      }
-
-      // Verify approved astrologer
-      const { data: astrologer, error: astrologerError } = await supabase
-        .from("astrologer_profiles")
-        .select("id")
-        .eq("id", astrologer_id)
-        .eq("approval_status", "approved")
-        .maybeSingle();
-
-      if (astrologerError || !astrologer) {
-        return Response.json(
-          { error: "Approved astrologer not found." },
-          { status: 404 }
-        );
-      }
-
-      targetAstrologerId = astrologer.id;
-      isDirectLead = true;
-    }
-
-    // Anti-duplication check: prevent duplicate submissions within 60 seconds
-    const adminSupabase = await createAdminClient();
-    const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
-
-    const { data: duplicateLead } = await adminSupabase
-      .from("leads")
-      .select("id")
-      .eq("customer_id", user.id)
-      .eq("subject", subject.trim())
-      .gte("created_at", oneMinuteAgo)
-      .maybeSingle();
-
-    if (duplicateLead) {
-      return Response.json(
-        {
-          error: "An identical enquiry was recently received. Please wait a moment before submitting again.",
-          lead_id: duplicateLead.id,
-        },
-        { status: 429 }
-      );
-    }
-
-    // Fetch direct lead routing policy from platform settings
-    const { data: directPolicyRow } = await adminSupabase
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "direct_lead_routing_policy")
-      .maybeSingle();
-
-    const directRoutingPolicy = (directPolicyRow?.value as string) ?? "immediate_route";
-
-    const { data: profile } = await supabase
+    // Verify role is strictly 'customer'
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, role, full_name")
       .eq("id", user.id)
       .maybeSingle();
 
-    const validatedCustomerName =
-      (typeof customer_name === "string" && customer_name.trim()) ||
-      profile?.full_name ||
-      "Platform Customer";
-
-    // Direct lead status depends on policy:
-    // If 'immediate_route', mark 'assigned'. If 'require_moderation', leave 'new' in central inbox.
-    const shouldImmediatelyAssign = isDirectLead && directRoutingPolicy === "immediate_route";
-    const initialStatus = shouldImmediatelyAssign ? "assigned" : "new";
-
-    // Insert lead into central table
-    const leadInsertPayload = {
-      customer_id: user.id,
-      astrologer_id: targetAstrologerId,
-      subject: subject.trim(),
-      message: message.trim(),
-      status: initialStatus,
-      source_type: isDirectLead ? "direct" : "platform",
-      source_url: typeof source_url === "string" ? source_url.slice(0, 500) : null,
-      utm_source: typeof utm_source === "string" ? utm_source.slice(0, 100) : null,
-      utm_medium: typeof utm_medium === "string" ? utm_medium.slice(0, 100) : null,
-      utm_campaign: typeof utm_campaign === "string" ? utm_campaign.slice(0, 100) : null,
-      customer_name: validatedCustomerName,
-      contact_email: typeof contact_email === "string" ? contact_email.trim() : user.email ?? null,
-      contact_phone: typeof contact_phone === "string" ? contact_phone.trim() : null,
-      priority: typeof priority === "string" && ["low", "medium", "high", "urgent"].includes(priority) ? priority : "medium",
-      qualification_status: "unqualified",
-    };
-
-    const { data: lead, error: insertError } = await adminSupabase
-      .from("leads")
-      .insert(leadInsertPayload)
-      .select("*")
-      .single();
-
-    if (insertError || !lead) {
-      console.error("Lead creation failed:", insertError?.message);
+    if (profileError || !profile) {
       return Response.json(
-        { error: "Unable to create enquiry. Please try again." },
-        { status: 500 }
+        { error: "User profile could not be loaded." },
+        { status: 403 }
       );
     }
 
-    // If direct lead and immediate routing policy is active, create assignment and record initial assignment history
-    if (shouldImmediatelyAssign && targetAstrologerId) {
-      const { error: assignError } = await adminSupabase.from("lead_assignments").insert({
-        lead_id: lead.id,
-        astrologer_id: targetAstrologerId,
-        status: "assigned",
-      });
-
-      if (assignError) {
-        console.error("Direct lead assignment record failed:", assignError.message);
-      }
-
-      const { error: histError } = await adminSupabase.from("lead_assignment_history").insert({
-        lead_id: lead.id,
-        new_astrologer_id: targetAstrologerId,
-        action: "assign",
-        reason: "Direct customer enquiry to listing (immediate_route policy)",
-      });
-
-      if (histError) {
-        console.error("Direct lead assignment history failed:", histError.message);
-      }
+    if (profile.role !== "customer") {
+      return Response.json(
+        { error: "Access denied. Only customers can submit consultations and enquiries." },
+        { status: 403 }
+      );
     }
 
-    return Response.json({ data: lead }, { status: 201 });
+    // User-level rate limiting
+    const userRateLimit = checkRateLimit(`enquiry:user:${user.id}`, 5, 60_000);
+    if (!userRateLimit.allowed) {
+      return Response.json(
+        { error: "Submission rate limit reached. Please wait a moment." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(userRateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
+    // 5. Execute canonical atomic transactional lead capture RPC
+    // submit_customer_enquiry handles:
+    // - Deduplication within 60s (concurrency-safe rollback)
+    // - Target astrologer approval verification
+    // - Platform settings direct routing policy resolution
+    // - Atomic creation of lead, assignment, and assignment history in one transaction
+    const { data: createdLead, error: rpcError } = await supabase.rpc(
+      "submit_customer_enquiry",
+      {
+        p_subject: input.subject,
+        p_message: input.message,
+        p_astrologer_id: input.astrologer_id,
+        p_source_type: input.source_type,
+        p_source_url: input.source_url,
+        p_utm_source: input.utm_source,
+        p_utm_medium: input.utm_medium,
+        p_utm_campaign: input.utm_campaign,
+        p_customer_name: input.customer_name || profile.full_name,
+        p_contact_email: input.contact_email || user.email,
+        p_contact_phone: input.contact_phone,
+        p_priority: input.priority,
+      }
+    );
+
+    if (rpcError) {
+      // Analyze PostgreSQL error codes
+      if (rpcError.code === "23505" || rpcError.message.includes("identical enquiry")) {
+        return Response.json(
+          { error: "An identical enquiry was recently received. Please wait a moment before submitting again." },
+          { status: 429 }
+        );
+      }
+
+      if (rpcError.code === "P0002" || rpcError.message.includes("Approved astrologer")) {
+        return Response.json(
+          { error: "Approved astrologer listing not found." },
+          { status: 404 }
+        );
+      }
+
+      if (rpcError.code === "42501") {
+        return Response.json(
+          { error: "Permission denied." },
+          { status: 403 }
+        );
+      }
+
+      console.error("[Transactional Lead Capture RPC Error]", rpcError);
+      return Response.json(
+        { error: rpcError.message || "Failed to submit enquiry." },
+        { status: 400 }
+      );
+    }
+
+    return Response.json({ data: createdLead }, { status: 201 });
   } catch (error) {
-    console.error("Enquiry API error:", error);
+    console.error("[Enquiry API Fatal Exception]", error);
     return Response.json(
-      { error: "An unexpected error occurred." },
+      { error: "An unexpected error occurred while processing your enquiry." },
       { status: 500 }
     );
   }

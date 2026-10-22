@@ -272,7 +272,7 @@ export async function assignLead(
   rawInput: unknown
 ): Promise<AuthResult<{ leadId: string; newStatus: LeadStatus }>> {
   try {
-    const { user, profile } = await requireAdminPermission("lead.assign");
+    await requireAdminPermission("lead.assign");
 
     const validation = validateLeadAssignmentInput(rawInput);
     if (!validation.valid) {
@@ -302,119 +302,45 @@ export async function assignLead(
       }
     }
 
-    // Try transactional RPC first
+    // Execute canonical atomic transactional lead assignment RPC.
+    // The RPC handles:
+    // - FOR UPDATE row-level locking on public.leads
+    // - Verification of recipient eligibility (approval_status = 'approved')
+    // - Authorization check (super_admin or lead.assign permission)
+    // - Atomic update of leads, lead_assignments, lead_assignment_history, and admin_audit_logs
     const { data: rpcData, error: rpcError } = await supabase.rpc("perform_atomic_lead_assignment", {
       p_lead_id: leadId,
       p_target_astrologer_id: astrologerId,
       p_reason: reason ?? null,
     });
 
-    if (!rpcError && rpcData) {
+    if (rpcError) {
+      console.error("[Atomic Lead Assignment RPC Error]", {
+        leadId,
+        astrologerId,
+        error: rpcError.message,
+        code: rpcError.code,
+      });
+
       return {
-        success: true,
-        data: {
-          leadId,
-          newStatus: rpcData.status as LeadStatus,
-        },
+        success: false,
+        error: rpcError.message || "Failed to assign lead via atomic transaction.",
       };
     }
 
-    // Fallback: Safe server-side atomic sequence if RPC is not yet applied to database
-    const { data: beforeLead, error: fetchErr } = await supabase
-      .from("leads")
-      .select("id, status, astrologer_id, assigned_to")
-      .eq("id", leadId)
-      .single();
-
-    if (fetchErr || !beforeLead) {
-      return { success: false, error: "Lead not found." };
+    if (!rpcData || !rpcData.success) {
+      return {
+        success: false,
+        error: "Atomic lead assignment transaction failed to commit.",
+      };
     }
-
-    const previousAstrologerId = beforeLead.astrologer_id;
-    const isUnassigning = astrologerId === null;
-    const newStatus: LeadStatus = isUnassigning ? "new" : "assigned";
-
-    // Update lead record
-    const { error: updateErr } = await supabase
-      .from("leads")
-      .update({
-        astrologer_id: astrologerId,
-        status: newStatus,
-        assigned_at: isUnassigning ? null : new Date().toISOString(),
-        override_reason: reason ?? null,
-      })
-      .eq("id", leadId);
-
-    if (updateErr) {
-      return { success: false, error: updateErr.message };
-    }
-
-    // Manage lead_assignments record
-    if (isUnassigning) {
-      if (previousAstrologerId) {
-        await supabase
-          .from("lead_assignments")
-          .delete()
-          .eq("lead_id", leadId)
-          .eq("astrologer_id", previousAstrologerId);
-      }
-    } else {
-      // Upsert assignment record for the astrologer
-      await supabase.from("lead_assignments").upsert(
-        {
-          lead_id: leadId,
-          astrologer_id: astrologerId,
-          status: "assigned",
-        },
-        { onConflict: "lead_id,astrologer_id" }
-      );
-
-      // Clean up old assignment record if reassigned
-      if (previousAstrologerId && previousAstrologerId !== astrologerId) {
-        await supabase
-          .from("lead_assignments")
-          .delete()
-          .eq("lead_id", leadId)
-          .eq("astrologer_id", previousAstrologerId);
-      }
-    }
-
-    // Record assignment history
-    const actionType = isUnassigning
-      ? "unassign"
-      : previousAstrologerId
-      ? "reassign"
-      : "assign";
-
-    const { error: histError } = await supabase.from("lead_assignment_history").insert({
-      lead_id: leadId,
-      previous_astrologer_id: previousAstrologerId,
-      new_astrologer_id: astrologerId,
-      assigned_by: user.id,
-      action: actionType,
-      reason: reason ?? null,
-    });
-
-    if (histError) {
-      console.error("Assignment history recording failed:", histError.message);
-    }
-
-    // Record admin audit
-    await logAdminAction({
-      actorId: user.id,
-      actorRole: profile.role,
-      action: `lead.${actionType}`,
-      targetType: "lead",
-      targetId: leadId,
-      reason,
-      beforeState: { astrologer_id: previousAstrologerId, status: beforeLead.status },
-      afterState: { astrologer_id: astrologerId, status: newStatus },
-      outcome: "success",
-    });
 
     return {
       success: true,
-      data: { leadId, newStatus },
+      data: {
+        leadId,
+        newStatus: rpcData.status as LeadStatus,
+      },
     };
   } catch (err) {
     return {
