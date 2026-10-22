@@ -1,21 +1,34 @@
 import React from "react";
 import Link from "next/link";
+import {
+  Plus,
+  ClipboardList,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  MessageSquare,
+} from "lucide-react";
 import { getCustomerEnquiries } from "@/app/actions/customer";
-import styles from "../customer.module.css";
+import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
 export const dynamic = "force-dynamic";
+
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function EnquiriesPage() {
   const result = await getCustomerEnquiries();
 
   if (!result.success || !result.data) {
     return (
-      <div className={styles.card} style={{ padding: "30px", textAlign: "center" }}>
-        <h2 style={{ color: "#b91c1c", marginBottom: "10px" }}>Unable to load enquiries</h2>
-        <p style={{ color: "#666", marginBottom: "20px" }}>
+      <div className={`${CARD} p-8 text-center`}>
+        <h2 className="text-xl font-semibold text-red-600 mb-2">Unable to load enquiries</h2>
+        <p className="text-sm text-muted mb-5">
           {result.error || "An error occurred while loading your enquiries."}
         </p>
-        <Link href="/customer/enquiries" className={styles.btnGold}>
+        <Link href="/customer/enquiries" className={buttonStyles({ variant: "gold" })}>
           Retry
         </Link>
       </div>
@@ -25,58 +38,60 @@ export default async function EnquiriesPage() {
   const enquiries = result.data;
 
   return (
-    <>
-      <div className={styles.cardHeader} style={{ borderBottom: "none", marginBottom: "20px", paddingBottom: 0 }}>
+    <div className="space-y-5">
+      {/* Header bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 style={{ fontFamily: "var(--font-cinzel)", margin: 0, fontSize: "24px", color: "var(--text-dark)" }}>
-            My Enquiries ✦
-          </h1>
-          <p style={{ margin: "5px 0 0 0", color: "var(--text-muted)", fontSize: "13px" }}>
-            Track your consultations and questions with Vedic astrologers.
+          <CardTitle>My Enquiries & Consultations</CardTitle>
+          <p className="text-xs text-muted mt-1">
+            Track all your consultations, questions, and responses from Vedic astrologers.
           </p>
+        </div>
+        <div>
+          <Link
+            href="/customer/enquiries/new"
+            className={buttonStyles({ variant: "gold", size: "sm" })}
+          >
+            <Plus className="h-4 w-4" /> Ask for Guidance
+          </Link>
         </div>
       </div>
 
-      <div style={{ marginBottom: "20px" }}>
-        <Link
-          href="/customer/enquiries/new"
-          className={styles.btnGold}
-          style={{ textDecoration: "none" }}
-        >
-          <i className="fa-solid fa-plus"></i> Submit New Enquiry
-        </Link>
-      </div>
-
+      {/* Main Enquiries List */}
       {enquiries.length === 0 ? (
-        <div className={styles.card} style={{ padding: "50px 20px", textAlign: "center", color: "var(--text-muted)" }}>
-          <i className="fa-regular fa-clipboard" style={{ fontSize: "36px", marginBottom: "15px", display: "block", color: "var(--gold)" }}></i>
-          <h3 style={{ margin: "0 0 8px 0", color: "var(--text-dark)", fontSize: "18px" }}>No enquiries found</h3>
-          <p style={{ margin: "0 0 20px 0", fontSize: "14px" }}>You have not submitted any questions or consultation requests yet.</p>
-          <Link href="/customer/enquiries/new" className={styles.btnGold}>
-            <i className="fa-solid fa-plus"></i> Submit Your First Enquiry
+        <div className={`${CARD} py-16 px-6 text-center`}>
+          <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gold/15 text-gold-deep mb-4">
+            <ClipboardList className="h-8 w-8" />
+          </span>
+          <h2 className="text-lg font-semibold text-midnight">No Enquiries Found</h2>
+          <p className="text-sm text-muted max-w-md mx-auto mt-1 mb-6">
+            You haven&apos;t asked any astrological questions yet. Submit your query to get comprehensive Vedic analysis.
+          </p>
+          <Link href="/customer/enquiries/new" className={buttonStyles({ variant: "gold" })}>
+            <Plus className="h-4 w-4" /> Submit Your First Enquiry
           </Link>
         </div>
       ) : (
-        <div className={styles.card} style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table className={styles.table}>
+        <div className={`${CARD} overflow-hidden p-0`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
               <thead>
-                <tr>
-                  <th>Subject</th>
-                  <th>Message Preview</th>
-                  <th>Astrologer</th>
-                  <th>Submitted Date</th>
-                  <th>Status</th>
+                <tr className="border-b border-gold/20 bg-parchment/40 text-xs font-semibold uppercase tracking-wider text-muted">
+                  <th className="py-3.5 px-4">Subject</th>
+                  <th className="py-3.5 px-4">Message Preview</th>
+                  <th className="py-3.5 px-4">Assigned Astrologer</th>
+                  <th className="py-3.5 px-4">Submitted Date</th>
+                  <th className="py-3.5 px-4 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gold/10">
                 {enquiries.map((item) => {
-                  const statusClass =
+                  const statusBadge =
                     item.status === "new"
-                      ? styles["badge-pending"]
+                      ? "bg-amber-100 text-amber-800 border-amber-200"
                       : item.status === "assigned"
-                      ? styles["badge-assigned"]
-                      : styles["badge-completed"];
+                      ? "bg-sky-100 text-sky-800 border-sky-200"
+                      : "bg-emerald-100 text-emerald-800 border-emerald-200";
 
                   const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
                     day: "2-digit",
@@ -87,18 +102,24 @@ export default async function EnquiriesPage() {
                   });
 
                   return (
-                    <tr key={item.id}>
-                      <td style={{ fontWeight: 600, color: "var(--text-dark)", minWidth: "150px" }}>
+                    <tr key={item.id} className="hover:bg-parchment/30 transition-colors">
+                      <td className="py-4 px-4 font-semibold text-midnight max-w-[220px]">
                         {item.subject}
                       </td>
-                      <td style={{ color: "var(--text-muted)", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <td className="py-4 px-4 text-ink/75 max-w-[320px] truncate">
                         {item.message}
                       </td>
-                      <td>{item.astrologer_name || "Platform General"}</td>
-                      <td style={{ fontSize: "12px", color: "#666" }}>{displayDate}</td>
-                      <td>
-                        <span className={`${styles.badge} ${statusClass}`}>
-                          {item.status.toUpperCase()}
+                      <td className="py-4 px-4 text-ink font-medium">
+                        {item.astrologer_name || "Platform General Pool"}
+                      </td>
+                      <td className="py-4 px-4 text-xs text-muted whitespace-nowrap">
+                        {displayDate}
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <span
+                          className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadge}`}
+                        >
+                          {item.status}
                         </span>
                       </td>
                     </tr>
@@ -109,6 +130,6 @@ export default async function EnquiriesPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

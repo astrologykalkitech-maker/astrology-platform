@@ -1,10 +1,15 @@
 import React from "react";
 import Link from "next/link";
+import { ArrowLeft, Bell, BellOff, ArrowRight } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { getCustomerEnquiries } from "@/app/actions/customer";
-import styles from "../customer.module.css";
+import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
 export const dynamic = "force-dynamic";
+
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function NotificationsPage() {
   await requireCustomerPage();
@@ -17,38 +22,42 @@ export default async function NotificationsPage() {
   );
 
   return (
-    <>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "15px" }}>
-        <Link href="/customer" style={{ color: "var(--gold)" }}>
-          <i className="fa-solid fa-arrow-left"></i>
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <Link
+          href="/customer"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors"
+          aria-label="Back to dashboard"
+        >
+          <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 style={{ fontSize: "22px", color: "var(--text-dark)", margin: 0, fontFamily: "var(--font-cinzel)" }}>
-          Notifications ✦
-        </h1>
+        <div>
+          <CardTitle>Activity & Notifications</CardTitle>
+          <p className="text-xs text-muted">
+            Status notifications, consultation updates, and astrologer communications.
+          </p>
+        </div>
       </div>
 
       {recentUpdates.length === 0 ? (
-        <div className={styles.card} style={{ padding: "40px 20px", textAlign: "center" }}>
-          <i
-            className="fa-regular fa-bell-slash"
-            style={{ fontSize: "36px", marginBottom: "15px", display: "block", color: "var(--gold)" }}
-          ></i>
-          <h3 style={{ margin: "0 0 10px 0", color: "var(--text-dark)", fontSize: "18px" }}>
-            All Caught Up
-          </h3>
-          <p style={{ margin: "0 auto 20px auto", color: "var(--text-muted)", fontSize: "14px", maxWidth: "480px" }}>
-            You have no new notifications. You will receive updates here when an astrologer replies or your enquiry status changes.
+        <div className={`${CARD} py-16 px-6 text-center`}>
+          <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gold/15 text-gold-deep mb-4">
+            <BellOff className="h-8 w-8" />
+          </span>
+          <h2 className="text-lg font-semibold text-midnight">All Caught Up</h2>
+          <p className="text-xs text-muted max-w-md mx-auto mt-1 mb-6">
+            You have no unread notifications. Updates will appear here as soon as an astrologer reviews your enquiry.
           </p>
-          <Link href="/customer/enquiries" className={styles.btnGold}>
-            <i className="fa-solid fa-clipboard-list"></i> View My Enquiries
+          <Link href="/customer/enquiries" className={buttonStyles({ variant: "gold", size: "sm" })}>
+            View My Enquiries
           </Link>
         </div>
       ) : (
-        <div className={styles.card} style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-            <h3 style={{ margin: 0, fontSize: "15px", color: "var(--text-dark)" }}>Recent Activity & Updates</h3>
+        <div className={`${CARD} p-0 overflow-hidden`}>
+          <div className="p-4 sm:p-5 border-b border-gold/20 bg-parchment/30">
+            <h3 className="text-sm font-semibold text-midnight">Recent Activity Feed</h3>
           </div>
-          <div>
+          <div className="divide-y divide-gold/10">
             {recentUpdates.slice(0, 10).map((item) => {
               const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
                 day: "2-digit",
@@ -56,70 +65,42 @@ export default async function NotificationsPage() {
                 year: "numeric",
               });
 
-              const isClosed = item.status === "closed";
-              const isAssigned = item.status === "assigned";
-
               return (
                 <div
                   key={item.id}
-                  style={{
-                    padding: "16px 20px",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "15px",
-                    borderBottom: "1px solid var(--border)",
-                  }}
+                  className="p-4 sm:p-5 flex items-start gap-4 hover:bg-parchment/30 transition-colors"
                 >
-                  <div
-                    style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "50%",
-                      display: "grid",
-                      placeItems: "center",
-                      background: isAssigned ? "#dbeafe" : isClosed ? "#dcfce7" : "#fef3c7",
-                      color: isAssigned ? "#2563eb" : isClosed ? "#16a34a" : "#d97706",
-                      fontSize: "14px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <i
-                      className={
-                        isClosed
-                          ? "fa-solid fa-check"
-                          : isAssigned
-                          ? "fa-solid fa-user-check"
-                          : "fa-regular fa-paper-plane"
-                      }
-                    ></i>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
-                      <strong style={{ fontSize: "14px", color: "var(--text-dark)" }}>
-                        {isAssigned
-                          ? "Enquiry Assigned to Astrologer"
-                          : isClosed
-                          ? "Consultation Completed"
-                          : "Enquiry Submitted"}
-                      </strong>
-                      <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{displayDate}</span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold-deep">
+                    <Bell className="h-5 w-5" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-midnight truncate">
+                        {item.subject}
+                      </p>
+                      <span className="text-[11px] text-muted whitespace-nowrap">{displayDate}</span>
                     </div>
-                    <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "var(--text-muted)" }}>
-                      {item.subject} &bull; {item.astrologer_name || "Platform Guidance"}
+                    <p className="text-xs text-ink/75 mt-0.5">
+                      Status is currently{" "}
+                      <span className="font-semibold text-gold-deep uppercase">
+                        {item.status}
+                      </span>
+                      {item.astrologer_name ? ` with ${item.astrologer_name}` : " in platform review"}.
                     </p>
-                    <Link
-                      href="/customer/enquiries"
-                      style={{ fontSize: "12px", color: "var(--gold)", textDecoration: "none", fontWeight: 600 }}
-                    >
-                      View in Enquiries &rarr;
-                    </Link>
                   </div>
+                  <Link
+                    href="/customer/enquiries"
+                    className="shrink-0 p-2 text-muted hover:text-gold-deep transition-colors"
+                    aria-label="View enquiry details"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
               );
             })}
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

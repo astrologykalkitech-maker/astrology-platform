@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
-import CustomerLayoutClient from "./CustomerLayoutClient";
+import { CustomerShell } from "@/components/customer/CustomerShell";
 
 export const metadata = {
-  title: "Customer Portal | AstroConnect",
-  description: "Customer portal for connecting with certified Vedic astrologers.",
+  title: "Customer Portal | JyotishSetu",
+  description: "Customer portal for divine Vedic astrology consultations, verified astrologers, and enquiries.",
 };
 
 export default async function CustomerLayout({
@@ -18,8 +18,8 @@ export default async function CustomerLayout({
   const userInitial = (customerName[0] || "C").toUpperCase();
 
   return (
-    <CustomerLayoutClient customerName={customerName} userInitial={userInitial}>
+    <CustomerShell customerName={customerName} userInitial={userInitial}>
       {children}
-    </CustomerLayoutClient>
+    </CustomerShell>
   );
 }

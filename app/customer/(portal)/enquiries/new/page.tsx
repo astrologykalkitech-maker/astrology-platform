@@ -1,15 +1,27 @@
 "use client";
 
-import React, { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import styles from '../../customer.module.css';
+import React, { useState, Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Sparkles,
+  Users,
+  Send,
+  AlertCircle,
+  HelpCircle,
+} from "lucide-react";
+import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
-function NewEnquiryForm() {
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
+
+function NewEnquiryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const preFilledAstrologerId = searchParams.get('astrologerId') || "";
-  const preFilledAstrologerName = searchParams.get('astrologerName') || "";
+  const preFilledAstrologerId = searchParams.get("astrologerId") || "";
+  const preFilledAstrologerName = searchParams.get("astrologerName") || "";
 
   const [enquiryMode, setEnquiryMode] = useState<"platform" | "direct">(() =>
     preFilledAstrologerId ? "direct" : "platform"
@@ -20,6 +32,13 @@ function NewEnquiryForm() {
   const [priority, setPriority] = useState("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (preFilledAstrologerId) {
+      setEnquiryMode("direct");
+      setAstrologerId(preFilledAstrologerId);
+    }
+  }, [preFilledAstrologerId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,18 +53,18 @@ function NewEnquiryForm() {
         astrologer_id: enquiryMode === "direct" && astrologerId ? astrologerId : null,
       };
 
-      const res = await fetch('/api/enquiries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/enquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(json.error || "Failed to submit enquiry.");
       }
-      
-      router.push('/customer/enquiries');
+
+      router.push("/customer/enquiries");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit enquiry.");
@@ -55,180 +74,160 @@ function NewEnquiryForm() {
   }
 
   return (
-    <>
-      <div className={styles.cardHeader} style={{ borderBottom: 'none', marginBottom: '20px', paddingBottom: 0 }}>
+    <div className="space-y-5 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3">
+        <Link
+          href="/customer/enquiries"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors"
+          aria-label="Back to enquiries"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-cinzel)', margin: 0, fontSize: '24px', color: 'var(--text-dark)' }}>
-            Ask for Guidance ✦
-          </h1>
-          <p style={{ margin: '5px 0 0 0', color: 'var(--text-muted)', fontSize: '13px' }}>
-            Submit a question to our Vedic astrology panel or consult with a selected astrologer.
+          <CardTitle>Ask for Divine Guidance</CardTitle>
+          <p className="text-xs text-muted">
+            Submit your personal life, marriage, health, or career question to our panel.
           </p>
         </div>
       </div>
 
-      <div className={styles.card} style={{ maxWidth: '640px' }}>
-        {/* Enquiry Destination Mode Toggle */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: '#f8fafc', padding: '6px', borderRadius: '10px' }}>
+      <div className={`${CARD} p-6 sm:p-8`}>
+        {/* Destination Mode Selector */}
+        <div className="mb-6 rounded-xl border border-gold/20 bg-parchment/50 p-1.5 flex gap-2">
           <button
             type="button"
             onClick={() => {
               setEnquiryMode("platform");
               setAstrologerId("");
             }}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '13px',
-              transition: '0.2s',
-              background: enquiryMode === "platform" ? 'var(--gold)' : 'transparent',
-              color: enquiryMode === "platform" ? '#fff' : 'var(--text-dark)',
-            }}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+              enquiryMode === "platform"
+                ? "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight shadow"
+                : "text-ink/75 hover:bg-white/60"
+            }`}
           >
-            <i className="fa-solid fa-users" style={{ marginRight: '8px' }}></i> Ask the Platform
+            <Users className="h-4 w-4" />
+            Platform General Pool
           </button>
           <button
             type="button"
             onClick={() => setEnquiryMode("direct")}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '8px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '13px',
-              transition: '0.2s',
-              background: enquiryMode === "direct" ? 'var(--gold)' : 'transparent',
-              color: enquiryMode === "direct" ? '#fff' : 'var(--text-dark)',
-            }}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition-all ${
+              enquiryMode === "direct"
+                ? "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight shadow"
+                : "text-ink/75 hover:bg-white/60"
+            }`}
           >
-            <i className="fa-solid fa-user-astronaut" style={{ marginRight: '8px' }}></i> Specific Astrologer
+            <Sparkles className="h-4 w-4" />
+            Direct Astrologer
           </button>
         </div>
 
         {error && (
-          <div style={{ padding: '12px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: '8px', marginBottom: '18px', fontSize: '13px' }}>
-            <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '8px' }}></i> {error}
+          <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           {enquiryMode === "direct" && (
-            <div className={styles.formGroup}>
-              <label>Target Astrologer</label>
-              {preFilledAstrologerName ? (
-                <div style={{ padding: '10px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', fontSize: '13px', color: '#166534', marginBottom: '8px' }}>
-                  <i className="fa-solid fa-check" style={{ marginRight: '6px' }}></i> Consulting with <strong>{preFilledAstrologerName}</strong>
-                </div>
-              ) : (
-                <div style={{ marginBottom: '8px' }}>
-                  <input 
-                    type="text" 
-                    value={astrologerId} 
-                    onChange={(e) => setAstrologerId(e.target.value)} 
-                    placeholder="Astrologer UUID (e.g. from astrologer directory)"
-                    required={enquiryMode === "direct"}
-                  />
-                  <small style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                    Tip: You can also choose an astrologer directly from the <Link href="/customer/astrologers" style={{ color: 'var(--gold)' }}>Astrologer Directory</Link>.
-                  </small>
-                </div>
-              )}
+            <div>
+              <label htmlFor="astrologerId" className="block text-xs font-semibold uppercase tracking-wide text-ink/80 mb-1.5">
+                Target Astrologer {preFilledAstrologerName ? `(${preFilledAstrologerName})` : ""}
+              </label>
+              <input
+                id="astrologerId"
+                type="text"
+                required={enquiryMode === "direct"}
+                placeholder="Paste Astrologer Profile ID or UUID"
+                value={astrologerId}
+                onChange={(e) => setAstrologerId(e.target.value)}
+                className="w-full rounded-xl border border-gold/30 bg-parchment/20 px-4 py-2.5 text-sm text-midnight placeholder:text-muted focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+              />
+              <p className="mt-1 text-[11px] text-muted">
+                You can select an astrologer directly from the <Link href="/customer/astrologers" className="text-gold-deep underline">Astrologers directory</Link>.
+              </p>
             </div>
           )}
 
-          {enquiryMode === "platform" && (
-            <div style={{ padding: '12px 16px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', fontSize: '13px', color: '#1e40af', marginBottom: '18px' }}>
-              <i className="fa-solid fa-circle-info" style={{ marginRight: '6px' }}></i> <strong>Platform Enquiry:</strong> Your question will be reviewed by our central panel and routed to the most suited certified astrologer.
-            </div>
-          )}
-
-          <div className={styles.formGroup}>
-            <label>Subject / Topic</label>
-            <input 
-              type="text" 
-              value={subject} 
-              onChange={(e) => setSubject(e.target.value)} 
-              placeholder="e.g. Career transition timing or Kundli compatibility" 
-              maxLength={200}
-              required 
+          <div>
+            <label htmlFor="subject" className="block text-xs font-semibold uppercase tracking-wide text-ink/80 mb-1.5">
+              Question Subject
+            </label>
+            <input
+              id="subject"
+              type="text"
+              required
+              minLength={3}
+              maxLength={120}
+              placeholder="e.g. Career Transition & Favorable Muhurat for 2026"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="w-full rounded-xl border border-gold/30 bg-parchment/20 px-4 py-2.5 text-sm text-midnight placeholder:text-muted focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             />
           </div>
 
-          <div className={styles.formGroup}>
-            <label>Urgency Level</label>
+          <div>
+            <label htmlFor="priority" className="block text-xs font-semibold uppercase tracking-wide text-ink/80 mb-1.5">
+              Priority Level
+            </label>
             <select
+              id="priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontSize: '14px',
-                background: '#fff',
-                color: '#333',
-              }}
+              className="w-full rounded-xl border border-gold/30 bg-parchment/20 px-4 py-2.5 text-sm text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             >
-              <option value="low">Low — General inquiry</option>
-              <option value="medium">Medium — Standard guidance (Recommended)</option>
-              <option value="high">High — Important life decision</option>
-              <option value="urgent">Urgent — Immediate concern</option>
+              <option value="low">Standard / Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High (Urgent Guidance)</option>
             </select>
           </div>
 
-          <div className={styles.formGroup}>
-            <label>Your Question & Details</label>
-            <textarea 
-              value={message} 
-              onChange={(e) => setMessage(e.target.value)} 
-              placeholder="Provide birth details (Date, Time, Place of birth) and your detailed question for accurate Vedic analysis..." 
-              rows={6} 
-              maxLength={5000}
-              required 
+          <div>
+            <label htmlFor="message" className="block text-xs font-semibold uppercase tracking-wide text-ink/80 mb-1.5">
+              Your Details & Context
+            </label>
+            <textarea
+              id="message"
+              required
+              rows={5}
+              minLength={10}
+              maxLength={1500}
+              placeholder="Please provide your date of birth, time of birth, place of birth, and any specific questions you would like analyzed..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full rounded-xl border border-gold/30 bg-parchment/20 px-4 py-2.5 text-sm text-midnight placeholder:text-muted focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
             />
-            <small style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-              Max 5,000 characters.
-            </small>
+            <p className="mt-1 text-[11px] text-muted text-right">
+              {message.length} / 1500 characters
+            </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-            <button type="submit" className={styles.btnGold} disabled={loading} style={{ flex: 1, justifyContent: 'center' }}>
-              {loading ? (
-                <span><i className="fa-solid fa-spinner fa-spin"></i> Submitting...</span>
-              ) : (
-                <span><i className="fa-solid fa-paper-plane"></i> Submit Enquiry</span>
-              )}
-            </button>
-            <Link
-              href="/customer/enquiries"
-              className={styles.btnGold}
-              style={{
-                flex: 1,
-                justifyContent: 'center',
-                background: '#fff',
-                color: 'var(--gold)',
-                border: '1px solid var(--gold)',
-              }}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className={buttonStyles({
+                variant: "gold",
+                size: "lg",
+                fullWidth: true,
+              })}
             >
-              Cancel
-            </Link>
+              <Send className="h-4 w-4" />
+              {loading ? "Submitting Request..." : "Send Consultation Request"}
+            </button>
           </div>
         </form>
       </div>
-    </>
+    </div>
   );
 }
 
 export default function NewEnquiryPage() {
   return (
-    <Suspense fallback={<p style={{ padding: 20 }}>Loading enquiry form...</p>}>
-      <NewEnquiryForm />
+    <Suspense fallback={<div className="p-8 text-center text-muted">Loading form...</div>}>
+      <NewEnquiryContent />
     </Suspense>
   );
 }
