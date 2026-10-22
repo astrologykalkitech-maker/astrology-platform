@@ -54,8 +54,8 @@ export async function getCustomerDashboardData(): Promise<
   AuthResult<CustomerDashboardSummary>
 > {
   try {
-    const { user, profile } = await requireCustomerContext();
-    const supabase = await createClient();
+    const { user, profile, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
 
     // Query authenticated customer's own leads only
     const { data: leads, error } = await supabase
@@ -132,8 +132,8 @@ export async function getCustomerEnquiries(): Promise<
   AuthResult<CustomerEnquiryItem[]>
 > {
   try {
-    const { user } = await requireCustomerContext();
-    const supabase = await createClient();
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
 
     const { data: leads, error } = await supabase
       .from("leads")
@@ -181,3 +181,105 @@ export async function getCustomerEnquiries(): Promise<
     };
   }
 }
+
+/**
+ * Server Action to submit an enquiry reliably using authenticated customer context.
+ * Automatically inserts lead and lead_assignment when targeting an astrologer.
+ */
+export async function submitCustomerEnquiryAction(payload: {
+  subject: string;
+  message: string;
+  priority?: string;
+  astrologer_id?: string | null;
+  source_type?: string;
+  source_url?: string;
+}): Promise<AuthResult<{ id: string }>> {
+  try {
+    const { user, profile, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const subject = (payload.subject || "").trim();
+    const message = (payload.message || "").trim();
+    const astrologer_id = payload.astrologer_id || null;
+    const priority = payload.priority || "medium";
+
+    if (!subject || subject.length > 200) {
+      return { success: false, error: "Subject is required (max 200 characters)." };
+    }
+    if (!message || message.length > 5000) {
+      return { success: false, error: "Message is required (max 5000 characters)." };
+    }
+
+    // Try canonical RPC first if installed in database
+    const { data: rpcLead, error: rpcErr } = await supabase.rpc(
+      "submit_customer_enquiry",
+      {
+        p_subject: subject,
+        p_message: message,
+        p_astrologer_id: astrologer_id,
+        p_source_type: astrologer_id ? "direct" : (payload.source_type || "platform"),
+        p_source_url: payload.source_url || null,
+        p_utm_source: null,
+        p_utm_medium: null,
+        p_utm_campaign: null,
+        p_customer_name: profile.full_name || "Customer",
+        p_contact_email: user.email,
+        p_contact_phone: null,
+        p_priority: priority,
+      }
+    );
+
+    if (!rpcErr && rpcLead) {
+      return { success: true, data: { id: rpcLead.id } };
+    }
+
+    // Direct table fallback: Customer inserts directly with status 'new'
+    const { data: lead, error: insertError } = await supabase
+      .from("leads")
+      .insert({
+        customer_id: user.id,
+        astrologer_id: astrologer_id,
+        subject,
+        message,
+        status: "new",
+        source_type: astrologer_id ? "direct" : "platform",
+        priority,
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !lead) {
+      return {
+        success: false,
+        error: insertError?.message || "Failed to submit enquiry.",
+      };
+    }
+
+    // If an astrologer was directly targeted, create lead assignment using service role client
+    if (astrologer_id) {
+      try {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const adminDb = await createAdminClient();
+        await adminDb.from("lead_assignments").insert({
+          lead_id: lead.id,
+          astrologer_id: astrologer_id,
+          status: "assigned",
+        });
+      } catch {
+        // Log silently; central inbox will route
+      }
+    }
+
+    return {
+      success: true,
+      data: { id: lead.id },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        err instanceof Error ? err.message : "An unexpected error occurred while submitting enquiry.",
+    };
+  }
+}
+

@@ -111,9 +111,7 @@ export async function GET(request: Request) {
           state,
           consultation_fee,
           profile_photo_url,
-          is_featured,
-          featured_until,
-          ranking_priority
+          created_at
         `,
         { count: "exact" }
       )
@@ -141,10 +139,7 @@ export async function GET(request: Request) {
       query = query.lte("consultation_fee", maxFee);
     }
 
-    // Owner-governed public ranking: featured listings first, then highest priority score, then newest
     const { data, error, count } = await query
-      .order("is_featured", { ascending: false })
-      .order("ranking_priority", { ascending: false })
       .order("created_at", { ascending: false })
       .range(from, from + limit - 1);
 

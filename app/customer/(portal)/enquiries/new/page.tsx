@@ -46,22 +46,16 @@ function NewEnquiryContent() {
     setError("");
 
     try {
-      const payload: Record<string, unknown> = {
+      const { submitCustomerEnquiryAction } = await import("@/app/actions/customer");
+      const result = await submitCustomerEnquiryAction({
         subject,
         message,
         priority,
         astrologer_id: enquiryMode === "direct" && astrologerId ? astrologerId : null,
-      };
-
-      const res = await fetch("/api/enquiries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
       });
-      const json = await res.json();
 
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to submit enquiry.");
+      if (!result.success) {
+        throw new Error(result.error || "Failed to submit enquiry.");
       }
 
       router.push("/customer/enquiries");

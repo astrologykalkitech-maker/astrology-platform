@@ -10,15 +10,11 @@ import type {
 
 // Explicit list of safe public fields to select (strictly omits address, user_id, internal timestamps)
 const SAFE_PUBLIC_FIELDS =
-  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url, approval_status, is_featured, featured_until, ranking_priority";
+  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url, approval_status, created_at";
 
 /**
  * Retrieves a list of approved astrologer profiles for the public directory.
  * Guaranteed to return ONLY profiles with approval_status = 'approved'.
- * Applies the canonical owner-controlled ranking:
- * 1. Active featured placement (is_featured = true)
- * 2. Highest ranking priority score (ranking_priority DESC)
- * 3. Recent creation timestamp (created_at DESC)
  */
 export async function getPublicApprovedAstrologers(
   options?: PublicAstrologersQueryOptions
@@ -30,7 +26,6 @@ export async function getPublicApprovedAstrologers(
       .from("astrologer_profiles")
       .select(SAFE_PUBLIC_FIELDS)
       .eq("approval_status", "approved")
-      .order("ranking_priority", { ascending: false })
       .order("created_at", { ascending: false });
 
     // Filter by specialization if requested
@@ -70,7 +65,7 @@ export async function getPublicApprovedAstrologers(
       return new Date(item.featured_until).getTime() > now;
     };
 
-    // Sort by: 1. Active featured (desc), 2. Priority score (desc), 3. Created time (desc)
+    // Sort by: 1. Active featured (desc), 2. Priority score (desc)
     rawItems.sort((a, b) => {
       const aFeatured = isCurrentlyFeatured(a);
       const bFeatured = isCurrentlyFeatured(b);

@@ -27,19 +27,31 @@ function subscribe(callback: () => void) {
   return () => window.removeEventListener("storage", callback);
 }
 
+let lastRawStorage: string | null = null;
+let cachedBookings: CustomerDemoBooking[] = [];
+
 function getStoredBookingsSnapshot(): CustomerDemoBooking[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return SERVER_SNAPSHOT;
   try {
-    const stored = localStorage.getItem(CUSTOMER_BOOKINGS_STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
+    const raw = localStorage.getItem(CUSTOMER_BOOKINGS_STORAGE_KEY);
+    if (raw === lastRawStorage) {
+      return cachedBookings;
+    }
+    lastRawStorage = raw;
+    if (!raw) {
+      cachedBookings = [];
+      return cachedBookings;
+    }
+    const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.every(isCustomerDemoBooking)) {
-      return parsed;
+      cachedBookings = parsed;
+      return cachedBookings;
     }
   } catch {
     // Ignore corrupt store
   }
-  return [];
+  cachedBookings = [];
+  return cachedBookings;
 }
 
 const SERVER_SNAPSHOT: CustomerDemoBooking[] = [];

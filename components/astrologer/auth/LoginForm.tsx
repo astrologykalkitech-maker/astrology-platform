@@ -23,7 +23,7 @@ const COPY: Record<Role, { subtitle: string; wrongRole: string; redirect: string
   customer: {
     subtitle: "Log in to find and contact astrologers.",
     wrongRole: "This login is for customer accounts only. Astrologers, please choose the Astrologer option above.",
-    redirect: "/",
+    redirect: "/customer",
   },
 };
 

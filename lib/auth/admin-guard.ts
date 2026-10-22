@@ -15,7 +15,8 @@ import type { User } from "@supabase/supabase-js";
  */
 export async function fetchUserPermissions(userId: string): Promise<AdminPermissionKey[]> {
   try {
-    const supabase = await createClient();
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const supabase = await createAdminClient();
     const { data, error } = await supabase
       .from("admin_permissions")
       .select("permission_key")

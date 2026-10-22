@@ -13,6 +13,7 @@ export const CUSTOMER_LOGIN_PATH = "/customer/login";
 export interface CustomerAuthContext {
   user: User;
   profile: Profile;
+  target: "main" | "admin";
 }
 
 /**
@@ -20,13 +21,13 @@ export interface CustomerAuthContext {
  * Throws AuthRequiredError if not logged in, or ForbiddenRoleError if role !== 'customer'.
  */
 export async function requireCustomerContext(): Promise<CustomerAuthContext> {
-  const { user, profile } = await requireAuth();
+  const { user, profile, target } = await requireAuth();
 
   if (profile.role !== "customer") {
     throw new ForbiddenRoleError("customer", profile.role);
   }
 
-  return { user, profile };
+  return { user, profile, target };
 }
 
 /**

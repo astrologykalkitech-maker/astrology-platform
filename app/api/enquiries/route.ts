@@ -39,40 +39,21 @@ export async function POST(request: Request) {
 
     const input = validation.data;
 
-    // 4. Authenticate caller and enforce 'customer' role
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    // 4. Authenticate caller and enforce 'customer' role using customer context
+    const { requireCustomerContext } = await import("@/lib/auth/customer-guard");
+    let customerCtx;
+    try {
+      customerCtx = await requireCustomerContext();
+    } catch {
       return Response.json(
         { error: "Please log in as a customer to submit an enquiry." },
         { status: 401 }
       );
     }
 
-    // Verify role is strictly 'customer'
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, role, full_name")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { user, profile, target } = customerCtx;
+    const supabase = await createClient(target);
 
-    if (profileError || !profile) {
-      return Response.json(
-        { error: "User profile could not be loaded." },
-        { status: 403 }
-      );
-    }
-
-    if (profile.role !== "customer") {
-      return Response.json(
-        { error: "Access denied. Only customers can submit consultations and enquiries." },
-        { status: 403 }
-      );
-    }
 
     // User-level rate limiting
     const userRateLimit = checkRateLimit(`enquiry:user:${user.id}`, 5, 60_000);

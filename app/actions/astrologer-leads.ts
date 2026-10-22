@@ -60,7 +60,7 @@ export async function getMyAssignedLeads(
 ): Promise<AstrologerLeadsResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate filter options
     const filterValidation = validateAstrologerLeadsFilterOptions(rawOptions);
@@ -71,7 +71,7 @@ export async function getMyAssignedLeads(
       };
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID for current user
     const { data: profile, error: profError } = await supabase
@@ -119,7 +119,7 @@ export async function getMyAssignedLeadById(
 ): Promise<AstrologerLeadDetailResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate assignment ID
     if (!isValidUUID(rawAssignmentId)) {
@@ -130,7 +130,7 @@ export async function getMyAssignedLeadById(
     }
 
     const assignmentId = (rawAssignmentId as string).trim().toLowerCase();
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID
     const { data: profile, error: profError } = await supabase
@@ -187,7 +187,7 @@ export async function updateAssignmentStatus(
 ): Promise<UpdateAssignmentStatusResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate input at runtime
     const validation = validateUpdateAssignmentStatusInput(rawInput);
@@ -196,7 +196,7 @@ export async function updateAssignmentStatus(
     }
 
     const { assignment_id, status: targetStatus } = validation.data;
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID
     const { data: profile, error: profError } = await supabase
