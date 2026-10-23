@@ -27,14 +27,19 @@ import { formatDate } from "@/lib/astrologer/format";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
 import { getProfileCompletion } from "@/lib/astrologer/profile-completion";
 import { getOwnAstrologerProfile, requireAstrologerPage } from "@/lib/astrologer/guard";
+import type { ApprovalStatus } from "@/lib/types/database.types";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-const STATUS_TEXT = {
+const STATUS_TEXT: Record<ApprovalStatus, string> = {
+  draft: "Your profile draft is saved. Submit it for review when ready.",
   pending: "Your profile is under review. It will be visible to customers once approved.",
+  changes_requested: "The reviewer requested changes to your profile. Please check notes and update.",
   approved: "Your profile is approved and visible to customers.",
   rejected: "Your profile was not approved. Update your details and try again.",
-} as const;
+  suspended: "Your listing has been temporarily suspended by platform administration.",
+  archived: "Your listing has been archived.",
+};
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";

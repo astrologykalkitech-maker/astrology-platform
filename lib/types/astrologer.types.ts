@@ -58,6 +58,9 @@ export interface PublicAstrologerProfile {
   consultation_fee: number | null;
   profile_photo_url: string | null;
   approval_status: "approved";
+  is_featured?: boolean;
+  featured_until?: string | null;
+  ranking_priority?: number;
 }
 
 export type AstrologerProfileResult = AuthResult<AstrologerProfile>;

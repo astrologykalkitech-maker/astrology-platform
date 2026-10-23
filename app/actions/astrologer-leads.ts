@@ -4,7 +4,9 @@
 // ASTROLOGER LEAD MANAGEMENT SERVER ACTIONS (Phase 4)
 // =====================================================
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAstrologer } from "@/lib/auth/session";
 import type {
   AstrologerLeadsResult,
@@ -60,7 +62,7 @@ export async function getMyAssignedLeads(
 ): Promise<AstrologerLeadsResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate filter options
     const filterValidation = validateAstrologerLeadsFilterOptions(rawOptions);
@@ -71,7 +73,7 @@ export async function getMyAssignedLeads(
       };
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID for current user
     const { data: profile, error: profError } = await supabase
@@ -119,7 +121,7 @@ export async function getMyAssignedLeadById(
 ): Promise<AstrologerLeadDetailResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate assignment ID
     if (!isValidUUID(rawAssignmentId)) {
@@ -130,7 +132,7 @@ export async function getMyAssignedLeadById(
     }
 
     const assignmentId = (rawAssignmentId as string).trim().toLowerCase();
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID
     const { data: profile, error: profError } = await supabase
@@ -187,7 +189,7 @@ export async function updateAssignmentStatus(
 ): Promise<UpdateAssignmentStatusResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate input at runtime
     const validation = validateUpdateAssignmentStatusInput(rawInput);
@@ -196,7 +198,7 @@ export async function updateAssignmentStatus(
     }
 
     const { assignment_id, status: targetStatus } = validation.data;
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Resolve astrologer_profiles ID
     const { data: profile, error: profError } = await supabase
@@ -249,13 +251,32 @@ export async function updateAssignmentStatus(
       .update({ status: targetStatus })
       .eq("id", assignment_id)
       .eq("astrologer_id", profile.id)
-      .select("id, status")
+      .select("id, status, lead_id")
       .single();
 
     if (error) {
       const friendlyMessage = handleDatabaseError(error);
       return { success: false, error: friendlyMessage };
     }
+
+    // 7. Synchronize public.leads status directly (ensures customer dashboard & enquiries reflect immediately)
+    try {
+      const adminClient = await createAdminClient(target);
+      const targetLeadStatus = targetStatus === "closed" ? "closed" : targetStatus === "contacted" ? "contacted" : undefined;
+      if (targetLeadStatus) {
+        await adminClient
+          .from("leads")
+          .update({ status: targetLeadStatus })
+          .eq("id", existing.lead.id);
+      }
+    } catch (syncErr) {
+      console.error("[updateAssignmentStatus] Lead sync warning:", syncErr);
+    }
+
+    // 8. Revalidate customer & astrologer paths so portals update immediately
+    revalidatePath("/customer", "page");
+    revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/astrologer/leads", "page");
 
     return {
       success: true,

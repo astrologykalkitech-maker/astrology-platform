@@ -11,8 +11,14 @@ export default async function AstrologerLoginPage({
 }: {
   searchParams: Promise<{ reason?: string }>;
 }) {
-  // Already signed in as an astrologer: skip the login screen.
+  // Already signed in with appropriate role: skip the login screen.
   const profile = await getCurrentProfile();
+  if (profile?.role === "super_admin" || profile?.role === "admin") {
+    redirect("/super-admin");
+  }
+  if (profile?.role === "consultant_admin") {
+    redirect("/admin");
+  }
   if (profile?.role === "astrologer") {
     redirect("/astrologer/dashboard");
   }

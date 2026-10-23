@@ -234,6 +234,49 @@ export async function signIn(
 
       const lower = diag.message.toLowerCase();
       if (lower.includes("invalid login credentials")) {
+        // If not found in DB1, check if this is an Admin user in DB2
+        try {
+          const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
+          const adminSupabaseAnon =
+            process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
+            process.env.ADMIN_SUPABASE_ANON_KEY;
+
+          if (adminSupabaseUrl && adminSupabaseAnon) {
+            const adminClient = await createClient("admin");
+            const { data: adminAuthData, error: adminAuthError } =
+              await adminClient.auth.signInWithPassword({
+                email,
+                password,
+              });
+
+            if (!adminAuthError && adminAuthData.user) {
+              const { createAdminClient } = await import(
+                "@/lib/supabase/admin"
+              );
+              const privileged = await createAdminClient();
+              const { data: adminProf } = await privileged
+                .from("profiles")
+                .select("id, full_name, role")
+                .eq("id", adminAuthData.user.id)
+                .maybeSingle();
+
+              if (adminProf) {
+                return {
+                  success: true,
+                  data: {
+                    userId: adminAuthData.user.id,
+                    email: adminAuthData.user.email ?? email,
+                    role: adminProf.role,
+                    full_name: adminProf.full_name,
+                  },
+                };
+              }
+            }
+          }
+        } catch {
+          // Fall through to standard invalid error
+        }
+
         return {
           success: false,
           error: "Invalid email or password.",
@@ -336,11 +379,14 @@ export async function signIn(
  */
 export async function signOut(): Promise<AuthResult<void>> {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signOut();
+    const supabase = await createClient("main");
+    await supabase.auth.signOut().catch(() => {});
 
-    if (error) {
-      return { success: false, error: error.message };
+    try {
+      const adminClient = await createClient("admin");
+      await adminClient.auth.signOut().catch(() => {});
+    } catch {
+      // Ignore admin signOut failure if not configured
     }
 
     return { success: true, data: undefined };

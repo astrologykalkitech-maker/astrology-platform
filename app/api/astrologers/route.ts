@@ -110,7 +110,8 @@ export async function GET(request: Request) {
           city,
           state,
           consultation_fee,
-          profile_photo_url
+          profile_photo_url,
+          created_at
         `,
         { count: "exact" }
       )
@@ -139,7 +140,7 @@ export async function GET(request: Request) {
     }
 
     const { data, error, count } = await query
-      .order("display_name", { ascending: true })
+      .order("created_at", { ascending: false })
       .range(from, from + limit - 1);
 
     if (error) {

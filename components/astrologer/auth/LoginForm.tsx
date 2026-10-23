@@ -23,7 +23,7 @@ const COPY: Record<Role, { subtitle: string; wrongRole: string; redirect: string
   customer: {
     subtitle: "Log in to find and contact astrologers.",
     wrongRole: "This login is for customer accounts only. Astrologers, please choose the Astrologer option above.",
-    redirect: "/",
+    redirect: "/customer",
   },
 };
 
@@ -52,6 +52,19 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
 
       if (!result.success) {
         setFormError(result.error);
+        return;
+      }
+
+      // Route users to their appropriate dashboard based on their role
+      if (result.data.role === "super_admin" || result.data.role === "admin") {
+        router.replace("/super-admin");
+        router.refresh();
+        return;
+      }
+
+      if (result.data.role === "consultant_admin") {
+        router.replace("/admin");
+        router.refresh();
         return;
       }
 

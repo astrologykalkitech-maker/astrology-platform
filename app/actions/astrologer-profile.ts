@@ -41,7 +41,7 @@ export async function createAstrologerProfile(
 ): Promise<AstrologerProfileResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate input at runtime
     const validation = validateCreateAstrologerProfileInput(rawInput);
@@ -50,7 +50,7 @@ export async function createAstrologerProfile(
     }
 
     const input = validation.data;
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Check if user already has an astrologer profile
     const { data: existing, error: checkError } = await supabase
@@ -120,7 +120,7 @@ export async function updateAstrologerProfile(
 ): Promise<AstrologerProfileResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
     // 2. Validate update payload (rejects unknown and protected fields)
     const validation = validateUpdateAstrologerProfileInput(rawInput);
@@ -129,7 +129,7 @@ export async function updateAstrologerProfile(
     }
 
     const updatePayload = validation.data;
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 3. Verify that the profile exists for this user
     const { data: existing, error: fetchError } = await supabase
@@ -183,9 +183,9 @@ export async function updateAstrologerProfile(
 export async function getMyAstrologerProfile(): Promise<OptionalAstrologerProfileResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user } = await requireAstrologer();
+    const { user, target } = await requireAstrologer();
 
-    const supabase = await createClient();
+    const supabase = await createClient(target);
 
     // 2. Query astrologer_profiles for user_id
     const { data, error } = await supabase

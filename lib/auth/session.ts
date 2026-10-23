@@ -34,53 +34,98 @@ export class ForbiddenRoleError extends Error {
 
 /**
  * Retrieves the currently authenticated Supabase user using the secure server client.
- * Calls supabase.auth.getUser() to guarantee token validation against the Supabase Auth server.
+ * Calls supabase.auth.getUser() on main client (DB1) first, and falls back to admin client (DB2).
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const supabase = await createClient();
+    const supabase = await createClient("main");
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser();
 
-    if (error || !user) {
-      return null;
+    if (!error && user) {
+      return user;
     }
-
-    return user;
   } catch {
-    return null;
+    // Continue to admin fallback
   }
+
+  try {
+    const adminSupabase = await createClient("admin");
+    const {
+      data: { user: adminUser },
+      error: adminError,
+    } = await adminSupabase.auth.getUser();
+
+    if (!adminError && adminUser) {
+      return adminUser;
+    }
+  } catch {
+    // Fall through
+  }
+
+  return null;
 }
 
 /**
  * Retrieves the current authenticated user's record from public.profiles.
- * Crucial: fetches role securely from the database table, NOT from client-editable metadata.
+ * Crucial: fetches role securely from the database table (DB1 or DB2).
  */
 export async function getCurrentProfile(): Promise<Profile | null> {
-  const user = await getCurrentUser();
-  if (!user) {
-    return null;
+  // Try main client (DB1) first
+  try {
+    const mainClient = await createClient("main");
+    const {
+      data: { user },
+    } = await mainClient.auth.getUser();
+
+    if (user) {
+      const { data: profile } = await mainClient
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile) {
+        return profile as Profile;
+      }
+    }
+  } catch {
+    // Continue to admin check
   }
 
-  const supabase = await createClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, created_at, updated_at")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Try admin client (DB2) second
+  try {
+    const adminClient = await createClient("admin");
+    const {
+      data: { user: adminUser },
+    } = await adminClient.auth.getUser();
 
-  if (error || !profile) {
-    return null;
+    if (adminUser) {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const privileged = await createAdminClient();
+      const { data: adminProfile } = await privileged
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", adminUser.id)
+        .maybeSingle();
+
+      if (adminProfile) {
+        return adminProfile as Profile;
+      }
+    }
+  } catch {
+    // Fall through
   }
 
-  return profile as Profile;
+  return null;
 }
 
 export interface AuthContext {
   user: User;
   profile: Profile;
+  target: "main" | "admin";
 }
 
 /**
@@ -88,26 +133,61 @@ export interface AuthContext {
  * Throws AuthRequiredError if the session is missing or invalid.
  */
 export async function requireAuth(): Promise<AuthContext> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new AuthRequiredError();
+  // Check main DB1 session
+  try {
+    const mainClient = await createClient("main");
+    const {
+      data: { user },
+    } = await mainClient.auth.getUser();
+
+    if (user) {
+      const { data: profile } = await mainClient
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profile) {
+        return {
+          user,
+          profile: profile as Profile,
+          target: "main",
+        };
+      }
+    }
+  } catch {
+    // Fall through to admin check
   }
 
-  const supabase = await createClient();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, role, created_at, updated_at")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Check admin DB2 session
+  try {
+    const adminClient = await createClient("admin");
+    const {
+      data: { user: adminUser },
+    } = await adminClient.auth.getUser();
 
-  if (error || !profile) {
-    throw new AuthRequiredError("User profile could not be loaded.");
+    if (adminUser) {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const privileged = await createAdminClient();
+      const { data: adminProfile } = await privileged
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", adminUser.id)
+        .maybeSingle();
+
+      if (adminProfile) {
+        return {
+          user: adminUser,
+          profile: adminProfile as Profile,
+          target: "admin",
+        };
+      }
+    }
+  } catch {
+    // Fall through
   }
 
-  return {
-    user,
-    profile: profile as Profile,
-  };
+  throw new AuthRequiredError();
 }
 
 /**
