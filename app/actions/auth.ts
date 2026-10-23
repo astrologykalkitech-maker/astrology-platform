@@ -341,13 +341,56 @@ export async function signIn(
       };
     }
 
+    // If DB1 returned a profile, check whether this user is an admin or super_admin in DB2
+    let resolvedRole = profile.role;
+    let resolvedFullName = profile.full_name;
+
+    try {
+      const adminUrl = process.env.ADMIN_SUPABASE_URL;
+      const adminKey =
+        process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.ADMIN_SUPABASE_ANON_KEY;
+
+      if (adminUrl && adminKey) {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const privileged = await createAdminClient();
+        const { data: adminUsers } = await privileged.auth.admin.listUsers();
+        const matchingAdminUser = adminUsers?.users?.find(
+          (u) => u.email?.toLowerCase() === email.toLowerCase()
+        );
+
+        if (matchingAdminUser) {
+          const { data: adminProf } = await privileged
+            .from("profiles")
+            .select("id, full_name, role")
+            .eq("id", matchingAdminUser.id)
+            .maybeSingle();
+
+          if (adminProf && (adminProf.role === "super_admin" || adminProf.role === "consultant_admin" || adminProf.role === "admin")) {
+            resolvedRole = adminProf.role;
+            resolvedFullName = adminProf.full_name || resolvedFullName;
+
+            // Also authenticate session in DB2 so admin client cookies are established
+            try {
+              const adminClient = await createClient("admin");
+              await adminClient.auth.signInWithPassword({ email, password });
+            } catch {
+              // Ignore secondary sign in error if cookie is already present
+            }
+          }
+        }
+      }
+    } catch {
+      // Continue with DB1 resolved role
+    }
+
     return {
       success: true,
       data: {
         userId: data.user.id,
         email: data.user.email ?? email,
-        role: profile.role,
-        full_name: profile.full_name,
+        role: resolvedRole,
+        full_name: resolvedFullName,
       },
     };
   } catch (err) {
