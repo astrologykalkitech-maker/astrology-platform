@@ -24,7 +24,7 @@ export default function LeadDistributionPage() {
     setLoading(true);
     const [leadsRes, astroRes, settingsRes] = await Promise.all([
       getAdminLeads({ unassignedOnly: true, limit: 50 }),
-      getAdminListings({ status: "approved" }),
+      getAdminListings({ limit: 100 }),
       getPlatformSettings(),
     ]);
 
@@ -48,7 +48,7 @@ export default function LeadDistributionPage() {
     async function fetchDistribution() {
       const [leadsRes, astroRes, settingsRes] = await Promise.all([
         getAdminLeads({ unassignedOnly: true, limit: 50 }),
-        getAdminListings({ status: "approved" }),
+        getAdminListings({ limit: 100 }),
         getPlatformSettings(),
       ]);
 
@@ -249,10 +249,10 @@ export default function LeadDistributionPage() {
             onChange={(e) => setTargetAstrologerId(e.target.value)}
             className="flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
           >
-            <option value="">-- Choose Recipient Astrologer --</option>
+            <option value="">-- Choose Recipient Astrologer ({astrologers.length} registered) --</option>
             {astrologers.map((astro) => (
               <option key={astro.id} value={astro.id}>
-                {astro.display_name} ({astro.city ?? "Location unlisted"} · {astro.experience_years ?? 0} yrs)
+                {astro.display_name} ({astro.city ?? "Location unlisted"} · {astro.experience_years ?? 0} yrs) [Status: {astro.approval_status.toUpperCase()}]
               </option>
             ))}
           </select>
@@ -261,6 +261,8 @@ export default function LeadDistributionPage() {
             placeholder="Batch assignment reason / justification..."
             value={batchReason}
             onChange={(e) => setBatchReason(e.target.value)}
+            autoComplete="off"
+            suppressHydrationWarning
             className="flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
           />
           <button
