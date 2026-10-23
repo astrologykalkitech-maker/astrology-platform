@@ -33,7 +33,7 @@ begin
   if current_user in ('postgres', 'supabase_admin', 'service_role') then
     jwt_role := pg_catalog.nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
-      ''
+      ''::text
     );
 
     -- Ensure an untrusted JWT claim cannot override a privileged database role

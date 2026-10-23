@@ -272,7 +272,7 @@ export async function assignLead(
   rawInput: unknown
 ): Promise<AuthResult<{ leadId: string; newStatus: LeadStatus }>> {
   try {
-    await requireAdminPermission("lead.assign");
+    const { user } = await requireAdminPermission("lead.assign");
 
     const validation = validateLeadAssignmentInput(rawInput);
     if (!validation.valid) {
@@ -312,6 +312,7 @@ export async function assignLead(
       p_lead_id: leadId,
       p_target_astrologer_id: astrologerId,
       p_reason: reason ?? null,
+      p_caller_id: user.id,
     });
 
     if (rpcError) {
@@ -333,6 +334,30 @@ export async function assignLead(
         success: false,
         error: "Atomic lead assignment transaction failed to commit.",
       };
+    }
+
+    // Mirror assignment to DB1 so Astrologer dashboard reflects it immediately
+    try {
+      const db1Client = await createAdminClient("main");
+      if (astrologerId) {
+        await db1Client.from("lead_assignments").upsert({
+          lead_id: leadId,
+          astrologer_id: astrologerId,
+          status: "assigned",
+        });
+        await db1Client.from("leads").update({
+          astrologer_id: astrologerId,
+          status: "assigned",
+        }).eq("id", leadId);
+      } else {
+        await db1Client.from("lead_assignments").delete().eq("lead_id", leadId);
+        await db1Client.from("leads").update({
+          astrologer_id: null,
+          status: "new",
+        }).eq("id", leadId);
+      }
+    } catch (syncErr) {
+      console.warn("[Lead Assignment DB1 Sync Warning]", syncErr);
     }
 
     return {

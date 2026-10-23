@@ -290,6 +290,26 @@ export async function submitCustomerEnquiryAction(payload: {
       }
     }
 
+    // Mirror lead to DB2 (Admin DB) so Super Admin dashboard reflects it immediately
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const db2Client = await createAdminClient("admin");
+      await db2Client.from("leads").upsert({
+        ...fullPayload,
+        id: lead.id,
+        customer_name: profile.full_name || "Direct Customer",
+      });
+      if (astrologer_id) {
+        await db2Client.from("lead_assignments").upsert({
+          lead_id: lead.id,
+          astrologer_id: astrologer_id,
+          status: "assigned",
+        });
+      }
+    } catch (syncErr) {
+      console.warn("[Customer Enquiry DB2 Mirror Warning]", syncErr);
+    }
+
     return {
       success: true,
       data: { id: lead.id },
