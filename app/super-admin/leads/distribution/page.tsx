@@ -261,6 +261,8 @@ export default function LeadDistributionPage() {
             placeholder="Batch assignment reason / justification..."
             value={batchReason}
             onChange={(e) => setBatchReason(e.target.value)}
+            autoComplete="off"
+            suppressHydrationWarning
             className="flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
           />
           <button

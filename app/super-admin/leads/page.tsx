@@ -141,6 +141,10 @@ export default function SuperAdminLeadsPage() {
               placeholder="Search by subject, customer name, email, or message keyword..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck="false"
+              suppressHydrationWarning
               className="w-full rounded-xl border border-zinc-200 bg-zinc-50/50 py-2 pl-9 pr-3 text-xs outline-none focus:border-zinc-900 focus:bg-white dark:border-zinc-800 dark:bg-zinc-950 dark:focus:border-zinc-100"
             />
           </div>
