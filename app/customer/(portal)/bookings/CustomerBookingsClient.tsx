@@ -104,7 +104,49 @@ export default function CustomerBookingsClient() {
 
   return (
     <div className={`${CARD} overflow-hidden p-0`}>
-      <div className="overflow-x-auto">
+      {/* Mobile Card Reflow (< md) */}
+      <div className="divide-y divide-gold/10 md:hidden">
+        {bookings.map((booking) => (
+          <div key={booking.id} className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-semibold text-sm text-midnight flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-gold-deep" />
+                  <span>{booking.astrologer}</span>
+                </p>
+                <p className="text-xs text-ink/80 mt-0.5">
+                  {booking.service} ({booking.consultation})
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full border border-emerald/30 bg-emerald/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                {booking.status}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-muted pt-2 border-t border-gold/10">
+              <div className="flex items-center gap-1 font-medium text-ink/90">
+                <Clock className="h-3.5 w-3.5 text-gold-deep" />
+                <span>{booking.date} at {booking.time}</span>
+              </div>
+              <span className="font-semibold text-midnight">₹{booking.price}</span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-[11px] text-muted">
+              <span className="font-mono text-[10px]">{booking.id}</span>
+              <button
+                type="button"
+                onClick={() => handleCancelBooking(booking.id)}
+                className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium py-1 px-2 rounded hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Cancel Booking
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View (>= md) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-gold/20 bg-parchment/40 text-xs font-semibold uppercase tracking-wider text-muted">

@@ -49,6 +49,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: [
+    "attacked-previews-pattern-according.trycloudflare.com",
     "manor-salmon-greatest-predict.trycloudflare.com",
     "*.trycloudflare.com",
   ],

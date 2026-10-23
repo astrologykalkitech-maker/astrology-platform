@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, ShieldCheck, UserCheck } from "lucide-react";
+import { LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 
 interface AdminHeaderProps {
   displayName: string;
   role: "super_admin" | "consultant_admin" | "admin" | string;
   isSuperAdmin: boolean;
+  onMenuClick?: () => void;
 }
 
-export function AdminHeader({ displayName, role, isSuperAdmin }: AdminHeaderProps) {
+export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: AdminHeaderProps) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -28,6 +29,16 @@ export function AdminHeader({ displayName, role, isSuperAdmin }: AdminHeaderProp
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-zinc-200/80 bg-white/95 px-4 backdrop-blur-md sm:px-8 dark:border-zinc-800 dark:bg-zinc-950/95">
       <div className="flex items-center gap-3">
+        {onMenuClick && (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open navigation menu"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-100 lg:hidden dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         <Link
           href={isSuperAdmin ? "/super-admin" : "/admin"}
           className="flex items-center gap-2 text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100"

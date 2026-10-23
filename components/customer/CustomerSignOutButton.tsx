@@ -10,12 +10,14 @@ interface CustomerSignOutButtonProps {
   iconOnlyOnMobile?: boolean;
   className?: string;
   redirectTo?: string;
+  variant?: "gold" | "goldLight" | "outline" | "ghost" | "danger";
 }
 
 export function CustomerSignOutButton({
   iconOnlyOnMobile = false,
   className = "",
   redirectTo = "/customer/login",
+  variant = "ghost",
 }: CustomerSignOutButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -35,10 +37,11 @@ export function CustomerSignOutButton({
   }
 
   return (
-    <div className="inline-flex flex-col items-end">
+    <div className={`inline-flex flex-col ${className.includes("w-full") ? "w-full items-stretch" : "items-end"}`}>
       <Button
-        variant="ghost"
+        variant={variant}
         size="sm"
+        fullWidth={className.includes("w-full")}
         onClick={handleSignOut}
         loading={isPending}
         className={className}

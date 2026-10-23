@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,14 @@ const cinzel = Cinzel({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  interactiveWidget: "resizes-content",
+  themeColor: "#151027",
+};
+
 export const metadata: Metadata = {
   title: "JyotishSetu | Find Clarity in Life",
   description:
@@ -29,6 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
     >
       <head>

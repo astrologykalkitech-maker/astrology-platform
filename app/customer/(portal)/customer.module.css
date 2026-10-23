@@ -139,7 +139,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
+  min-width: 0;
 }
 .searchBar input {
   background: transparent;
@@ -148,6 +150,7 @@
   outline: none;
   width: 100%;
   font-size: 14px;
+  min-width: 0;
 }
 
 .profileIcon {
@@ -317,7 +320,13 @@
   .sidebar { display: none; }
   .mainContent { margin-left: 0; }
   .topbar { display: none; }
-  .pageContainer { padding: 15px; padding-top: 80px; padding-bottom: 90px; }
+  .pageContainer {
+    padding: 15px;
+    padding-top: calc(75px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(15px + env(safe-area-inset-left, 0px));
+    padding-right: calc(15px + env(safe-area-inset-right, 0px));
+  }
 
   .mobileHeader {
     display: flex;
@@ -325,10 +334,12 @@
     align-items: center;
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 65px;
+    height: calc(65px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
     background: var(--bg-sidebar);
     color: white;
-    padding: 0 20px;
+    padding-left: calc(20px + env(safe-area-inset-left, 0px));
+    padding-right: calc(20px + env(safe-area-inset-right, 0px));
     z-index: 50;
   }
   .mobileHeader .brand { color: var(--gold-light); margin: 0; font-size: 18px; }
@@ -340,7 +351,9 @@
     align-items: center;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 70px;
+    min-height: 65px;
+    height: calc(65px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--bg-sidebar);
     color: white;
     z-index: 50;
@@ -350,10 +363,14 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     color: #a0aec0;
-    font-size: 10px;
+    font-size: 11px;
     text-decoration: none;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 8px;
   }
   .bottomNavItem i { font-size: 18px; }
   .bottomNavItem.active { color: var(--gold); }
@@ -362,4 +379,10 @@
   .hero h1 { font-size: 24px; }
   .statsGrid { grid-template-columns: repeat(2, 1fr); gap: 15px; }
   .statCard { padding: 15px; flex-direction: column; text-align: center; gap: 10px; }
+}
+
+@media (max-width: 480px) {
+  .statsGrid { grid-template-columns: 1fr; }
+  .hero { padding: 20px 16px; }
+  .hero h1 { font-size: 20px; }
 }

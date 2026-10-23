@@ -73,7 +73,65 @@ export default async function EnquiriesPage() {
         </div>
       ) : (
         <div className={`${CARD} overflow-hidden p-0`}>
-          <div className="overflow-x-auto">
+          {/* Mobile Card Reflow (screens < md) */}
+          <div className="divide-y divide-gold/10 md:hidden">
+            {enquiries.map((item) => {
+              const statusBadge =
+                item.status === "new"
+                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                  : item.status === "assigned"
+                  ? "bg-sky-100 text-sky-800 border-sky-200"
+                  : item.status === "contacted"
+                  ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                  : item.status === "closed" || item.status === "converted"
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  : "bg-slate-100 text-slate-800 border-slate-200";
+
+              const displayStatus =
+                item.status === "closed"
+                  ? "Completed"
+                  : item.status === "converted"
+                  ? "Converted"
+                  : item.status === "contacted"
+                  ? "In Progress"
+                  : item.status === "assigned"
+                  ? "Assigned"
+                  : "Pending";
+
+              const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              });
+
+              return (
+                <div key={item.id} className="p-4 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-sm text-midnight break-words flex-1">
+                      {item.subject}
+                    </h3>
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusBadge}`}
+                    >
+                      {displayStatus}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink/75 line-clamp-2">
+                    {item.message}
+                  </p>
+                  <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-gold/10">
+                    <span className="truncate max-w-[60%]">
+                      <strong className="text-midnight/80">With:</strong> {item.astrologer_name || "Platform Pool"}
+                    </span>
+                    <span>{displayDate}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View (screens >= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gold/20 bg-parchment/40 text-xs font-semibold uppercase tracking-wider text-muted">

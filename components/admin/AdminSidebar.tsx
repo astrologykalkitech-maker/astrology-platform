@@ -13,6 +13,7 @@ import {
   ScrollText,
   Sliders,
   User,
+  X,
 } from "lucide-react";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 
@@ -27,9 +28,16 @@ interface NavItem {
 interface AdminSidebarProps {
   isSuperAdmin: boolean;
   permissions: AdminPermissionKey[];
+  open?: boolean;
+  onClose?: () => void;
 }
 
-export function AdminSidebar({ isSuperAdmin, permissions }: AdminSidebarProps) {
+export function AdminSidebar({
+  isSuperAdmin,
+  permissions,
+  open = false,
+  onClose,
+}: AdminSidebarProps) {
   const pathname = usePathname();
 
   const superAdminNav: NavItem[] = [
@@ -63,12 +71,24 @@ export function AdminSidebar({ isSuperAdmin, permissions }: AdminSidebarProps) {
         return permissions.includes(item.permission);
       });
 
-  return (
-    <aside className="w-full md:w-64 shrink-0 border-r border-zinc-200/80 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
-      <div className="mb-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-        {isSuperAdmin ? "Super Admin Modules" : "Operations Modules"}
+  const sidebarContent = (
+    <div className="flex h-full flex-col p-4">
+      <div className="mb-4 flex items-center justify-between px-3">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+          {isSuperAdmin ? "Super Admin Modules" : "Operations Modules"}
+        </span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 lg:hidden dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -77,6 +97,7 @@ export function AdminSidebar({ isSuperAdmin, permissions }: AdminSidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => onClose?.()}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition-all ${
                 isActive
                   ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
@@ -95,6 +116,35 @@ export function AdminSidebar({ isSuperAdmin, permissions }: AdminSidebarProps) {
           );
         })}
       </nav>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {open && (
+        <button
+          type="button"
+          aria-label="Close menu overlay"
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-zinc-950/60 backdrop-blur-xs lg:hidden"
+        />
+      )}
+
+      {/* Mobile Slide-Over Drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform bg-white shadow-xl transition-transform duration-300 ease-in-out lg:hidden dark:bg-zinc-950 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-hidden={!open}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Persistent Desktop Sidebar */}
+      <aside className="hidden lg:block w-64 shrink-0 border-r border-zinc-200/80 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-950/50">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

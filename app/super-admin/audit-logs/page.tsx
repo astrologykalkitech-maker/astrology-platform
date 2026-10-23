@@ -97,9 +97,66 @@ export default function SuperAdminAuditLogsPage() {
         </form>
       </div>
 
-      {/* Audit Logs Table */}
+      {/* Audit Logs Table / Cards */}
       <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="overflow-x-auto">
+        {/* Mobile Audit Cards (< md) */}
+        <div className="divide-y divide-zinc-100 dark:divide-zinc-800 md:hidden">
+          {loading ? (
+            <div className="py-12 text-center text-xs text-zinc-400">
+              <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+              Fetching security audit trail...
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="py-12 text-center text-xs text-zinc-400">
+              No audit records found.
+            </div>
+          ) : (
+            logs.map((log) => (
+              <div key={log.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100 break-all">
+                    {log.action}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${
+                      log.outcome === "success"
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                        : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                    }`}
+                  >
+                    {log.outcome === "success" ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <AlertCircle className="h-3 w-3" />
+                    )}
+                    {log.outcome}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+                  <span>
+                    <strong>Entity:</strong> {log.target_type}
+                  </span>
+                  <span>
+                    <strong>Role:</strong> {log.actor_role.replace("_", " ")}
+                  </span>
+                  <span className="font-mono text-[10px]">
+                    {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+
+                {log.reason && (
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950 p-2 rounded-lg">
+                    {log.reason}
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table View (>= md) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="border-b border-zinc-100 bg-zinc-50/75 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
               <tr>
