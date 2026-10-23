@@ -12,10 +12,18 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
  * Fails closed: Requires SUPABASE_SERVICE_ROLE_KEY to be set in environment.
  * Never silently falls back to an unprivileged client when a service-role operation is requested.
  */
-export async function createAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl =
-    process.env.ADMIN_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+export async function createAdminClient(target: "main" | "admin" = "admin") {
+  const isMain = target === "main";
+  const serviceRoleKey = isMain
+    ? (process.env.DB1_SUPABASE_SERVICE_ROLE_KEY ||
+       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+       process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : (process.env.ADMIN_SUPABASE_SERVICE_ROLE_KEY ||
+       process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const supabaseUrl = isMain
+    ? process.env.NEXT_PUBLIC_SUPABASE_URL
+    : (process.env.ADMIN_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
 
   if (!serviceRoleKey || !supabaseUrl) {
     throw new Error(

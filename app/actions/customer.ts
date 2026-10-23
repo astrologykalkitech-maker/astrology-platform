@@ -94,7 +94,9 @@ export async function getCustomerDashboardData(): Promise<
 
     const totalEnquiries = items.length;
     const pendingEnquiries = items.filter((l) => l.status === "new").length;
-    const assignedEnquiries = items.filter((l) => l.status === "assigned").length;
+    const assignedEnquiries = items.filter(
+      (l) => l.status === "assigned" || l.status === "contacted"
+    ).length;
     const completedEnquiries = items.filter(
       (l) => l.status === "closed" || l.status === "converted"
     ).length;
@@ -234,19 +236,37 @@ export async function submitCustomerEnquiryAction(payload: {
     }
 
     // Direct table fallback: Customer inserts directly with status 'new'
-    const { data: lead, error: insertError } = await supabase
-      .from("leads")
-      .insert({
+    // Attempt insert with extended fields, fall back to core schema if columns are absent
+    let lead = null;
+    let insertError = null;
+
+    const fullPayload: Record<string, unknown> = {
+      customer_id: user.id,
+      astrologer_id: astrologer_id,
+      subject,
+      message,
+      status: "new",
+      source_type: astrologer_id ? "direct" : "platform",
+      priority,
+    };
+
+    const res = await supabase.from("leads").insert(fullPayload).select("id").single();
+    lead = res.data;
+    insertError = res.error;
+
+    // If 'priority' or 'source_type' column does not exist on this database, retry with core schema columns
+    if (insertError && (insertError.message.includes("priority") || insertError.message.includes("source_type"))) {
+      const corePayload = {
         customer_id: user.id,
         astrologer_id: astrologer_id,
         subject,
         message,
         status: "new",
-        source_type: astrologer_id ? "direct" : "platform",
-        priority,
-      })
-      .select("id")
-      .single();
+      };
+      const retryRes = await supabase.from("leads").insert(corePayload).select("id").single();
+      lead = retryRes.data;
+      insertError = retryRes.error;
+    }
 
     if (insertError || !lead) {
       return {
@@ -259,7 +279,7 @@ export async function submitCustomerEnquiryAction(payload: {
     if (astrologer_id) {
       try {
         const { createAdminClient } = await import("@/lib/supabase/admin");
-        const adminDb = await createAdminClient();
+        const adminDb = await createAdminClient(target);
         await adminDb.from("lead_assignments").insert({
           lead_id: lead.id,
           astrologer_id: astrologer_id,

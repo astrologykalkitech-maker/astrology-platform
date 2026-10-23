@@ -91,7 +91,22 @@ export default async function EnquiriesPage() {
                       ? "bg-amber-100 text-amber-800 border-amber-200"
                       : item.status === "assigned"
                       ? "bg-sky-100 text-sky-800 border-sky-200"
-                      : "bg-emerald-100 text-emerald-800 border-emerald-200";
+                      : item.status === "contacted"
+                      ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                      : item.status === "closed" || item.status === "converted"
+                      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                      : "bg-slate-100 text-slate-800 border-slate-200";
+
+                  const displayStatus =
+                    item.status === "closed"
+                      ? "Completed"
+                      : item.status === "converted"
+                      ? "Converted"
+                      : item.status === "contacted"
+                      ? "In Progress"
+                      : item.status === "assigned"
+                      ? "Assigned"
+                      : "Pending";
 
                   const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
                     day: "2-digit",
@@ -119,7 +134,7 @@ export default async function EnquiriesPage() {
                         <span
                           className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadge}`}
                         >
-                          {item.status}
+                          {displayStatus}
                         </span>
                       </td>
                     </tr>

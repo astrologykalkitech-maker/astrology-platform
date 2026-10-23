@@ -246,7 +246,22 @@ export default async function CustomerDashboard() {
                         ? "bg-amber-100 text-amber-800 border-amber-200"
                         : enq.status === "assigned"
                         ? "bg-sky-100 text-sky-800 border-sky-200"
-                        : "bg-emerald-100 text-emerald-800 border-emerald-200";
+                        : enq.status === "contacted"
+                        ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                        : enq.status === "closed" || enq.status === "converted"
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                        : "bg-slate-100 text-slate-800 border-slate-200";
+
+                    const displayStatus =
+                      enq.status === "closed"
+                        ? "Completed"
+                        : enq.status === "converted"
+                        ? "Converted"
+                        : enq.status === "contacted"
+                        ? "In Progress"
+                        : enq.status === "assigned"
+                        ? "Assigned"
+                        : "Pending";
 
                     const displayDate = new Date(enq.created_at).toLocaleDateString("en-GB", {
                       day: "2-digit",
@@ -269,7 +284,7 @@ export default async function CustomerDashboard() {
                           <span
                             className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadge}`}
                           >
-                            {enq.status}
+                            {displayStatus}
                           </span>
                         </td>
                       </tr>

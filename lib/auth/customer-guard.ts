@@ -53,5 +53,6 @@ export const requireCustomerPage = cache(async (): Promise<CustomerAuthContext> 
   return {
     user,
     profile,
+    target: "main",
   };
 });
