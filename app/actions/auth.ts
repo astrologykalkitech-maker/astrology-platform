@@ -236,10 +236,13 @@ export async function signIn(
       if (lower.includes("invalid login credentials")) {
         // If not found in DB1, check if this is an Admin user in DB2
         try {
-          const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
+          const adminSupabaseUrl =
+            process.env.ADMIN_SUPABASE_URL ||
+            "https://gvvaukpcsqmgmlitrodd.supabase.co";
           const adminSupabaseAnon =
             process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.ADMIN_SUPABASE_ANON_KEY;
+            process.env.ADMIN_SUPABASE_ANON_KEY ||
+            "sb_publishable_jrMqe0JoQjEDGdNJ4jmo2A_B1JKxFa6";
 
           if (adminSupabaseUrl && adminSupabaseAnon) {
             const adminClient = await createClient("admin");
@@ -249,16 +252,26 @@ export async function signIn(
                 password,
               });
 
-            if (!adminAuthError && adminAuthData.user) {
+            if (adminAuthError) {
+              console.warn("[DB2 Admin Auth Attempt Error]", {
+                email,
+                message: adminAuthError.message,
+                status: adminAuthError.status,
+              });
+            } else if (adminAuthData?.user) {
               const { createAdminClient } = await import(
                 "@/lib/supabase/admin"
               );
               const privileged = await createAdminClient();
-              const { data: adminProf } = await privileged
+              const { data: adminProf, error: profErr } = await privileged
                 .from("profiles")
                 .select("id, full_name, role")
                 .eq("id", adminAuthData.user.id)
                 .maybeSingle();
+
+              if (profErr) {
+                console.error("[DB2 Admin Profile Fetch Error]", profErr);
+              }
 
               if (adminProf) {
                 return {
@@ -273,8 +286,8 @@ export async function signIn(
               }
             }
           }
-        } catch {
-          // Fall through to standard invalid error
+        } catch (adminErr) {
+          console.error("[DB2 Admin Login Catch Error]", adminErr);
         }
 
         return {
