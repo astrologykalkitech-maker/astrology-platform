@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense, useEffect } from "react";
+import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,7 +9,6 @@ import {
   Users,
   Send,
   AlertCircle,
-  HelpCircle,
 } from "lucide-react";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
@@ -32,13 +31,6 @@ function NewEnquiryContent() {
   const [priority, setPriority] = useState("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (preFilledAstrologerId) {
-      setEnquiryMode("direct");
-      setAstrologerId(preFilledAstrologerId);
-    }
-  }, [preFilledAstrologerId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
