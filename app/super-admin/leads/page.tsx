@@ -30,13 +30,14 @@ import type {
 export default function SuperAdminLeadsPage() {
   const searchParams = useSearchParams();
   const initialUnassignedOnly = searchParams.get("unassignedOnly") === "true";
+  const initialStatus = (searchParams.get("status") as LeadStatus | null) ?? "all";
 
   const [leads, setLeads] = useState<AdminLeadItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [astrologers, setAstrologers] = useState<AstrologerProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">(initialStatus);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | "all">("all");
   const [unassignedOnly, setUnassignedOnly] = useState<boolean>(initialUnassignedOnly);
