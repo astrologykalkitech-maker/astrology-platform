@@ -1,160 +1,133 @@
-"use client";
-
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import React from "react";
 import Link from "next/link";
-import { CUSTOMER_BOOKINGS_STORAGE_KEY, isCustomerDemoBooking, type CustomerDemoBooking } from "@/lib/customer-demo";
-import styles from "./profile.module.css";
+import { notFound } from "next/navigation";
+import { getPublicApprovedAstrologerBySlug } from "@/lib/astrologer/queries";
+import { Avatar } from "@/components/astrologer/ui/Avatar";
+import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { CardTitle } from "@/components/astrologer/ui/CardTitle";
+import {
+  ArrowLeft,
+  Clock,
+  MapPin,
+  Languages,
+  Sparkles,
+  ShieldCheck,
+  Send,
+  Star,
+} from "lucide-react";
 
-const astrologers = [
-  { slug: "aarav-sharma", name: "Aarav Sharma", specialty: "Vedic Astrology", experience: "8+ Years", rating: "4.9", price: 499, languages: "Hindi, English", symbol: "☀", description: "Get personalized guidance about your career, relationships, and life journey through traditional Vedic astrology." },
-  { slug: "meera-joshi", name: "Meera Joshi", specialty: "Love & Relationships", experience: "6+ Years", rating: "4.8", price: 399, languages: "Hindi, English", symbol: "☾", description: "Explore relationship questions and gain a fresh perspective on love, compatibility, and personal growth." },
-  { slug: "rudra-verma", name: "Rudra Verma", specialty: "Career & Finance", experience: "10+ Years", rating: "4.9", price: 599, languages: "Hindi, English", symbol: "✧", description: "Discuss career decisions, professional goals, and financial concerns with a personalized astrology consultation." },
-  { slug: "ananya-mishra", name: "Ananya Mishra", specialty: "Numerology", experience: "5+ Years", rating: "4.7", price: 349, languages: "Hindi, English", symbol: "✺", description: "Discover numerology insights based on your numbers and explore themes in your personal journey." },
-];
+export const dynamic = "force-dynamic";
 
-const slots = ["10:00 AM", "11:30 AM", "01:00 PM", "03:00 PM", "05:30 PM", "07:00 PM"];
-const consultationTypes = ["Chat", "Call", "Video"] as const;
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
-export default function AstrologerProfilePage() {
-  const params = useParams<{ slug: string }>();
-  const astrologer = astrologers.find((item) => item.slug === params.slug);
+export default async function AstrologerProfilePage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const astro = await getPublicApprovedAstrologerBySlug(slug);
 
-  const [consultation, setConsultation] = useState<"Chat" | "Call" | "Video">("Chat");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const [savedBooking, setSavedBooking] = useState(false);
-  const [bookingNotice, setBookingNotice] = useState("");
-
-  if (!astrologer) {
+  if (!astro) {
     return (
-      <div style={{ textAlign: "center", padding: "50px 20px" }}>
-        <h1 style={{ color: "#30213e", fontSize: "20px" }}>Astrologer not found</h1>
-        <Link href="/customer/astrologers" style={{ color: "#65418c", marginTop: "10px", display: "inline-block" }}>Browse astrologers</Link>
+      <div className="py-20 text-center space-y-4">
+        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+          <ShieldCheck className="h-7 w-7" />
+        </div>
+        <h1 className="text-xl font-bold text-midnight">Astrologer Not Found or Not Available</h1>
+        <p className="text-xs text-muted max-w-sm mx-auto">
+          This astrologer profile is currently unavailable or undergoing administrative moderation.
+        </p>
+        <Link href="/customer/astrologers" className={buttonStyles({ variant: "outline", size: "sm" })}>
+          ← Browse Active Astrologers
+        </Link>
       </div>
     );
   }
 
-  function handleReviewBooking() {
-    setBookingNotice("");
-    if (!date || !time) {
-      setBookingNotice("Please select a date and time slot.");
-      return;
-    }
-    setConfirmed(true);
-    setSavedBooking(false);
-  }
-
-  function confirmDemoBooking() {
-    const booking: CustomerDemoBooking = {
-      id: `BK-${Date.now()}`,
-      astrologer: astrologer!.name,
-      service: astrologer!.specialty,
-      consultation, date, time, status: "Upcoming", price: astrologer!.price,
-    };
-
-    try {
-      const saved = localStorage.getItem(CUSTOMER_BOOKINGS_STORAGE_KEY);
-      const parsed: unknown = saved ? JSON.parse(saved) : [];
-      if (!Array.isArray(parsed) || !parsed.every(isCustomerDemoBooking)) throw new Error("Invalid format");
-      localStorage.setItem(CUSTOMER_BOOKINGS_STORAGE_KEY, JSON.stringify([booking, ...parsed]));
-      setSavedBooking(true);
-    } catch {
-      setBookingNotice("Could not save booking.");
-    }
-  }
+  const specializations = astro.specializations || [];
+  const languages = astro.languages || [];
 
   return (
-    <>
-      <Link href="/customer/astrologers" className={styles.back} style={{ display: 'inline-block', marginBottom: '15px' }}>
-        <i className="fa-solid fa-arrow-left"></i> Back
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <Link
+        href="/customer/astrologers"
+        className="inline-flex items-center gap-2 text-xs font-semibold text-gold-deep hover:text-midnight transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to Astrologers Directory
       </Link>
 
-      <section className={styles.hero}>
-        <div className={styles.profileCard}>
-          <div className={styles.avatar}>{astrologer.symbol}</div>
-          <div className={styles.profileInfo}>
-            <span className={styles.verified}>✦ VERIFIED</span>
-            <h1>{astrologer.name}</h1>
-            <p className={styles.specialty}>{astrologer.specialty}</p>
-            <div className={styles.stats}>
-              <span>★ {astrologer.rating}</span>
-              <span>{astrologer.experience}</span>
-              <span>{astrologer.languages}</span>
+      <div className={`${CARD} p-6 sm:p-8`}>
+        <div className="flex flex-col sm:flex-row items-start gap-6">
+          <Avatar
+            name={astro.display_name}
+            src={astro.profile_photo_url}
+            size="lg"
+            className="!h-24 !w-24 shrink-0 shadow-md"
+          />
+
+          <div className="flex-1 space-y-3 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-display font-bold text-midnight truncate">
+                {astro.display_name}
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+                <ShieldCheck className="h-3 w-3" /> Verified Vedic Mentor
+              </span>
+              {astro.is_featured && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Featured
+                </span>
+              )}
             </div>
-            <p className={styles.description}>{astrologer.description}</p>
-            <div style={{ marginTop: '15px' }}>
-              <Link
-                href={`/customer/enquiries/new?astrologerName=${encodeURIComponent(astrologer.name)}`}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  background: 'var(--gold)',
-                  color: '#fff',
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                }}
-              >
-                <i className="fa-solid fa-paper-plane"></i> Contact This Astrologer
-              </Link>
+
+            <p className="text-sm font-medium text-gold-deep">
+              {specializations.join(" • ") || "Vedic Astrologer"}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted">
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" /> {astro.experience_years ?? 1}+ Years Experience
+              </span>
+              {astro.city && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" /> {astro.city}{astro.state ? `, ${astro.state}` : ""}
+                </span>
+              )}
+              {languages.length > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <Languages className="h-3.5 w-3.5" /> {languages.join(", ")}
+                </span>
+              )}
             </div>
+
+            {astro.bio && (
+              <p className="text-xs text-ink/80 leading-relaxed pt-2 border-t border-gold/15">
+                {astro.bio}
+              </p>
+            )}
           </div>
         </div>
 
-        <aside className={styles.bookingCard}>
-          <span className={styles.eyebrow}>PERSONAL CONSULTATION</span>
-          <h2>Book a session</h2>
-
-          <h3>Consultation type</h3>
-          <div className={styles.typeGrid}>
-            {consultationTypes.map((type) => (
-              <button key={type} className={`${styles.typeButton} ${consultation === type ? styles.selected : ""}`} onClick={() => { setConsultation(type); setConfirmed(false); setSavedBooking(false); }}>
-                {type === "Chat" ? "☷" : type === "Call" ? "♧" : "▣"}
-                <span>{type}</span>
-              </button>
-            ))}
-          </div>
-
-          <h3>Select date</h3>
-          <input className={styles.dateInput} type="date" min={new Date().toLocaleDateString("en-CA")} value={date} onChange={(e) => { setDate(e.target.value); setConfirmed(false); setSavedBooking(false); }} />
-
-          <h3>Available time slots</h3>
-          <div className={styles.slotGrid}>
-            {slots.map((slot) => (
-              <button key={slot} className={`${styles.slot} ${time === slot ? styles.slotSelected : ""}`} onClick={() => { setTime(slot); setConfirmed(false); setSavedBooking(false); }}>
-                {slot}
-              </button>
-            ))}
-          </div>
-
-          <div className={styles.priceRow}>
-            <div><span className={styles.muted}>Price</span><div className={styles.price}>₹{astrologer.price}</div></div>
-          </div>
-
-          <button type="button" className={styles.bookButton} onClick={handleReviewBooking}>Review Booking <span>→</span></button>
-          {bookingNotice && <p className={styles.bookingNotice}>{bookingNotice}</p>}
-
-          {confirmed && (
-            <div className={styles.confirmation}>
-              <strong>Booking summary</strong>
-              <p>Astrologer: {astrologer.name}</p>
-              <p>Type: {consultation}</p>
-              <p>Date: {date} | Time: {time}</p>
-              <p>Total: ₹{astrologer.price}</p>
-              {savedBooking ? (
-                <Link href="/customer/bookings" className={styles.bookingsLink}>View my bookings ↗</Link>
-              ) : (
-                <button type="button" className={styles.confirmButton} onClick={confirmDemoBooking}>Confirm booking</button>
-              )}
+        <div className="mt-8 pt-6 border-t border-gold/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              Consultation Fee
+            </span>
+            <div className="font-display text-2xl font-bold text-midnight">
+              ₹{astro.consultation_fee ?? 499}
             </div>
-          )}
-        </aside>
-      </section>
-    </>
+          </div>
+
+          <Link
+            href={`/customer/enquiries/new?astrologerId=${astro.id}&astrologerName=${encodeURIComponent(astro.display_name)}`}
+            className={buttonStyles({ variant: "gold", size: "lg", className: "w-full sm:w-auto" })}
+          >
+            <Send className="h-4 w-4 mr-2" /> Send Consultation Request
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
