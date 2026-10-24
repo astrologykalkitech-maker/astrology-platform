@@ -5,6 +5,7 @@ import { GitBranch, UserCheck, ShieldAlert, Sliders, CheckCircle2, RefreshCw } f
 import { getAdminLeads, batchAssignLeads, type AdminLeadItem } from "@/app/actions/admin-leads";
 import { getAdminListings } from "@/app/actions/admin-listings";
 import { getPlatformSettings, updatePlatformSetting } from "@/app/actions/admin-system";
+import { formatExactDateTime } from "@/lib/astrologer/format";
 import type { AstrologerProfile } from "@/lib/types/database.types";
 
 export default function LeadDistributionPage() {
@@ -337,13 +338,7 @@ export default function LeadDistributionPage() {
                         </span>
                       </td>
                       <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">
-                        {new Date(lead.created_at).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatExactDateTime(lead.created_at)}
                       </td>
                     </tr>
                   );

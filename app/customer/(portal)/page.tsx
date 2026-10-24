@@ -16,6 +16,7 @@ import {
   Circle,
 } from "lucide-react";
 import { getCustomerDashboardData } from "@/app/actions/customer";
+import { formatExactDateTime } from "@/lib/astrologer/format";
 import { HeroArt } from "@/components/astrologer/art/HeroArt";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
@@ -263,13 +264,7 @@ export default async function CustomerDashboard() {
                         ? "Assigned"
                         : "Pending";
 
-                    const displayDate = new Date(enq.created_at).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+                    const displayDate = formatExactDateTime(enq.created_at);
 
                     return (
                       <tr key={enq.id} className="hover:bg-parchment/40 transition-colors">

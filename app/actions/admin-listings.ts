@@ -7,6 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPermission, requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
+import { revalidatePath } from "next/cache";
 import type {
   ApprovalStatus,
   AstrologerProfile,
@@ -140,16 +141,37 @@ export async function updateListingModerationStatus(
     // Mirror approval_status to DB1 so customer discovery and astrologer portal sync immediately
     try {
       const db1Client = await createAdminClient("main");
+      const targetSlug = updated?.slug || beforeListing.slug;
+
+      let db1TargetId = listingId;
+      if (targetSlug) {
+        const { data: db1Matched } = await db1Client
+          .from("astrologer_profiles")
+          .select("id")
+          .eq("slug", targetSlug)
+          .maybeSingle();
+        if (db1Matched?.id) {
+          db1TargetId = db1Matched.id;
+        }
+      }
+
       await db1Client
         .from("astrologer_profiles")
         .update({
           approval_status: status,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", listingId);
+        .eq("id", db1TargetId);
     } catch (syncErr) {
       console.warn("[Listing Moderation DB1 Sync Warning]", syncErr);
     }
+
+    // Revalidate customer directory, astrologer views, and admin listings instantly
+    revalidatePath("/customer/astrologers", "page");
+    revalidatePath("/customer", "page");
+    revalidatePath("/astrologer/profile", "page");
+    revalidatePath("/super-admin/listings", "page");
+    revalidatePath("/super-admin", "page");
 
     // Record audit event
     await logAdminAction({
