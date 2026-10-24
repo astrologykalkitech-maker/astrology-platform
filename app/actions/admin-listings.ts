@@ -137,6 +137,20 @@ export async function updateListingModerationStatus(
       return { success: false, error: updateErr.message };
     }
 
+    // Mirror approval_status to DB1 so customer discovery and astrologer portal sync immediately
+    try {
+      const db1Client = await createAdminClient("main");
+      await db1Client
+        .from("astrologer_profiles")
+        .update({
+          approval_status: status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", listingId);
+    } catch (syncErr) {
+      console.warn("[Listing Moderation DB1 Sync Warning]", syncErr);
+    }
+
     // Record audit event
     await logAdminAction({
       actorId: user.id,
