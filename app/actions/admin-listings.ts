@@ -155,19 +155,37 @@ export async function updateListingModerationStatus(
         }
       }
 
-      await db1Client
+      // First attempt update with the exact status.
+      // If DB1 has a legacy check constraint ('pending', 'approved', 'rejected'),
+      // map 'suspended'/'changes_requested'/'archived'/'draft' to 'rejected' so the customer directory
+      // immediately removes them from public view.
+      const { error: db1UpErr } = await db1Client
         .from("astrologer_profiles")
         .update({
           approval_status: status,
           updated_at: new Date().toISOString(),
         })
         .eq("id", db1TargetId);
+
+      if (db1UpErr && db1UpErr.message.includes("violates check constraint")) {
+        const fallbackStatus = status === "approved" ? "approved" : "rejected";
+        await db1Client
+          .from("astrologer_profiles")
+          .update({
+            approval_status: fallbackStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", db1TargetId);
+      }
     } catch (syncErr) {
       console.warn("[Listing Moderation DB1 Sync Warning]", syncErr);
     }
 
     // Revalidate customer directory, astrologer views, and admin listings instantly
+    revalidatePath("/customer/astrologers", "layout");
     revalidatePath("/customer/astrologers", "page");
+    revalidatePath("/customer/enquiries/new", "page");
+    revalidatePath("/customer", "layout");
     revalidatePath("/customer", "page");
     revalidatePath("/astrologer/profile", "page");
     revalidatePath("/super-admin/listings", "page");
