@@ -231,25 +231,31 @@ export async function submitCustomerEnquiryAction(payload: {
 
     // Resolve astrologer ID for current target database if targeting direct astrologer
     if (resolvedAstrologerId) {
-      const { data: targetProfile } = await supabase
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const currentAdmin = await createAdminClient(target);
+
+      // 1. Check if ID exists in current target DB
+      const { data: targetProfile } = await currentAdmin
         .from("astrologer_profiles")
-        .select("id")
+        .select("id, slug")
         .eq("id", resolvedAstrologerId)
         .maybeSingle();
 
-      if (!targetProfile) {
-        // Look up by slug in case the ID came from the other database (e.g. DB1 listing shown to DB2 session or vice versa)
+      if (targetProfile?.id) {
+        resolvedAstrologerId = targetProfile.id;
+      } else {
+        // 2. Look up the ID in the other DB to find its unique slug, then find matching profile in current DB
         const otherTarget = target === "main" ? "admin" : "main";
         try {
-          const otherClient = await createClient(otherTarget);
-          const { data: sourceProfile } = await otherClient
+          const otherAdmin = await createAdminClient(otherTarget);
+          const { data: sourceProfile } = await otherAdmin
             .from("astrologer_profiles")
             .select("slug")
             .eq("id", resolvedAstrologerId)
             .maybeSingle();
 
           if (sourceProfile?.slug) {
-            const { data: matchedProfile } = await supabase
+            const { data: matchedProfile } = await currentAdmin
               .from("astrologer_profiles")
               .select("id")
               .eq("slug", sourceProfile.slug)
@@ -257,10 +263,17 @@ export async function submitCustomerEnquiryAction(payload: {
 
             if (matchedProfile?.id) {
               resolvedAstrologerId = matchedProfile.id;
+            } else {
+              // If no matching profile exists in current database, clear astrologer_id to avoid FK violation
+              resolvedAstrologerId = null;
             }
+          } else {
+            // ID does not exist in either database; clear to avoid FK violation
+            resolvedAstrologerId = null;
           }
         } catch {
-          // If cross-lookup fails, keep original ID
+          // If cross-lookup fails and ID is unverified, clear to avoid FK violation
+          resolvedAstrologerId = null;
         }
       }
     }
@@ -365,8 +378,9 @@ export async function submitCustomerEnquiryAction(payload: {
           if (db2Direct?.id) {
             db2AstrologerId = db2Direct.id;
           } else {
-            // Find slug in DB1 to match in DB2
-            const { data: db1Profile } = await supabase
+            // Find slug in DB1 to match in DB2 using privileged admin client to avoid RLS block
+            const db1Client = await createAdminClient("main");
+            const { data: db1Profile } = await db1Client
               .from("astrologer_profiles")
               .select("slug")
               .eq("id", resolvedAstrologerId)
