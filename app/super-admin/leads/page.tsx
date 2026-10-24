@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Inbox,
   Search,
@@ -10,6 +11,7 @@ import {
   Clock,
   Tag,
   RefreshCw,
+  Ban,
 } from "lucide-react";
 import {
   getAdminLeads,
@@ -26,6 +28,9 @@ import type {
 } from "@/lib/types/database.types";
 
 export default function SuperAdminLeadsPage() {
+  const searchParams = useSearchParams();
+  const initialUnassignedOnly = searchParams.get("unassignedOnly") === "true";
+
   const [leads, setLeads] = useState<AdminLeadItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [astrologers, setAstrologers] = useState<AstrologerProfile[]>([]);
@@ -34,6 +39,7 @@ export default function SuperAdminLeadsPage() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | "all">("all");
+  const [unassignedOnly, setUnassignedOnly] = useState<boolean>(initialUnassignedOnly);
 
   // Assignment Modal State
   const [selectedLeadForAssign, setSelectedLeadForAssign] = useState<AdminLeadItem | null>(null);
@@ -49,6 +55,7 @@ export default function SuperAdminLeadsPage() {
         status: statusFilter,
         sourceType: sourceFilter,
         priority: priorityFilter,
+        unassignedOnly: unassignedOnly || undefined,
       }),
       getAdminListings({ status: "approved" }),
     ]);
@@ -73,6 +80,7 @@ export default function SuperAdminLeadsPage() {
           status: statusFilter,
           sourceType: sourceFilter,
           priority: priorityFilter,
+          unassignedOnly: unassignedOnly || undefined,
         }),
         getAdminListings({ status: "approved" }),
       ]);
@@ -93,7 +101,7 @@ export default function SuperAdminLeadsPage() {
     return () => {
       ignore = true;
     };
-  }, [statusFilter, sourceFilter, priorityFilter, search]);
+  }, [statusFilter, sourceFilter, priorityFilter, unassignedOnly, search]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +217,20 @@ export default function SuperAdminLeadsPage() {
               {pr}
             </button>
           ))}
+
+          <span className="text-[11px] font-semibold uppercase text-zinc-400 ml-2">Scope:</span>
+          <button
+            type="button"
+            onClick={() => setUnassignedOnly(!unassignedOnly)}
+            className={`rounded-lg px-2.5 py-1 transition-colors font-medium flex items-center gap-1 ${
+              unassignedOnly
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400"
+            }`}
+          >
+            <Clock className="h-3 w-3" />
+            Unassigned Only
+          </button>
         </div>
       </div>
 
@@ -331,9 +353,17 @@ export default function SuperAdminLeadsPage() {
                             type="button"
                             onClick={() => handleQualify(lead.id, "qualified")}
                             title="Mark Qualified"
-                            className="rounded-lg p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                            className="rounded-lg p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
                           >
                             <CheckCircle2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleQualify(lead.id, "invalid")}
+                            title="Mark Invalid / Spam"
+                            className="rounded-lg p-1 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                          >
+                            <Ban className="h-4 w-4" />
                           </button>
                         </div>
                       </td>

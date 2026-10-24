@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, CheckCircle2, XCircle, AlertCircle, ShieldAlert } from "lucide-react";
 import { updateListingModerationStatus } from "@/app/actions/admin-listings";
 import type { ApprovalStatus, AstrologerProfile } from "@/lib/types/database.types";
@@ -18,11 +18,28 @@ export function ListingModerationModal({
   onClose,
   onSuccess,
 }: ListingModerationModalProps) {
-  const [selectedStatus, setSelectedStatus] = useState<ApprovalStatus>("approved");
-  const [reviewNotes, setReviewNotes] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<ApprovalStatus>(
+    listing?.approval_status && listing.approval_status !== "approved"
+      ? listing.approval_status
+      : "approved"
+  );
+  const [reviewNotes, setReviewNotes] = useState(listing?.review_notes ?? "");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (listing) {
+      setSelectedStatus(
+        listing.approval_status && listing.approval_status !== "approved"
+          ? listing.approval_status
+          : "approved"
+      );
+      setReviewNotes(listing.review_notes ?? "");
+      setReason("");
+      setError(null);
+    }
+  }, [listing, isOpen]);
 
   if (!isOpen || !listing) return null;
 

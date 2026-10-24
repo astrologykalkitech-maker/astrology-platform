@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Shield, AlertCircle, Check } from "lucide-react";
 import { updateConsultantPermissions } from "@/app/actions/admin-consultants";
 import { ADMIN_PERMISSIONS } from "@/lib/auth/permissions";
@@ -25,6 +25,13 @@ export function ConsultantPermissionsModal({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (consultant) {
+      setSelectedPerms(consultant.permissions ?? []);
+      setError(null);
+    }
+  }, [consultant, isOpen]);
 
   if (!isOpen || !consultant) return null;
 

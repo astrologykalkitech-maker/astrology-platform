@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Award, AlertCircle } from "lucide-react";
 import { updateListingRankingAndFeatured } from "@/app/actions/admin-listings";
 import type { AstrologerProfile } from "@/lib/types/database.types";
@@ -26,6 +26,16 @@ export function RankingModal({
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (listing) {
+      setPriority(listing.ranking_priority ?? 0);
+      setIsFeatured(listing.is_featured ?? false);
+      setFeaturedUntil(listing.featured_until ? listing.featured_until.slice(0, 10) : "");
+      setReason("");
+      setError(null);
+    }
+  }, [listing, isOpen]);
 
   if (!isOpen || !listing) return null;
 

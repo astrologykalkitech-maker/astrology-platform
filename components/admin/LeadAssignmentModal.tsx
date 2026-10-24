@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, UserCheck, AlertCircle, UserMinus } from "lucide-react";
 import { assignLead } from "@/app/actions/admin-leads";
 import type { AstrologerProfile } from "@/lib/types/database.types";
@@ -21,11 +21,23 @@ export function LeadAssignmentModal({
   onClose,
   onSuccess,
 }: LeadAssignmentModalProps) {
-  const [selectedAstrologerId, setSelectedAstrologerId] = useState<string>("");
+  const [selectedAstrologerId, setSelectedAstrologerId] = useState<string>(
+    lead?.astrologer_id ?? ""
+  );
   const [reason, setReason] = useState("");
   const [isUnassign, setIsUnassign] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronize modal state whenever target lead or open status changes
+  useEffect(() => {
+    if (lead) {
+      setSelectedAstrologerId(lead.astrologer_id ?? "");
+      setReason("");
+      setIsUnassign(false);
+      setError(null);
+    }
+  }, [lead, isOpen]);
 
   if (!isOpen || !lead) return null;
 
