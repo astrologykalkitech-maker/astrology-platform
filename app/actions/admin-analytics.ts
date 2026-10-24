@@ -59,7 +59,7 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
     ] = await Promise.all([
       supabase.from("leads").select("*", { count: "exact", head: true }),
       supabase.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
-      supabase.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null),
+      supabase.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null).not("status", "in", '("closed","converted","invalid")'),
       supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "assigned"),
       supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
       supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),

@@ -107,7 +107,10 @@ export async function getAdminLeads(
     }
 
     if (filter.unassignedOnly) {
-      query = query.is("assigned_to", null).is("astrologer_id", null);
+      query = query
+        .is("assigned_to", null)
+        .is("astrologer_id", null)
+        .not("status", "in", '("closed","converted","invalid")');
     }
 
     if (filter.search && filter.search.trim()) {

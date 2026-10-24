@@ -139,6 +139,94 @@ export default function SuperAdminLeadsPage() {
         </button>
       </div>
 
+      {/* Quick Category Navigation Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setSourceFilter("all");
+            setStatusFilter("all");
+            setUnassignedOnly(false);
+          }}
+          className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            sourceFilter === "all" && statusFilter === "all" && !unassignedOnly
+              ? "bg-zinc-900 text-white shadow dark:bg-zinc-100 dark:text-zinc-900"
+              : "bg-white text-zinc-600 border border-zinc-200/80 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          <Inbox className="h-3.5 w-3.5" />
+          All Inquiries ({totalCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSourceFilter("direct");
+            setStatusFilter("all");
+            setUnassignedOnly(false);
+          }}
+          className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            sourceFilter === "direct" && !unassignedOnly
+              ? "bg-amber-600 text-white shadow"
+              : "bg-white text-zinc-600 border border-zinc-200/80 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          <Tag className="h-3.5 w-3.5" />
+          Direct Astrologer Queries
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSourceFilter("platform");
+            setStatusFilter("all");
+            setUnassignedOnly(false);
+          }}
+          className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            sourceFilter === "platform" && !unassignedOnly
+              ? "bg-blue-600 text-white shadow"
+              : "bg-white text-zinc-600 border border-zinc-200/80 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          <Inbox className="h-3.5 w-3.5" />
+          Platform Pool
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSourceFilter("all");
+            setStatusFilter("new");
+            setUnassignedOnly(true);
+          }}
+          className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            unassignedOnly
+              ? "bg-rose-600 text-white shadow"
+              : "bg-white text-zinc-600 border border-zinc-200/80 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          <Clock className="h-3.5 w-3.5" />
+          Pending & Unassigned
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSourceFilter("all");
+            setStatusFilter("closed");
+            setUnassignedOnly(false);
+          }}
+          className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            statusFilter === "closed" && !unassignedOnly
+              ? "bg-emerald-600 text-white shadow"
+              : "bg-white text-zinc-600 border border-zinc-200/80 hover:bg-zinc-50 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400"
+          }`}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Completed / Closed
+        </button>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 space-y-3">
         <form onSubmit={handleSearchSubmit} className="flex gap-2">
