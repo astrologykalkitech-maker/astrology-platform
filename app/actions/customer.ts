@@ -378,7 +378,7 @@ export async function submitCustomerEnquiryAction(payload: {
           if (db2Direct?.id) {
             db2AstrologerId = db2Direct.id;
           } else {
-            // Find slug in DB1 to match in DB2 using privileged admin client to avoid RLS block
+            // Find slug in DB1 to match in DB2 using privileged admin client
             const db1Client = await createAdminClient("main");
             const { data: db1Profile } = await db1Client
               .from("astrologer_profiles")

@@ -212,7 +212,13 @@ export default function ConsultantLeadsPage() {
                         {lead.customer_name ?? "Platform Customer"}
                       </span>
                       <span className="font-mono text-[10px] text-zinc-400">
-                        {new Date(lead.created_at).toLocaleDateString()}
+                        {new Date(lead.created_at).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                     <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mt-1 truncate">

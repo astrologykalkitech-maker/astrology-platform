@@ -9,7 +9,7 @@ import { EmptyState, ErrorState } from "@/components/astrologer/ui/feedback";
 import { PageHeader } from "@/components/astrologer/ui/PageHeader";
 import { AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
-import { formatDate, timeAgo } from "@/lib/astrologer/format";
+import { formatDate, formatDateTime, timeAgo } from "@/lib/astrologer/format";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 
 export const metadata: Metadata = { title: "My Leads" };
@@ -85,7 +85,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                         <span className="flex items-center gap-3"><Avatar name={name} size="sm" /><span className="font-medium text-midnight">{name}</span></span>
                       </td>
                       <td className="max-w-[260px] truncate px-3 py-3.5 text-ink/80">{item.lead.subject}</td>
-                      <td className="whitespace-nowrap px-3 py-3.5 text-muted">{formatDate(item.created_at)}</td>
+                      <td className="whitespace-nowrap px-3 py-3.5 text-muted font-mono text-xs">{formatDateTime(item.created_at)}</td>
                       <td className="px-3 py-3.5"><AssignmentBadge status={item.status} /></td>
                       <td className="px-6 py-3.5 text-right">
                         <Link href={`/astrologer/leads/${item.id}`} className={buttonStyles({ variant: "outline", size: "sm" })}>View <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>

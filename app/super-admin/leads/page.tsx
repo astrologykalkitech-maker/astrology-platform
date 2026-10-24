@@ -276,7 +276,13 @@ export default function SuperAdminLeadsPage() {
                           {lead.customer_name ?? "Platform User"}
                         </div>
                         <div className="text-[11px] text-zinc-400 font-mono">
-                          {new Date(lead.created_at).toLocaleDateString()}
+                          {new Date(lead.created_at).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </div>
                       </td>
 

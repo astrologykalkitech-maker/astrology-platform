@@ -336,8 +336,14 @@ export default function LeadDistributionPage() {
                           {lead.source_type ?? "platform"}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px]">
-                        {new Date(lead.created_at).toLocaleString()}
+                      <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">
+                        {new Date(lead.created_at).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </td>
                     </tr>
                   );

@@ -23,7 +23,7 @@ import { CompletionRing } from "@/components/astrologer/ui/CompletionRing";
 import { EmptyState, ErrorState } from "@/components/astrologer/ui/feedback";
 import { StatCard } from "@/components/astrologer/ui/StatCard";
 import { ApprovalBadge, AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
-import { formatDate } from "@/lib/astrologer/format";
+import { formatDate, formatDateTime } from "@/lib/astrologer/format";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
 import { getProfileCompletion } from "@/lib/astrologer/profile-completion";
 import { getOwnAstrologerProfile, requireAstrologerPage } from "@/lib/astrologer/guard";
@@ -197,7 +197,7 @@ export default async function DashboardPage() {
                         <tr key={item.id} className="transition-colors hover:bg-parchment/40">
                           <td className="px-6 py-3 font-semibold text-midnight">{name}</td>
                           <td className="max-w-[180px] truncate px-3 py-3 text-ink/80">{item.lead.subject}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-muted">{formatDate(item.created_at)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-muted font-mono text-xs">{formatDateTime(item.created_at)}</td>
                           <td className="px-3 py-3"><AssignmentBadge status={item.status} /></td>
                           <td className="px-6 py-3 text-right">
                             <Link href={`/astrologer/leads/${item.id}`} className={buttonStyles({ variant: "outline", size: "sm" })}>View</Link>
@@ -218,7 +218,7 @@ export default async function DashboardPage() {
                         <Avatar name={name} size="sm" />
                         <span className="min-w-0 flex-1 leading-tight">
                           <span className="block truncate text-sm font-semibold text-midnight">{name}</span>
-                          <span className="block truncate text-xs text-muted">{item.lead.subject} · {formatDate(item.created_at)}</span>
+                          <span className="block truncate text-xs text-muted">{item.lead.subject} · {formatDateTime(item.created_at)}</span>
                         </span>
                         <AssignmentBadge status={item.status} />
                       </Link>

@@ -7,7 +7,14 @@ export function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : dateFormatter.format(d);
 }
+
 export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : dateTimeFormatter.format(d);
+}
+
+export function formatExactDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : dateTimeFormatter.format(d);
 }
