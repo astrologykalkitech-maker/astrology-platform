@@ -259,24 +259,64 @@ export async function updateAssignmentStatus(
       return { success: false, error: friendlyMessage };
     }
 
-    // 7. Synchronize public.leads status directly (ensures customer dashboard & enquiries reflect immediately)
+    // 7. Synchronize public.leads status across both DB1 and DB2 (ensures customer dashboard, enquiries, and admin panels reflect immediately)
     try {
-      const adminClient = await createAdminClient(target);
-      const targetLeadStatus = targetStatus === "closed" ? "closed" : targetStatus === "contacted" ? "contacted" : undefined;
+      const targetLeadStatus =
+        targetStatus === "closed"
+          ? "closed"
+          : targetStatus === "contacted"
+          ? "contacted"
+          : undefined;
+
       if (targetLeadStatus) {
-        await adminClient
-          .from("leads")
-          .update({ status: targetLeadStatus })
-          .eq("id", existing.lead.id);
+        const leadId = existing.lead.id;
+        const now = new Date().toISOString();
+
+        // 7a. Update DB1 (Authoritative Customer Database)
+        try {
+          const db1Client = await createAdminClient("main");
+          await db1Client
+            .from("leads")
+            .update({ status: targetLeadStatus })
+            .eq("id", leadId);
+        } catch (db1Err) {
+          console.error("[updateAssignmentStatus] DB1 lead sync error:", db1Err);
+        }
+
+        // 7b. Update DB2 (Super Admin Database) with closure/contact timestamps
+        try {
+          const db2Client = await createAdminClient("admin");
+          const db2Payload: Record<string, unknown> = {
+            status: targetLeadStatus,
+          };
+          if (targetLeadStatus === "closed") {
+            db2Payload.closed_at = now;
+          } else if (targetLeadStatus === "contacted") {
+            db2Payload.first_contacted_at = now;
+          }
+
+          await db2Client
+            .from("leads")
+            .update(db2Payload)
+            .eq("id", leadId);
+        } catch (db2Err) {
+          console.error("[updateAssignmentStatus] DB2 lead sync error:", db2Err);
+        }
       }
     } catch (syncErr) {
       console.error("[updateAssignmentStatus] Lead sync warning:", syncErr);
     }
 
-    // 8. Revalidate customer & astrologer paths so portals update immediately
+    // 8. Revalidate customer, astrologer, and admin paths so all dashboards update immediately
     revalidatePath("/customer", "page");
     revalidatePath("/customer/enquiries", "page");
     revalidatePath("/astrologer/leads", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/super-admin", "page");
+    revalidatePath("/super-admin/leads", "page");
+    revalidatePath("/super-admin/analytics", "page");
+    revalidatePath("/admin", "page");
+    revalidatePath("/admin/leads", "page");
 
     return {
       success: true,
