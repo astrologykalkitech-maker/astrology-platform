@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, Bell, BellOff, ArrowRight } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { getCustomerEnquiries } from "@/app/actions/customer";
+import { formatExactDateTime } from "@/lib/astrologer/format";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
@@ -59,11 +60,7 @@ export default async function NotificationsPage() {
           </div>
           <div className="divide-y divide-gold/10">
             {recentUpdates.slice(0, 10).map((item) => {
-              const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              });
+              const displayDate = formatExactDateTime(item.created_at);
 
               return (
                 <div

@@ -114,6 +114,36 @@ export async function getAstrologerAssignedLeads(
   options?: AstrologerLeadsFilterOptions
 ): Promise<{ leads: AstrologerLeadItem[]; totalCount: number }> {
   try {
+    // Defense-in-depth: Ensure any direct leads targeting this astrologer have an assignment record
+    try {
+      const { data: directLeads } = await supabase
+        .from("leads")
+        .select("id, status, created_at")
+        .eq("astrologer_id", astrologerProfileId);
+
+      if (directLeads && directLeads.length > 0) {
+        const { data: existingAssignments } = await supabase
+          .from("lead_assignments")
+          .select("lead_id")
+          .eq("astrologer_id", astrologerProfileId);
+
+        const assignedSet = new Set((existingAssignments || []).map((a) => a.lead_id));
+        const missingAssignments = directLeads.filter((l) => !assignedSet.has(l.id));
+
+        if (missingAssignments.length > 0) {
+          const toInsert = missingAssignments.map((l) => ({
+            lead_id: l.id,
+            astrologer_id: astrologerProfileId,
+            status: l.status === "closed" ? "closed" : l.status === "contacted" ? "contacted" : "assigned",
+            created_at: l.created_at,
+          }));
+          await supabase.from("lead_assignments").insert(toInsert);
+        }
+      }
+    } catch {
+      // Non-blocking self-healing fallback
+    }
+
     let query = supabase
       .from("lead_assignments")
       .select(NESTED_ASSIGNMENT_SELECT, { count: "exact" })

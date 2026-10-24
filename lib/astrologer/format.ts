@@ -1,14 +1,28 @@
-const dateFormatter = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
-const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit",
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "Asia/Kolkata",
 });
 
-export function formatDate(iso: string): string {
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "Asia/Kolkata",
+});
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : dateFormatter.format(d);
 }
 
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : dateTimeFormatter.format(d);
 }

@@ -10,6 +10,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { getCustomerEnquiries } from "@/app/actions/customer";
+import { formatExactDateTime } from "@/lib/astrologer/format";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
@@ -98,13 +99,7 @@ export default async function EnquiriesPage() {
                   ? "Assigned"
                   : "Pending";
 
-              const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              });
+              const displayDate = formatExactDateTime(item.created_at);
 
               return (
                 <div key={item.id} className="p-4 space-y-2.5">
@@ -168,13 +163,7 @@ export default async function EnquiriesPage() {
                       ? "Assigned"
                       : "Pending";
 
-                  const displayDate = new Date(item.created_at).toLocaleDateString("en-GB", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+                  const displayDate = formatExactDateTime(item.created_at);
 
                   return (
                     <tr key={item.id} className="hover:bg-parchment/30 transition-colors">
