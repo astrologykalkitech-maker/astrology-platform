@@ -440,7 +440,7 @@ begin
     end if;
 
     -- Condition B: If a PostgREST JWT role claim exists, it must also be an explicitly trusted role
-    jwt_role := pg_catalog.nullif(
+    jwt_role := nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
       ''
     );
@@ -515,7 +515,7 @@ declare
 begin
   -- Step 1: Detect trusted database-role callers (SQL Editor, postgres, supabase_admin, service_role)
   if current_user in ('postgres', 'supabase_admin', 'service_role') then
-    jwt_role := pg_catalog.nullif(
+    jwt_role := nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
       ''
     );

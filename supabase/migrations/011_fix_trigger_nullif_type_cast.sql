@@ -3,9 +3,9 @@
 -- Run this in Database 2 SQL Editor (https://gvvaukpcsqmgmlitrodd.supabase.co)
 -- ==============================================================================
 
--- Fixes: "function pg_catalog.nullif(text, unknown) does not exist"
--- Caused because 'set search_path = ''' disables implicit type casting for unknown literals.
--- Explicitly casting to ::text resolves the issue completely.
+-- Fixes: "function pg_catalog.nullif(text, text) does not exist" and "function pg_catalog.nullif(text, unknown) does not exist"
+-- In PostgreSQL, NULLIF is a core SQL language construct, not a schema-qualified function in pg_catalog.
+-- Calling it as nullif(...) resolves cleanly in PL/pgSQL functions.
 
 create or replace function public.guard_astrologer_profile_security()
 returns trigger
@@ -30,9 +30,9 @@ begin
     end if;
 
     -- Condition B: If a PostgREST JWT role claim exists, it must also be an explicitly trusted role
-    jwt_role := pg_catalog.nullif(
+    jwt_role := nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
-      ''::text
+      ''
     );
 
     if jwt_role is not null and jwt_role not in ('service_role', 'supabase_admin') then
@@ -50,7 +50,7 @@ $$;
 revoke all on function public.guard_astrologer_profile_security() from public;
 grant execute on function public.guard_astrologer_profile_security() to authenticated, anon, service_role;
 
--- Also fix lead assignment trigger type cast defensively
+-- Also fix lead assignment trigger defensively
 create or replace function public.guard_lead_assignment_status_security()
 returns trigger
 language plpgsql
@@ -62,9 +62,9 @@ declare
 begin
   -- Step 1: Detect trusted database-role callers (SQL Editor, postgres, supabase_admin, service_role)
   if current_user in ('postgres', 'supabase_admin', 'service_role') then
-    jwt_role := pg_catalog.nullif(
+    jwt_role := nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
-      ''::text
+      ''
     );
 
     -- Ensure an untrusted JWT claim cannot override a privileged database role

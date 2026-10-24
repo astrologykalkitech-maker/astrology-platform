@@ -37,9 +37,9 @@ begin
     end if;
 
     -- Condition B: If a PostgREST JWT role claim exists, it must also be an explicitly trusted role
-    jwt_role := pg_catalog.nullif(
+    jwt_role := nullif(
       pg_catalog.current_setting('request.jwt.claim.role', true),
-      ''::text
+      ''
     );
 
     if jwt_role is not null and jwt_role not in ('service_role', 'supabase_admin') then
