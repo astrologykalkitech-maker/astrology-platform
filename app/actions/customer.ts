@@ -4,6 +4,7 @@
 // CUSTOMER DATA ACCESS & SERVER ACTIONS (Phase 1)
 // =====================================================
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import type { LeadStatus } from "@/lib/types/database.types";
@@ -402,10 +403,38 @@ export async function submitCustomerEnquiryAction(payload: {
             status: "assigned",
           });
         }
+
+        // Log central enquiry submission into admin audit trail
+        try {
+          const { logAdminAction } = await import("@/lib/admin/audit");
+          await logAdminAction({
+            actorId: user.id,
+            actorRole: "customer",
+            action: db2AstrologerId ? "enquiry.direct.created" : "enquiry.platform.created",
+            targetType: "lead",
+            targetId: createdLeadId,
+            reason: `Customer submitted new consultation request: ${subject.slice(0, 50)}`,
+            outcome: "success",
+          });
+        } catch {
+          // Non-blocking audit log
+        }
       } catch (syncErr) {
         console.warn("[Customer Enquiry DB2 Mirror Warning]", syncErr);
       }
     }
+
+    // Revalidate customer, astrologer, and super admin dashboard paths immediately
+    revalidatePath("/customer", "page");
+    revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/astrologer/leads", "page");
+    revalidatePath("/super-admin", "page");
+    revalidatePath("/super-admin/leads", "page");
+    revalidatePath("/super-admin/analytics", "page");
+    revalidatePath("/super-admin/audit-logs", "page");
+    revalidatePath("/admin", "page");
+    revalidatePath("/admin/leads", "page");
 
     return {
       success: true,

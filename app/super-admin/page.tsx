@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   Inbox,
   Clock,
+  CheckCircle,
   CheckCircle2,
   AlertCircle,
   Users2,
@@ -155,6 +156,19 @@ export default async function SuperAdminOverviewPage() {
             </span>
           </div>
           <span className="text-[11px] text-zinc-400 mt-1 block">Completed consultations</span>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center justify-between text-zinc-500">
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Closed Leads</span>
+            <CheckCircle className="h-4 w-4 text-purple-600" />
+          </div>
+          <div className="mt-2">
+            <span className="font-display text-2xl font-bold text-purple-600 dark:text-purple-400">
+              {metrics.closedLeads}
+            </span>
+          </div>
+          <span className="text-[11px] text-zinc-400 mt-1 block">Resolved / concluded by astrologer</span>
         </div>
 
         <div className="rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
