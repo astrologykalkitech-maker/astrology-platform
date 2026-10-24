@@ -218,8 +218,8 @@ export async function submitCustomerEnquiryAction(payload: {
 
     const subject = (payload.subject || "").trim();
     const message = (payload.message || "").trim();
-    const astrologer_id = payload.astrologer_id || null;
     const priority = payload.priority || "medium";
+    let resolvedAstrologerId = payload.astrologer_id || null;
 
     if (!subject || subject.length > 200) {
       return { success: false, error: "Subject is required (max 200 characters)." };
@@ -228,14 +228,50 @@ export async function submitCustomerEnquiryAction(payload: {
       return { success: false, error: "Message is required (max 5000 characters)." };
     }
 
+    // Resolve astrologer ID for current target database if targeting direct astrologer
+    if (resolvedAstrologerId) {
+      const { data: targetProfile } = await supabase
+        .from("astrologer_profiles")
+        .select("id")
+        .eq("id", resolvedAstrologerId)
+        .maybeSingle();
+
+      if (!targetProfile) {
+        // Look up by slug in case the ID came from the other database (e.g. DB1 listing shown to DB2 session or vice versa)
+        const otherTarget = target === "main" ? "admin" : "main";
+        try {
+          const otherClient = await createClient(otherTarget);
+          const { data: sourceProfile } = await otherClient
+            .from("astrologer_profiles")
+            .select("slug")
+            .eq("id", resolvedAstrologerId)
+            .maybeSingle();
+
+          if (sourceProfile?.slug) {
+            const { data: matchedProfile } = await supabase
+              .from("astrologer_profiles")
+              .select("id")
+              .eq("slug", sourceProfile.slug)
+              .maybeSingle();
+
+            if (matchedProfile?.id) {
+              resolvedAstrologerId = matchedProfile.id;
+            }
+          }
+        } catch {
+          // If cross-lookup fails, keep original ID
+        }
+      }
+    }
+
     // Try canonical RPC first if installed in database
     const { data: rpcLead, error: rpcErr } = await supabase.rpc(
       "submit_customer_enquiry",
       {
         p_subject: subject,
         p_message: message,
-        p_astrologer_id: astrologer_id,
-        p_source_type: astrologer_id ? "direct" : (payload.source_type || "platform"),
+        p_astrologer_id: resolvedAstrologerId,
+        p_source_type: resolvedAstrologerId ? "direct" : (payload.source_type || "platform"),
         p_source_url: payload.source_url || null,
         p_utm_source: null,
         p_utm_medium: null,
@@ -247,88 +283,133 @@ export async function submitCustomerEnquiryAction(payload: {
       }
     );
 
+    let createdLeadId: string | null = null;
+
     if (!rpcErr && rpcLead) {
-      return { success: true, data: { id: rpcLead.id } };
-    }
+      createdLeadId = rpcLead.id;
+    } else {
+      // Direct table fallback: Customer inserts directly with status 'new'
+      // Attempt insert with extended fields, fall back to core schema if columns are absent
+      let lead = null;
+      let insertError = null;
 
-    // Direct table fallback: Customer inserts directly with status 'new'
-    // Attempt insert with extended fields, fall back to core schema if columns are absent
-    let lead = null;
-    let insertError = null;
-
-    const fullPayload: Record<string, unknown> = {
-      customer_id: user.id,
-      astrologer_id: astrologer_id,
-      subject,
-      message,
-      status: "new",
-      source_type: astrologer_id ? "direct" : "platform",
-      priority,
-    };
-
-    const res = await supabase.from("leads").insert(fullPayload).select("id").single();
-    lead = res.data;
-    insertError = res.error;
-
-    // If 'priority' or 'source_type' column does not exist on this database, retry with core schema columns
-    if (insertError && (insertError.message.includes("priority") || insertError.message.includes("source_type"))) {
-      const corePayload = {
+      const fullPayload: Record<string, unknown> = {
         customer_id: user.id,
-        astrologer_id: astrologer_id,
+        astrologer_id: resolvedAstrologerId,
         subject,
         message,
         status: "new",
+        source_type: resolvedAstrologerId ? "direct" : "platform",
+        priority,
       };
-      const retryRes = await supabase.from("leads").insert(corePayload).select("id").single();
-      lead = retryRes.data;
-      insertError = retryRes.error;
+
+      const res = await supabase.from("leads").insert(fullPayload).select("id").single();
+      lead = res.data;
+      insertError = res.error;
+
+      // If 'priority' or 'source_type' column does not exist on this database, retry with core schema columns
+      if (insertError && (insertError.message.includes("priority") || insertError.message.includes("source_type"))) {
+        const corePayload = {
+          customer_id: user.id,
+          astrologer_id: resolvedAstrologerId,
+          subject,
+          message,
+          status: "new",
+        };
+        const retryRes = await supabase.from("leads").insert(corePayload).select("id").single();
+        lead = retryRes.data;
+        insertError = retryRes.error;
+      }
+
+      if (insertError || !lead) {
+        return {
+          success: false,
+          error: insertError?.message || "Failed to submit enquiry.",
+        };
+      }
+
+      createdLeadId = lead.id;
+
+      // If an astrologer was directly targeted, create lead assignment using service role client
+      if (resolvedAstrologerId) {
+        try {
+          const { createAdminClient } = await import("@/lib/supabase/admin");
+          const adminDb = await createAdminClient(target);
+          await adminDb.from("lead_assignments").insert({
+            lead_id: lead.id,
+            astrologer_id: resolvedAstrologerId,
+            status: "assigned",
+          });
+        } catch {
+          // Log silently; central inbox will route
+        }
+      }
     }
 
-    if (insertError || !lead) {
-      return {
-        success: false,
-        error: insertError?.message || "Failed to submit enquiry.",
-      };
-    }
-
-    // If an astrologer was directly targeted, create lead assignment using service role client
-    if (astrologer_id) {
+    // Mirror lead to DB2 (Admin DB) if current target was DB1, so Super Admin dashboard reflects it immediately
+    if (target === "main" && createdLeadId) {
       try {
         const { createAdminClient } = await import("@/lib/supabase/admin");
-        const adminDb = await createAdminClient(target);
-        await adminDb.from("lead_assignments").insert({
-          lead_id: lead.id,
-          astrologer_id: astrologer_id,
-          status: "assigned",
-        });
-      } catch {
-        // Log silently; central inbox will route
-      }
-    }
+        const db2Client = await createAdminClient("admin");
 
-    // Mirror lead to DB2 (Admin DB) so Super Admin dashboard reflects it immediately
-    try {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const db2Client = await createAdminClient("admin");
-      await db2Client.from("leads").upsert({
-        ...fullPayload,
-        id: lead.id,
-        customer_name: profile.full_name || "Direct Customer",
-      });
-      if (astrologer_id) {
-        await db2Client.from("lead_assignments").upsert({
-          lead_id: lead.id,
-          astrologer_id: astrologer_id,
-          status: "assigned",
+        // Resolve astrologer ID in DB2 if direct astrologer
+        let db2AstrologerId: string | null = null;
+        if (resolvedAstrologerId) {
+          const { data: db2Direct } = await db2Client
+            .from("astrologer_profiles")
+            .select("id")
+            .eq("id", resolvedAstrologerId)
+            .maybeSingle();
+
+          if (db2Direct?.id) {
+            db2AstrologerId = db2Direct.id;
+          } else {
+            // Find slug in DB1 to match in DB2
+            const { data: db1Profile } = await supabase
+              .from("astrologer_profiles")
+              .select("slug")
+              .eq("id", resolvedAstrologerId)
+              .maybeSingle();
+
+            if (db1Profile?.slug) {
+              const { data: db2Profile } = await db2Client
+                .from("astrologer_profiles")
+                .select("id")
+                .eq("slug", db1Profile.slug)
+                .maybeSingle();
+
+              db2AstrologerId = db2Profile?.id ?? null;
+            }
+          }
+        }
+
+        await db2Client.from("leads").upsert({
+          id: createdLeadId,
+          customer_id: user.id,
+          astrologer_id: db2AstrologerId,
+          subject,
+          message,
+          status: "new",
+          source_type: db2AstrologerId ? "direct" : "platform",
+          priority,
+          customer_name: profile.full_name || "Direct Customer",
         });
+
+        if (db2AstrologerId) {
+          await db2Client.from("lead_assignments").upsert({
+            lead_id: createdLeadId,
+            astrologer_id: db2AstrologerId,
+            status: "assigned",
+          });
+        }
+      } catch (syncErr) {
+        console.warn("[Customer Enquiry DB2 Mirror Warning]", syncErr);
       }
-    } catch (syncErr) {
-      console.warn("[Customer Enquiry DB2 Mirror Warning]", syncErr);
     }
 
     return {
       success: true,
-      data: { id: lead.id },
+      data: { id: createdLeadId || "" },
     };
   } catch (err) {
     return {
