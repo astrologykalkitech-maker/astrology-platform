@@ -7,6 +7,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAdminAction } from "@/lib/admin/audit";
 import { requireAstrologer } from "@/lib/auth/session";
 import type {
   AstrologerLeadsResult,
@@ -302,6 +303,29 @@ export async function updateAssignmentStatus(
         } catch (db2Err) {
           console.error("[updateAssignmentStatus] DB2 lead sync error:", db2Err);
         }
+        // 7c. Record in admin audit trail so astrologer action is immediately visible on Super Admin dashboard & audit logs
+        try {
+          await logAdminAction({
+            actorId: user.id,
+            actorRole: "astrologer",
+            action: `lead.assignment.${targetStatus}`,
+            targetType: "lead",
+            targetId: leadId,
+            reason: `Astrologer updated lead assignment status to ${targetStatus}`,
+            beforeState: {
+              assignment_id,
+              status: existing.status,
+            },
+            afterState: {
+              assignment_id,
+              status: targetStatus,
+              lead_status: targetLeadStatus,
+            },
+            outcome: "success",
+          });
+        } catch (auditErr) {
+          console.error("[updateAssignmentStatus] Audit log error:", auditErr);
+        }
       }
     } catch (syncErr) {
       console.error("[updateAssignmentStatus] Lead sync warning:", syncErr);
@@ -315,6 +339,7 @@ export async function updateAssignmentStatus(
     revalidatePath("/super-admin", "page");
     revalidatePath("/super-admin/leads", "page");
     revalidatePath("/super-admin/analytics", "page");
+    revalidatePath("/super-admin/audit-logs", "page");
     revalidatePath("/admin", "page");
     revalidatePath("/admin/leads", "page");
 
