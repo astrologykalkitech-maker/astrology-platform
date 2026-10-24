@@ -60,17 +60,7 @@ export async function getCustomerDashboardData(): Promise<
     // Query authenticated customer's own leads only
     const { data: leads, error } = await supabase
       .from("leads")
-      .select(`
-        id,
-        subject,
-        message,
-        status,
-        created_at,
-        astrologer_id,
-        astrologer_profiles (
-          display_name
-        )
-      `)
+      .select("id, subject, message, status, created_at, astrologer_id")
       .eq("customer_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -81,15 +71,33 @@ export async function getCustomerDashboardData(): Promise<
       };
     }
 
-    const typedLeads = (leads as unknown as LeadRowResult[]) || [];
-    const items: CustomerEnquiryItem[] = typedLeads.map((lead) => ({
+    const rawLeads = leads || [];
+    const astrologerIds = Array.from(
+      new Set(rawLeads.map((l) => l.astrologer_id).filter(Boolean) as string[])
+    );
+
+    let astroNameMap: Record<string, string> = {};
+    if (astrologerIds.length > 0) {
+      const { data: astrologers } = await supabase
+        .from("astrologer_profiles")
+        .select("id, display_name")
+        .in("id", astrologerIds);
+
+      if (astrologers && astrologers.length > 0) {
+        astroNameMap = Object.fromEntries(
+          astrologers.map((a) => [a.id, a.display_name])
+        );
+      }
+    }
+
+    const items: CustomerEnquiryItem[] = rawLeads.map((lead) => ({
       id: lead.id,
       subject: lead.subject,
       message: lead.message,
       status: lead.status as LeadStatus,
       created_at: lead.created_at,
       astrologer_id: lead.astrologer_id,
-      astrologer_name: lead.astrologer_profiles?.display_name ?? null,
+      astrologer_name: lead.astrologer_id ? (astroNameMap[lead.astrologer_id] ?? null) : null,
     }));
 
     const totalEnquiries = items.length;
@@ -139,17 +147,7 @@ export async function getCustomerEnquiries(): Promise<
 
     const { data: leads, error } = await supabase
       .from("leads")
-      .select(`
-        id,
-        subject,
-        message,
-        status,
-        created_at,
-        astrologer_id,
-        astrologer_profiles (
-          display_name
-        )
-      `)
+      .select("id, subject, message, status, created_at, astrologer_id")
       .eq("customer_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -160,15 +158,33 @@ export async function getCustomerEnquiries(): Promise<
       };
     }
 
-    const typedLeads = (leads as unknown as LeadRowResult[]) || [];
-    const items: CustomerEnquiryItem[] = typedLeads.map((lead) => ({
+    const rawLeads = leads || [];
+    const astrologerIds = Array.from(
+      new Set(rawLeads.map((l) => l.astrologer_id).filter(Boolean) as string[])
+    );
+
+    let astroNameMap: Record<string, string> = {};
+    if (astrologerIds.length > 0) {
+      const { data: astrologers } = await supabase
+        .from("astrologer_profiles")
+        .select("id, display_name")
+        .in("id", astrologerIds);
+
+      if (astrologers && astrologers.length > 0) {
+        astroNameMap = Object.fromEntries(
+          astrologers.map((a) => [a.id, a.display_name])
+        );
+      }
+    }
+
+    const items: CustomerEnquiryItem[] = rawLeads.map((lead) => ({
       id: lead.id,
       subject: lead.subject,
       message: lead.message,
       status: lead.status as LeadStatus,
       created_at: lead.created_at,
       astrologer_id: lead.astrologer_id,
-      astrologer_name: lead.astrologer_profiles?.display_name ?? null,
+      astrologer_name: lead.astrologer_id ? (astroNameMap[lead.astrologer_id] ?? null) : null,
     }));
 
     return {
