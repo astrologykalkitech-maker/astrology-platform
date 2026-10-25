@@ -129,7 +129,7 @@ export async function GET(request: Request) {
       query = query.lte("consultation_fee", maxFee);
     }
 
-    let { data, error, count } = await query
+    const { data, error, count } = await query
       .order("created_at", { ascending: false })
       .range(from, from + limit - 1);
 

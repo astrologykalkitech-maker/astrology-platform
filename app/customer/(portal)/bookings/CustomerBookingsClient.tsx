@@ -34,11 +34,16 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Checks if current time is within join window (15 mins prior to end of session)
   function isJoinWindowActive(scheduledAt: string, durationMinutes: number) {
     const slotTime = new Date(scheduledAt).getTime();
-    const now = Date.now();
     const windowStart = slotTime - 15 * 60 * 1000; // 15 mins before
     const windowEnd = slotTime + durationMinutes * 60 * 1000; // session end
     return now >= windowStart && now <= windowEnd;
