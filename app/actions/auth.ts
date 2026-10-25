@@ -503,3 +503,65 @@ export async function getCurrentProfileAction(): Promise<
   }
 }
 
+/**
+ * Send password reset link to user email address.
+ */
+export async function requestPasswordReset(
+  email: string,
+  redirectTo?: string
+): Promise<AuthResult<void>> {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return { success: false, error: "Please enter a valid email address." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: redirectTo || `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=/auth/reset-password`,
+    });
+
+    if (error) {
+      const diag = extractAuthErrorDetails(error);
+      console.error("[Supabase Auth Error: requestPasswordReset]", diag);
+      return {
+        success: false,
+        error: diag.message,
+      };
+    }
+
+    return { success: true, data: undefined };
+  } catch (err) {
+    const diag = extractAuthErrorDetails(err);
+    return {
+      success: false,
+      error: diag.message,
+    };
+  }
+}
+
+/**
+ * Update password for authenticated user (e.g. from recovery flow).
+ */
+export async function updatePassword(password: string): Promise<AuthResult<void>> {
+  if (!password || password.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters long." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      const diag = extractAuthErrorDetails(error);
+      return { success: false, error: diag.message };
+    }
+
+    return { success: true, data: undefined };
+  } catch (err) {
+    const diag = extractAuthErrorDetails(err);
+    return { success: false, error: diag.message };
+  }
+}
+

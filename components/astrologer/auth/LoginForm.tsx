@@ -114,6 +114,15 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
           disabled={isPending}
         />
 
+        <div className="flex justify-end">
+          <Link
+            href={`/${role}/forgot-password`}
+            className="text-xs font-semibold text-gold-deep hover:text-midnight hover:underline focus-visible:outline-2 focus-visible:outline-gold"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <Button type="submit" size="lg" fullWidth loading={isPending}>
           {isPending ? "Logging in…" : "Log in"}
           {!isPending && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
