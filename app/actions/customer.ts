@@ -7,7 +7,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
-import type { LeadStatus } from "@/lib/types/database.types";
+import { checkRateLimit } from "@/lib/security/rate-limit";
+import type {
+  LeadStatus,
+  CustomerBooking,
+  CustomerNotification,
+  BookingStatus,
+  ConsultationMode,
+} from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 
 export interface CustomerEnquiryItem {
@@ -25,12 +32,15 @@ export interface CustomerDashboardSummary {
     id: string;
     fullName: string;
     email: string | null;
+    emailVerified: boolean;
   };
   stats: {
     totalEnquiries: number;
     pendingEnquiries: number;
     assignedEnquiries: number;
     completedEnquiries: number;
+    totalBookings: number;
+    upcomingBookings: number;
   };
   recentEnquiries: CustomerEnquiryItem[];
 }
@@ -110,6 +120,27 @@ export async function getCustomerDashboardData(): Promise<
       (l) => l.status === "closed" || l.status === "converted"
     ).length;
 
+    // Query authenticated customer's bookings count if table exists
+    let totalBookings = 0;
+    let upcomingBookings = 0;
+    try {
+      const { data: bookings } = await supabase
+        .from("customer_bookings")
+        .select("id, status, scheduled_at")
+        .eq("customer_id", user.id);
+
+      if (bookings && bookings.length > 0) {
+        totalBookings = bookings.length;
+        upcomingBookings = bookings.filter(
+          (b) => b.status === "confirmed" || b.status === "pending"
+        ).length;
+      }
+    } catch {
+      // customer_bookings may not exist yet on fresh installations
+    }
+
+    const isEmailVerified = Boolean(user.email_confirmed_at);
+
     return {
       success: true,
       data: {
@@ -117,12 +148,15 @@ export async function getCustomerDashboardData(): Promise<
           id: user.id,
           fullName: profile.full_name || "Customer",
           email: user.email || null,
+          emailVerified: isEmailVerified,
         },
         stats: {
           totalEnquiries,
           pendingEnquiries,
           assignedEnquiries,
           completedEnquiries,
+          totalBookings,
+          upcomingBookings,
         },
         recentEnquiries: items.slice(0, 5),
       },
@@ -205,6 +239,11 @@ export async function getCustomerEnquiries(): Promise<
  * Server Action to submit an enquiry reliably using authenticated customer context.
  * Automatically inserts lead and lead_assignment when targeting an astrologer.
  */
+/**
+ * Server Action to submit an enquiry reliably using authenticated customer context.
+ * Enforces rate limiting, input normalization, authoritative astrologer eligibility,
+ * and canonical transactional lead capture via submit_customer_enquiry RPC.
+ */
 export async function submitCustomerEnquiryAction(payload: {
   subject: string;
   message: string;
@@ -215,6 +254,16 @@ export async function submitCustomerEnquiryAction(payload: {
 }): Promise<AuthResult<{ id: string }>> {
   try {
     const { user, profile, target } = await requireCustomerContext();
+
+    // 1. Enforce rate limiting: 5 enquiries per minute per customer
+    const rateLimit = checkRateLimit(`enquiry:customer:${user.id}`, 5, 60_000);
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: `Submission rate limit exceeded. Please wait ${rateLimit.retryAfterSeconds} seconds before trying again.`,
+      };
+    }
+
     const supabase = await createClient(target);
 
     const subject = (payload.subject || "").trim();
@@ -290,7 +339,7 @@ export async function submitCustomerEnquiryAction(payload: {
       resolvedAstrologerId = validatedProfile.id;
     }
 
-    // Try canonical RPC first if installed in database
+    // Call canonical transactional RPC
     const { data: rpcLead, error: rpcErr } = await supabase.rpc(
       "submit_customer_enquiry",
       {
@@ -309,68 +358,22 @@ export async function submitCustomerEnquiryAction(payload: {
       }
     );
 
-    let createdLeadId: string | null = null;
+    if (rpcErr || !rpcLead) {
+      // Safe error return without leaking internal database schemas or credentials
+      const safeMessage =
+        rpcErr?.message?.includes("wait a moment")
+          ? rpcErr.message
+          : rpcErr?.message?.includes("listing not found")
+          ? "The selected astrologer is not available."
+          : "Failed to submit enquiry. Please verify your input and try again.";
 
-    if (!rpcErr && rpcLead) {
-      createdLeadId = rpcLead.id;
-    } else {
-      // Direct table fallback: Customer inserts directly with status 'new'
-      // Attempt insert with extended fields, fall back to core schema if columns are absent
-      let lead = null;
-      let insertError = null;
-
-      const fullPayload: Record<string, unknown> = {
-        customer_id: user.id,
-        astrologer_id: resolvedAstrologerId,
-        subject,
-        message,
-        status: "new",
-        source_type: resolvedAstrologerId ? "direct" : "platform",
-        priority,
+      return {
+        success: false,
+        error: safeMessage,
       };
-
-      const res = await supabase.from("leads").insert(fullPayload).select("id").single();
-      lead = res.data;
-      insertError = res.error;
-
-      // If 'priority' or 'source_type' column does not exist on this database, retry with core schema columns
-      if (insertError && (insertError.message.includes("priority") || insertError.message.includes("source_type"))) {
-        const corePayload = {
-          customer_id: user.id,
-          astrologer_id: resolvedAstrologerId,
-          subject,
-          message,
-          status: "new",
-        };
-        const retryRes = await supabase.from("leads").insert(corePayload).select("id").single();
-        lead = retryRes.data;
-        insertError = retryRes.error;
-      }
-
-      if (insertError || !lead) {
-        return {
-          success: false,
-          error: insertError?.message || "Failed to submit enquiry.",
-        };
-      }
-
-      createdLeadId = lead.id;
-
-      // If an astrologer was directly targeted, create lead assignment using service role client
-      if (resolvedAstrologerId) {
-        try {
-          const { createAdminClient } = await import("@/lib/supabase/admin");
-          const adminDb = await createAdminClient(target);
-          await adminDb.from("lead_assignments").insert({
-            lead_id: lead.id,
-            astrologer_id: resolvedAstrologerId,
-            status: "assigned",
-          });
-        } catch {
-          // Log silently; central inbox will route
-        }
-      }
     }
+
+    const createdLeadId = rpcLead.id;
 
     // Mirror lead to DB2 (Admin DB) if current target was DB1, so Super Admin dashboard reflects it immediately
     if (target === "main" && createdLeadId) {
@@ -410,7 +413,7 @@ export async function submitCustomerEnquiryAction(payload: {
           }
         }
 
-        await db2Client.from("leads").upsert({
+        const { error: db2UpsertErr } = await db2Client.from("leads").upsert({
           id: createdLeadId,
           customer_id: user.id,
           astrologer_id: db2AstrologerId,
@@ -421,6 +424,13 @@ export async function submitCustomerEnquiryAction(payload: {
           priority,
           customer_name: profile.full_name || "Direct Customer",
         });
+
+        if (db2UpsertErr) {
+          console.error("[Customer Enquiry DB2 Sync Error]", {
+            leadId: createdLeadId,
+            message: db2UpsertErr.message,
+          });
+        }
 
         if (db2AstrologerId) {
           await db2Client.from("lead_assignments").upsert({
@@ -446,7 +456,10 @@ export async function submitCustomerEnquiryAction(payload: {
           // Non-blocking audit log
         }
       } catch (syncErr) {
-        console.warn("[Customer Enquiry DB2 Mirror Warning]", syncErr);
+        console.error("[Customer Enquiry DB2 Mirror Failed]", {
+          leadId: createdLeadId,
+          error: syncErr instanceof Error ? syncErr.message : "Unknown error",
+        });
       }
     }
 
@@ -464,13 +477,334 @@ export async function submitCustomerEnquiryAction(payload: {
 
     return {
       success: true,
-      data: { id: createdLeadId || "" },
+      data: { id: createdLeadId },
     };
   } catch (err) {
     return {
       success: false,
       error:
         err instanceof Error ? err.message : "An unexpected error occurred while submitting enquiry.",
+    };
+  }
+}
+
+// =====================================================
+// CUSTOMER BOOKINGS SERVER ACTIONS (Phase D)
+// =====================================================
+
+/**
+ * Loads all bookings for the authenticated customer.
+ */
+export async function getCustomerBookings(): Promise<
+  AuthResult<CustomerBooking[]>
+> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { data: bookings, error } = await supabase
+      .from("customer_bookings")
+      .select(`
+        id,
+        customer_id,
+        astrologer_id,
+        service_type,
+        consultation_mode,
+        scheduled_at,
+        duration_minutes,
+        status,
+        price,
+        notes,
+        cancellation_reason,
+        cancelled_at,
+        created_at,
+        updated_at
+      `)
+      .eq("customer_id", user.id)
+      .order("scheduled_at", { ascending: true });
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to load bookings: ${error.message}`,
+      };
+    }
+
+    const rawBookings = bookings || [];
+    const astroIds = Array.from(new Set(rawBookings.map((b) => b.astrologer_id)));
+
+    let astroNameMap: Record<string, string> = {};
+    if (astroIds.length > 0) {
+      const { data: astrologers } = await supabase
+        .from("astrologer_profiles")
+        .select("id, display_name")
+        .in("id", astroIds);
+
+      if (astrologers) {
+        astroNameMap = Object.fromEntries(
+          astrologers.map((a) => [a.id, a.display_name])
+        );
+      }
+    }
+
+    const result: CustomerBooking[] = rawBookings.map((b) => ({
+      id: b.id,
+      customer_id: b.customer_id,
+      astrologer_id: b.astrologer_id,
+      astrologer_name: astroNameMap[b.astrologer_id] || "Vedic Astrologer",
+      service_type: b.service_type,
+      consultation_mode: b.consultation_mode as ConsultationMode,
+      scheduled_at: b.scheduled_at,
+      duration_minutes: b.duration_minutes,
+      status: b.status as BookingStatus,
+      price: Number(b.price),
+      notes: b.notes,
+      cancellation_reason: b.cancellation_reason,
+      cancelled_at: b.cancelled_at,
+      created_at: b.created_at,
+      updated_at: b.updated_at,
+    }));
+
+    return {
+      success: true,
+      data: result,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load bookings.",
+    };
+  }
+}
+
+/**
+ * Creates a persistent booking using server-side slot check and overlap prevention.
+ */
+export async function createCustomerBookingAction(payload: {
+  astrologer_id: string;
+  service_type: string;
+  consultation_mode: ConsultationMode;
+  scheduled_at: string;
+  duration_minutes?: number;
+  price?: number;
+  notes?: string;
+}): Promise<AuthResult<CustomerBooking>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+
+    // Rate limiting: 5 booking attempts per minute per customer
+    const rateLimit = checkRateLimit(`booking:customer:${user.id}`, 5, 60_000);
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: `Booking rate limit exceeded. Please wait ${rateLimit.retryAfterSeconds} seconds.`,
+      };
+    }
+
+    const supabase = await createClient(target);
+
+    // Call book_astrologer_consultation RPC
+    const { data: booking, error: rpcErr } = await supabase.rpc(
+      "book_astrologer_consultation",
+      {
+        p_astrologer_id: payload.astrologer_id,
+        p_service_type: payload.service_type,
+        p_consultation_mode: payload.consultation_mode,
+        p_scheduled_at: payload.scheduled_at,
+        p_duration_minutes: payload.duration_minutes || 30,
+        p_price: payload.price || 0.0,
+        p_notes: payload.notes || null,
+      }
+    );
+
+    if (rpcErr || !booking) {
+      const safeMessage =
+        rpcErr?.message?.includes("available") || rpcErr?.message?.includes("advance")
+          ? rpcErr.message
+          : "Unable to complete booking. Please select another slot or astrologer.";
+
+      return {
+        success: false,
+        error: safeMessage,
+      };
+    }
+
+    revalidatePath("/customer/bookings", "page");
+    revalidatePath("/customer", "page");
+
+    return {
+      success: true,
+      data: booking as CustomerBooking,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to schedule booking.",
+    };
+  }
+}
+
+/**
+ * Cancels a booking owned by the authenticated customer.
+ */
+export async function cancelCustomerBookingAction(
+  bookingId: string,
+  reason?: string
+): Promise<AuthResult<{ success: boolean }>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    // Verify booking ownership and cancellable status
+    const { data: booking, error: fetchErr } = await supabase
+      .from("customer_bookings")
+      .select("id, customer_id, status, astrologer_id")
+      .eq("id", bookingId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      return {
+        success: false,
+        error: "Booking record not found or access unauthorized.",
+      };
+    }
+
+    if (booking.status === "cancelled") {
+      return { success: true, data: { success: true } };
+    }
+
+    if (booking.status === "completed") {
+      return {
+        success: false,
+        error: "Cannot cancel a consultation that has already been completed.",
+      };
+    }
+
+    const now = new Date().toISOString();
+    const { error: updateErr } = await supabase
+      .from("customer_bookings")
+      .update({
+        status: "cancelled",
+        cancellation_reason: reason || "Cancelled by customer",
+        cancelled_at: now,
+        cancelled_by: user.id,
+        updated_at: now,
+      })
+      .eq("id", bookingId)
+      .eq("customer_id", user.id);
+
+    if (updateErr) {
+      return {
+        success: false,
+        error: "Failed to cancel booking. Please try again.",
+      };
+    }
+
+    // Insert persistent cancellation notification
+    try {
+      await supabase.from("customer_notifications").insert({
+        customer_id: user.id,
+        title: "Booking Cancelled",
+        message: "Your consultation appointment has been cancelled.",
+        link_url: "/customer/bookings",
+        event_type: "booking_cancelled",
+        metadata: { booking_id: bookingId },
+      });
+    } catch {
+      // Non-blocking notification
+    }
+
+    revalidatePath("/customer/bookings", "page");
+    revalidatePath("/customer", "page");
+
+    return {
+      success: true,
+      data: { success: true },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to cancel booking.",
+    };
+  }
+}
+
+// =====================================================
+// CUSTOMER NOTIFICATIONS SERVER ACTIONS (Phase G)
+// =====================================================
+
+/**
+ * Loads persistent notifications for the authenticated customer.
+ */
+export async function getCustomerNotifications(): Promise<
+  AuthResult<CustomerNotification[]>
+> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { data: notifications, error } = await supabase
+      .from("customer_notifications")
+      .select("*")
+      .eq("customer_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to load notifications: ${error.message}`,
+      };
+    }
+
+    return {
+      success: true,
+      data: (notifications || []) as CustomerNotification[],
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load notifications.",
+    };
+  }
+}
+
+/**
+ * Marks a notification as read for the authenticated customer.
+ */
+export async function markNotificationReadAction(
+  notificationId: string
+): Promise<AuthResult<{ success: boolean }>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { error } = await supabase
+      .from("customer_notifications")
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+      })
+      .eq("id", notificationId)
+      .eq("customer_id", user.id);
+
+    if (error) {
+      return {
+        success: false,
+        error: "Failed to update notification status.",
+      };
+    }
+
+    revalidatePath("/customer/notification", "page");
+    return {
+      success: true,
+      data: { success: true },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to mark notification.",
     };
   }
 }

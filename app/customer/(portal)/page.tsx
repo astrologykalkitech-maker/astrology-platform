@@ -48,12 +48,12 @@ export default async function CustomerDashboard() {
 
   const { profile, stats, recentEnquiries } = result.data;
 
-  // Calculate profile completion dynamically
+  // Calculate profile completion dynamically from authoritative identity and database records
   const profileItems = [
     { label: "Account created", done: true },
     { label: "Display name", done: Boolean(profile.fullName && profile.fullName !== "Customer") },
-    { label: "Email verified", done: Boolean(profile.email) },
-    { label: "First enquiry or booking", done: stats.totalEnquiries > 0 },
+    { label: "Email verified", done: Boolean(profile.emailVerified) },
+    { label: "First enquiry or booking", done: (stats.totalEnquiries + stats.totalBookings) > 0 },
   ];
   const completedCount = profileItems.filter((i) => i.done).length;
   const completionPercent = Math.round((completedCount / profileItems.length) * 100);

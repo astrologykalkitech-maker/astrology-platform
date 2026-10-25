@@ -14,6 +14,7 @@ import {
   MessageSquare,
   HelpCircle,
   ShieldCheck,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
@@ -31,10 +32,11 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
+  { href: "/customer/offers", label: "Special Offers", icon: Gift },
+  { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon }[] = [
-  { label: "Offers & Rewards", icon: Gift },
   { label: "Live Chat", icon: MessageSquare },
   { label: "Kundli Matching", icon: HelpCircle },
   { label: "Protection Rituals", icon: ShieldCheck },

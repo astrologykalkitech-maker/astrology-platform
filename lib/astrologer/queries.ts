@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types/astrologer.types";
 import {
   AUTHORITATIVE_SAFE_PUBLIC_FIELDS,
+  CORE_SAFE_PUBLIC_FIELDS,
   PUBLIC_VISIBLE_APPROVAL_STATUS,
   isAstrologerPubliclyVisible,
   isCurrentlyFeaturedAstrologer,
