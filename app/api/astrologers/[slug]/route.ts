@@ -1,4 +1,4 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = {
   params: Promise<{ slug: string }>;
@@ -20,13 +20,17 @@ export async function GET(
 
     const supabase = await createClient();
 
+    const {
+      AUTHORITATIVE_SAFE_PUBLIC_FIELDS,
+      PUBLIC_VISIBLE_APPROVAL_STATUS,
+      isAstrologerPubliclyVisible,
+    } = await import("@/lib/astrologer/visibility");
+
     const { data, error } = await supabase
       .from("astrologer_profiles")
-      .select(
-        "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url"
-      )
-      .eq("slug", slug)
-      .eq("approval_status", "approved")
+      .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS)
+      .eq("slug", slug.toLowerCase())
+      .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
       .maybeSingle();
 
     if (error) {
@@ -37,9 +41,9 @@ export async function GET(
       );
     }
 
-    if (!data) {
+    if (!data || !isAstrologerPubliclyVisible(data)) {
       return Response.json(
-        { error: "Astrologer not found." },
+        { error: "Astrologer not found or currently unavailable." },
         { status: 404 }
       );
     }

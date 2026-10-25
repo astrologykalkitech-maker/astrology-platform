@@ -229,53 +229,65 @@ export async function submitCustomerEnquiryAction(payload: {
       return { success: false, error: "Message is required (max 5000 characters)." };
     }
 
-    // Resolve astrologer ID for current target database if targeting direct astrologer
+    // Resolve and strictly validate astrologer eligibility for current target database if targeting direct astrologer
     if (resolvedAstrologerId) {
       const { createAdminClient } = await import("@/lib/supabase/admin");
+      const { isAstrologerEligibleForBooking } = await import("@/lib/astrologer/visibility");
       const currentAdmin = await createAdminClient(target);
 
       // 1. Check if ID exists in current target DB
       const { data: targetProfile } = await currentAdmin
         .from("astrologer_profiles")
-        .select("id, slug")
+        .select("id, slug, approval_status, display_name")
         .eq("id", resolvedAstrologerId)
         .maybeSingle();
 
-      if (targetProfile?.id) {
-        resolvedAstrologerId = targetProfile.id;
-      } else {
+      let validatedProfile = targetProfile;
+
+      if (!validatedProfile?.id) {
         // 2. Look up the ID in the other DB to find its unique slug, then find matching profile in current DB
         const otherTarget = target === "main" ? "admin" : "main";
         try {
           const otherAdmin = await createAdminClient(otherTarget);
           const { data: sourceProfile } = await otherAdmin
             .from("astrologer_profiles")
-            .select("slug")
+            .select("slug, approval_status, display_name")
             .eq("id", resolvedAstrologerId)
             .maybeSingle();
 
           if (sourceProfile?.slug) {
             const { data: matchedProfile } = await currentAdmin
               .from("astrologer_profiles")
-              .select("id")
+              .select("id, slug, approval_status, display_name")
               .eq("slug", sourceProfile.slug)
               .maybeSingle();
 
             if (matchedProfile?.id) {
-              resolvedAstrologerId = matchedProfile.id;
-            } else {
-              // If no matching profile exists in current database, clear astrologer_id to avoid FK violation
-              resolvedAstrologerId = null;
+              validatedProfile = matchedProfile;
             }
-          } else {
-            // ID does not exist in either database; clear to avoid FK violation
-            resolvedAstrologerId = null;
           }
         } catch {
-          // If cross-lookup fails and ID is unverified, clear to avoid FK violation
-          resolvedAstrologerId = null;
+          // Cross-lookup failed
         }
       }
+
+      if (!validatedProfile) {
+        return {
+          success: false,
+          error: "Selected astrologer profile was not found.",
+        };
+      }
+
+      // Authoritative eligibility check on server before booking/enquiry creation
+      const eligibility = isAstrologerEligibleForBooking(validatedProfile);
+      if (!eligibility.eligible) {
+        return {
+          success: false,
+          error: eligibility.reason || "This astrologer is currently unavailable for new consultations.",
+        };
+      }
+
+      resolvedAstrologerId = validatedProfile.id;
     }
 
     // Try canonical RPC first if installed in database

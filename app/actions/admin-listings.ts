@@ -184,11 +184,20 @@ export async function updateListingModerationStatus(
     // Revalidate customer directory, astrologer views, and admin listings instantly
     revalidatePath("/customer/astrologers", "layout");
     revalidatePath("/customer/astrologers", "page");
+    if (updated?.slug) {
+      revalidatePath(`/customer/astrologers/${updated.slug}`, "page");
+    }
+    if (beforeListing.slug && beforeListing.slug !== updated?.slug) {
+      revalidatePath(`/customer/astrologers/${beforeListing.slug}`, "page");
+    }
     revalidatePath("/customer/enquiries/new", "page");
+    revalidatePath("/customer/bookings", "page");
     revalidatePath("/customer", "layout");
     revalidatePath("/customer", "page");
     revalidatePath("/astrologer/profile", "page");
     revalidatePath("/super-admin/listings", "page");
+    revalidatePath("/super-admin/listings/ranking", "page");
+    revalidatePath("/super-admin/leads/distribution", "page");
     revalidatePath("/super-admin", "page");
 
     // Record audit event

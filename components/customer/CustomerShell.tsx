@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerBottomNav } from "@/components/customer/CustomerBottomNav";
+import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologerSync";
 
 interface CustomerShellProps {
   customerName: string;
@@ -37,6 +38,8 @@ export function CustomerShell({
       >
         Skip to content
       </a>
+
+      <RealtimeAstrologerSync />
 
       <CustomerBottomNav menuOpen={menuOpen} onMore={() => setMenuOpen(true)} />
 
