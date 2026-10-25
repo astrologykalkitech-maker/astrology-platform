@@ -7,7 +7,6 @@ import {
   CalendarClock,
   LayoutDashboard,
   MessageSquareText,
-  Settings,
   SquarePen,
   Star,
   UserRound,
@@ -15,6 +14,9 @@ import {
   Bell,
   LifeBuoy,
   X,
+  MessageSquare,
+  HelpCircle,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
@@ -39,6 +41,24 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
 ];
 
+const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
+  {
+    label: "Live Chat",
+    icon: MessageSquare,
+    desc: "Instant one-on-one live messaging with clients launching soon.",
+  },
+  {
+    label: "Kundli Matching",
+    icon: HelpCircle,
+    desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon.",
+  },
+  {
+    label: "Protection Rituals",
+    icon: ShieldCheck,
+    desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon.",
+  },
+];
+
 function isActive(pathname: string, item: NavItem) {
   if (item.exact) return pathname === item.href;
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -61,31 +81,32 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
     >
       <Image
         src="/images/jyotishsetu/sidebar-palace-art.webp"
-        alt=""
+        alt="JyotishSetu Palace Art"
         fill
         priority
         sizes="288px"
         aria-hidden="true"
         className="pointer-events-none object-cover object-top"
       />
-      {/* Darken the middle so navigation text stays readable */}
+      {/* Dark gradient mask for clear readability matching CustomerSidebar */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(21,16,39,0) 18%, rgba(21,16,39,0.85) 28%, rgba(21,16,39,0.85) 85%, rgba(21,16,39,0.3) 92%, rgba(21,16,39,0) 100%)",
+            "linear-gradient(to bottom, rgba(21,16,39,0.1) 18%, rgba(21,16,39,0.85) 30%, rgba(21,16,39,0.92) 80%, rgba(21,16,39,0.4) 92%, rgba(21,16,39,0.1) 100%)",
         }}
       />
 
-      {/* Brand click area */}
+      {/* Brand logo click overlay */}
       <Link
         href="/astrologer/dashboard"
         onClick={onNavigate}
-        className="absolute inset-x-6 top-[5%] z-10 h-[18%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
+        className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
       >
         <span className="sr-only">JyotishSetu Astrologer Portal, go to dashboard</span>
       </Link>
+
       <button
         type="button"
         onClick={onClose}
@@ -95,8 +116,8 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         <X className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      <div className="absolute inset-x-0 bottom-3 top-[24%] z-10 flex flex-col overflow-y-auto px-4">
-        <nav aria-label="Astrologer portal" className="flex flex-col gap-1">
+      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5">
+        <nav aria-label="Astrologer portal navigation" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item);
             const Icon = item.icon;
@@ -118,6 +139,25 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
               </Link>
             );
           })}
+
+          <Ornament className="mt-3 px-2" />
+          <p className="mt-2 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
+            Coming soon
+          </p>
+
+          {COMING_SOON.map(({ label, icon: Icon }) => (
+            <div
+              key={label}
+              aria-disabled="true"
+              className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-2 text-sm text-ivory/70"
+            >
+              <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+              <span>{label}</span>
+              <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+                Soon
+              </span>
+            </div>
+          ))}
         </nav>
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">

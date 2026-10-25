@@ -54,7 +54,11 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
           >
             <Bell className="h-4 w-4" />
           </Link>
-          <Link href="/astrologer/profile" aria-label="My profile" className="shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne">
+          <Link
+            href="/astrologer/profile"
+            aria-label="My profile"
+            className="shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne hover:opacity-85 transition-opacity"
+          >
             <Avatar name={displayName} src={photoUrl} size="sm" />
           </Link>
         </div>
@@ -67,22 +71,27 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
           <p className="text-xs text-muted">{pageTitle}</p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           <Link
             href="/astrologer/notifications"
             aria-label="Notifications"
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors shadow-sm"
           >
-            <Bell className="h-4 w-4" />
+            <Bell className="h-5 w-5" />
           </Link>
 
-          <div className="flex items-center gap-3">
+          <Link
+            href="/astrologer/profile"
+            aria-label="View Astrologer Profile"
+            className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity cursor-pointer"
+          >
             <Avatar name={displayName} src={photoUrl} size="sm" />
             <div className="leading-tight">
               <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{displayName}</p>
-              <p className="text-xs text-muted">Astrologer</p>
+              <p className="text-xs text-muted">Astrologer Profile</p>
             </div>
-          </div>
+          </Link>
+
           <SignOutButton />
         </div>
       </header>
