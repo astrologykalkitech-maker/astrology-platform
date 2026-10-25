@@ -14,6 +14,7 @@ import type {
   CustomerNotification,
   BookingStatus,
   ConsultationMode,
+  ConsultationMessage,
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 
@@ -805,6 +806,142 @@ export async function markNotificationReadAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to mark notification.",
+    };
+  }
+}
+
+// =====================================================
+// DIRECT CONSULTATION MESSAGING SERVER ACTIONS (Problem 4)
+// =====================================================
+
+/**
+ * Loads the discussion thread / written predictions for an enquiry.
+ * Verified to only return messages if caller is the owner customer, assigned astrologer, or admin.
+ */
+export async function getConsultationMessages(
+  leadId: string
+): Promise<AuthResult<ConsultationMessage[]>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    // Verify lead ownership
+    const { data: lead, error: leadErr } = await supabase
+      .from("leads")
+      .select("id, customer_id")
+      .eq("id", leadId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (leadErr || !lead) {
+      return { success: false, error: "Consultation enquiry not found or access denied." };
+    }
+
+    const { data: messages, error } = await supabase
+      .from("consultation_messages")
+      .select("*")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const rawMsgs = messages || [];
+    const senderIds = Array.from(new Set(rawMsgs.map((m) => m.sender_id)));
+
+    let senderMap: Record<string, string> = {};
+    if (senderIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", senderIds);
+      if (profiles) {
+        senderMap = Object.fromEntries(profiles.map((p) => [p.id, p.full_name || "User"]));
+      }
+    }
+
+    const result: ConsultationMessage[] = rawMsgs.map((m) => ({
+      id: m.id,
+      lead_id: m.lead_id,
+      sender_id: m.sender_id,
+      sender_name: senderMap[m.sender_id] || "Astrologer",
+      sender_role: m.sender_role,
+      message: m.message,
+      prediction_title: m.prediction_title,
+      is_official_prediction: m.is_official_prediction,
+      attachments: m.attachments,
+      created_at: m.created_at,
+    }));
+
+    return { success: true, data: result };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load messages.",
+    };
+  }
+}
+
+/**
+ * Sends a message from the authenticated customer on their consultation enquiry.
+ */
+export async function sendCustomerConsultationMessageAction(
+  leadId: string,
+  message: string
+): Promise<AuthResult<ConsultationMessage>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const cleanMessage = (message || "").trim();
+
+    if (!cleanMessage) {
+      return { success: false, error: "Message content cannot be empty." };
+    }
+
+    const rateLimit = checkRateLimit(`msg:cust:${user.id}`, 15, 60_000);
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: `Message rate limit reached. Please wait ${rateLimit.retryAfterSeconds}s.`,
+      };
+    }
+
+    const supabase = await createClient(target);
+
+    // Verify lead ownership
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, customer_id, astrologer_id")
+      .eq("id", leadId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (!lead) {
+      return { success: false, error: "Consultation enquiry not found." };
+    }
+
+    const { data: inserted, error } = await supabase
+      .from("consultation_messages")
+      .insert({
+        lead_id: leadId,
+        sender_id: user.id,
+        sender_role: "customer",
+        message: cleanMessage,
+        is_official_prediction: false,
+      })
+      .select("*")
+      .single();
+
+    if (error || !inserted) {
+      return { success: false, error: error?.message || "Failed to send message." };
+    }
+
+    revalidatePath(`/customer/enquiries/${leadId}`, "page");
+    return { success: true, data: inserted as ConsultationMessage };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to send message.",
     };
   }
 }

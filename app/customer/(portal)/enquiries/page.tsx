@@ -116,11 +116,19 @@ export default async function EnquiriesPage() {
                   <p className="text-xs text-ink/75 line-clamp-2">
                     {item.message}
                   </p>
-                  <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-gold/10">
+                  <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-gold/10">
                     <span className="truncate max-w-[60%]">
                       <strong className="text-midnight/80">With:</strong> {item.astrologer_name || "Platform Pool"}
                     </span>
                     <span>{displayDate}</span>
+                  </div>
+                  <div className="pt-1 flex justify-end">
+                    <Link
+                      href={`/customer/enquiries/${item.id}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-gold-deep hover:text-gold"
+                    >
+                      View Guidance & Predictions <ArrowRight className="h-3 w-3" />
+                    </Link>
                   </div>
                 </div>
               );
@@ -136,7 +144,8 @@ export default async function EnquiriesPage() {
                   <th className="py-3.5 px-4">Message Preview</th>
                   <th className="py-3.5 px-4">Assigned Astrologer</th>
                   <th className="py-3.5 px-4">Submitted Date</th>
-                  <th className="py-3.5 px-4 text-right">Status</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gold/10">
@@ -179,12 +188,20 @@ export default async function EnquiriesPage() {
                       <td className="py-4 px-4 text-xs text-muted whitespace-nowrap">
                         {displayDate}
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-center">
                         <span
                           className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadge}`}
                         >
                           {displayStatus}
                         </span>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <Link
+                          href={`/customer/enquiries/${item.id}`}
+                          className={buttonStyles({ variant: "outline", size: "sm" })}
+                        >
+                          View Guidance <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        </Link>
                       </td>
                     </tr>
                   );

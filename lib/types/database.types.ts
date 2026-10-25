@@ -221,3 +221,16 @@ export interface CustomerNotification {
   metadata?: Record<string, unknown>;
   created_at: string;
 }
+
+export interface ConsultationMessage {
+  id: string;
+  lead_id: string;
+  sender_id: string;
+  sender_name?: string;
+  sender_role: "customer" | "astrologer" | "admin";
+  message: string;
+  prediction_title?: string | null;
+  is_official_prediction: boolean;
+  attachments?: unknown[];
+  created_at: string;
+}

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getMyAssignedLeadById } from "@/app/actions/astrologer-leads";
+import { getMyAssignedLeadById, getAstrologerLeadMessages } from "@/app/actions/astrologer-leads";
 import { LeadStatusActions } from "@/components/astrologer/leads/LeadStatusActions";
+import { AstrologerPredictionThreadClient } from "@/components/astrologer/leads/AstrologerPredictionThreadClient";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { Card } from "@/components/astrologer/ui/Card";
 import { ErrorState } from "@/components/astrologer/ui/feedback";
@@ -11,6 +12,7 @@ import { AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
 import { formatDateTime } from "@/lib/astrologer/format";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { isValidUUID } from "@/lib/validations/lead";
+import type { ConsultationMessage } from "@/lib/types/database.types";
 
 export const metadata: Metadata = { title: "Lead Details" };
 
@@ -27,6 +29,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   const item = result.data;
   const name = item.lead.customer?.full_name ?? "Customer";
+
+  // Fetch consultation messages / written predictions
+  const msgResult = await getAstrologerLeadMessages(item.lead.id);
+  const messages: ConsultationMessage[] =
+    msgResult.success && msgResult.data ? (msgResult.data as ConsultationMessage[]) : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -58,6 +65,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <dd className="mt-1 text-sm text-ink">{formatDateTime(item.lead.created_at)}</dd>
           </div>
         </dl>
+      </Card>
+
+      {/* Direct Messaging & Astrological Predictions Thread */}
+      <Card className="p-6">
+        <h2 className="mb-4 font-display text-lg font-semibold text-midnight">Written Prediction & Consultation Thread</h2>
+        <AstrologerPredictionThreadClient
+          leadId={item.lead.id}
+          initialMessages={messages}
+          customerName={name}
+        />
       </Card>
 
       <Card className="p-6">
