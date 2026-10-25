@@ -11,6 +11,11 @@ import {
   User,
   AlertCircle,
   Loader2,
+  Video,
+  PhoneCall,
+  MessageSquare,
+  ExternalLink,
+  ShieldAlert,
 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
@@ -28,6 +33,16 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   const [bookings, setBookings] = useState<CustomerBooking[]>(initialBookings);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
+
+  // Checks if current time is within join window (15 mins prior to end of session)
+  function isJoinWindowActive(scheduledAt: string, durationMinutes: number) {
+    const slotTime = new Date(scheduledAt).getTime();
+    const now = Date.now();
+    const windowStart = slotTime - 15 * 60 * 1000; // 15 mins before
+    const windowEnd = slotTime + durationMinutes * 60 * 1000; // session end
+    return now >= windowStart && now <= windowEnd;
+  }
 
   async function handleCancelBooking(id: string) {
     const confirmed = window.confirm(
@@ -212,27 +227,151 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">
-                        {!isCancelled && (
-                          <button
-                            type="button"
-                            disabled={cancellingId === booking.id}
-                            onClick={() => handleCancelBooking(booking.id)}
-                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
-                          >
-                            {cancellingId === booking.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                            Cancel
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {isConfirmed && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveJoinBooking(booking)}
+                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                                isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
+                                  : "bg-gold/15 text-gold-deep hover:bg-gold/25"
+                              }`}
+                            >
+                              {booking.consultation_mode === "Video" ? (
+                                <Video className="h-3.5 w-3.5" />
+                              ) : booking.consultation_mode === "Call" ? (
+                                <PhoneCall className="h-3.5 w-3.5" />
+                              ) : (
+                                <MessageSquare className="h-3.5 w-3.5" />
+                              )}
+                              <span>
+                                {isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
+                                  ? `Join ${booking.consultation_mode}`
+                                  : `${booking.consultation_mode} Details`}
+                              </span>
+                            </button>
+                          )}
+
+                          {!isCancelled && (
+                            <button
+                              type="button"
+                              disabled={cancellingId === booking.id}
+                              onClick={() => handleCancelBooking(booking.id)}
+                              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                            >
+                              {cancellingId === booking.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              Cancel
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Join Consultation Session Modal */}
+      {activeJoinBooking && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/70 p-4 backdrop-blur-xs"
+        >
+          <div className={`${CARD} w-full max-w-lg p-6 sm:p-7 space-y-4`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-gold-deep">
+                  Live Consultation Entry
+                </span>
+                <h3 className="text-lg font-bold text-midnight font-display mt-0.5">
+                  {activeJoinBooking.consultation_mode} Consultation with {activeJoinBooking.astrologer_name || "Vedic Astrologer"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveJoinBooking(null)}
+                className="text-gray-400 hover:text-midnight text-xl font-bold px-2"
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-gold/20 bg-parchment/40 p-4 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Service:</span>
+                <span className="font-semibold text-midnight">{activeJoinBooking.service_type}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Scheduled Time:</span>
+                <span className="font-semibold text-midnight">{formatExactDateTime(activeJoinBooking.scheduled_at)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Duration:</span>
+                <span className="font-semibold text-midnight">{activeJoinBooking.duration_minutes} Minutes</span>
+              </div>
+            </div>
+
+            {isJoinWindowActive(activeJoinBooking.scheduled_at, activeJoinBooking.duration_minutes) ? (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs">
+                  <Clock className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>
+                    Your consultation window is active! Your astrologer is ready to connect.
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={`https://meet.jit.si/jyotishsetu-${activeJoinBooking.id.slice(0, 8)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonStyles({
+                      variant: "gold",
+                      size: "md",
+                      fullWidth: true,
+                      className: "justify-center shadow-md",
+                    })}
+                  >
+                    <ExternalLink className="h-4 w-4" /> Enter Secure Encrypted Room
+                  </a>
+                  <p className="text-[11px] text-muted text-center">
+                    Peer-to-peer browser video/audio connection with zero third-party recording.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs">
+                  <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Room Not Yet Opened</p>
+                    <p className="mt-0.5 text-amber-700">
+                      The live {activeJoinBooking.consultation_mode.toLowerCase()} room unlocks 15 minutes before the scheduled Muhurat time.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveJoinBooking(null)}
+                    className={buttonStyles({ variant: "outline", size: "sm" })}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

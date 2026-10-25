@@ -53,15 +53,20 @@ export default async function OffersPage() {
 
       <div className={`${CARD} p-6 sm:p-8 space-y-4`}>
         <div className="flex items-start gap-3.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
             <Gift className="h-5 w-5" />
           </span>
           <div>
-            <h3 className="text-base font-semibold text-midnight">
-              Rewards Program & Referral Wallet
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-semibold text-midnight">
+                Rewards Program & Referral Wallet
+              </h3>
+              <span className="rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800 uppercase tracking-wide">
+                Coming Soon
+              </span>
+            </div>
             <p className="mt-1 text-xs text-muted leading-relaxed max-w-xl">
-              Our automated rewards program and consultation wallet redemption features are launching in the upcoming release. You will be able to share referral blessings with friends and family.
+              This preview illustrates platform blessings planned for our next release. Referral tokens, seasonal Muhurat vouchers, and loyalty wallet balances cannot be credited or redeemed at this time. Standard consultations proceed directly through verified astrologer profiles.
             </p>
           </div>
         </div>

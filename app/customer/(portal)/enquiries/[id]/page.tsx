@@ -6,6 +6,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { createClient } from "@/lib/supabase/server";
 import { getConsultationMessages } from "@/app/actions/customer";
 import { ConsultationThreadClient } from "@/components/customer/ConsultationThreadClient";
+import { CustomerReviewForm } from "@/components/customer/CustomerReviewForm";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
@@ -61,6 +62,17 @@ export default async function CustomerEnquiryDetailPage({
   const msgResult = await getConsultationMessages(leadId);
   const initialMessages = msgResult.success && msgResult.data ? msgResult.data : [];
 
+  // Fetch review if completed/converted
+  let existingReview = null;
+  const isCompleted = lead.status === "closed" || lead.status === "converted";
+  if (isCompleted) {
+    const { getConsultationReview } = await import("@/app/actions/customer");
+    const reviewRes = await getConsultationReview(leadId);
+    if (reviewRes.success) {
+      existingReview = reviewRes.data;
+    }
+  }
+
   const displayStatus =
     lead.status === "closed"
       ? "Completed"
@@ -97,6 +109,19 @@ export default async function CustomerEnquiryDetailPage({
           </p>
         </div>
       </div>
+
+      {/* Review Box for Completed Consultations */}
+      {isCompleted && (
+        <div className={CARD}>
+          <div className="p-5 sm:p-6">
+            <CustomerReviewForm
+              leadId={leadId}
+              initialReview={existingReview}
+              astrologerName={astrologerName}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Overview Card */}
       <div className={`${CARD} p-5 sm:p-6 space-y-4`}>

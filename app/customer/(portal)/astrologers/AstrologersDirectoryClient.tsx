@@ -24,6 +24,13 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"experience" | "fee_asc" | "fee_desc">("experience");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
+
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedSpecialization, sortBy]);
 
   // Extract all unique specializations
   const allSpecializations = useMemo(() => {
@@ -67,6 +74,12 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
         return 0;
       });
   }, [astrologers, searchQuery, selectedSpecialization, sortBy]);
+
+  const totalPages = Math.ceil(filteredAstrologers.length / pageSize) || 1;
+  const paginatedAstrologers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredAstrologers.slice(start, start + pageSize);
+  }, [filteredAstrologers, currentPage, pageSize]);
 
   return (
     <div className="space-y-4">
@@ -130,12 +143,17 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
       {/* Results Count */}
       <div className="flex items-center justify-between text-xs text-muted px-1">
         <span>
-          Showing {filteredAstrologers.length} of {astrologers.length} verified astrologers
+          Showing <strong>{paginatedAstrologers.length}</strong> of <strong>{filteredAstrologers.length}</strong> verified astrologers
         </span>
+        {totalPages > 1 && (
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+        )}
       </div>
 
       {/* Directory Grid */}
-      {filteredAstrologers.length === 0 ? (
+      {paginatedAstrologers.length === 0 ? (
         <div className={`${CARD} py-14 px-6 text-center`}>
           <p className="text-sm font-semibold text-midnight">No astrologers found</p>
           <p className="text-xs text-muted mt-1 mb-4">
@@ -154,7 +172,7 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredAstrologers.map((astro) => {
+          {paginatedAstrologers.map((astro) => {
             const specializations = astro.specializations || [];
             const languages = astro.languages || [];
 
@@ -237,6 +255,42 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="rounded-lg border border-gold/30 bg-white px-3 py-1.5 text-xs font-semibold text-midnight hover:bg-parchment disabled:opacity-40 transition-colors"
+          >
+            Previous
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+            <button
+              key={pg}
+              type="button"
+              onClick={() => setCurrentPage(pg)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                currentPage === pg
+                  ? "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight shadow"
+                  : "border border-gold/30 bg-white text-midnight hover:bg-parchment"
+              }`}
+            >
+              {pg}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="rounded-lg border border-gold/30 bg-white px-3 py-1.5 text-xs font-semibold text-midnight hover:bg-parchment disabled:opacity-40 transition-colors"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

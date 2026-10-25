@@ -234,3 +234,44 @@ export interface ConsultationMessage {
   attachments?: unknown[];
   created_at: string;
 }
+
+export interface CustomerFullProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  time_of_birth: string | null;
+  birthplace: string | null;
+  gender: "male" | "female" | "other" | "prefer_not_to_say" | null;
+  avatar_url: string | null;
+  emailVerified: boolean;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsultationReview {
+  id: string;
+  lead_id: string;
+  customer_id: string;
+  astrologer_id: string;
+  rating: number;
+  review_text: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerBillingRecord {
+  id: string;
+  booking_id: string;
+  service_type: string;
+  consultation_mode: ConsultationMode;
+  astrologer_name: string;
+  amount: number;
+  currency: string;
+  payment_status: "paid" | "pending" | "complimentary";
+  transaction_ref: string;
+  created_at: string;
+}

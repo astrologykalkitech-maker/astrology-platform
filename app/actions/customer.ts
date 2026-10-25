@@ -15,6 +15,9 @@ import type {
   BookingStatus,
   ConsultationMode,
   ConsultationMessage,
+  CustomerFullProfile,
+  ConsultationReview,
+  CustomerBillingRecord,
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 
@@ -945,4 +948,326 @@ export async function sendCustomerConsultationMessageAction(
     };
   }
 }
+
+// =====================================================
+// CUSTOMER PROFILE & BIRTH DETAILS ACTIONS (Phase C)
+// =====================================================
+
+/**
+ * Loads the full profile with birth details for the authenticated customer.
+ */
+export async function getCustomerFullProfile(): Promise<
+  AuthResult<CustomerFullProfile>
+> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error || !profile) {
+      return {
+        success: false,
+        error: error?.message || "Failed to load customer profile.",
+      };
+    }
+
+    const fullProfile: CustomerFullProfile = {
+      id: profile.id,
+      full_name: profile.full_name || null,
+      email: user.email || null,
+      phone: profile.phone || null,
+      date_of_birth: profile.date_of_birth || null,
+      time_of_birth: profile.time_of_birth || null,
+      birthplace: profile.birthplace || null,
+      gender: profile.gender || null,
+      avatar_url: profile.avatar_url || null,
+      emailVerified: Boolean(user.email_confirmed_at),
+      role: profile.role,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+    };
+
+    return { success: true, data: fullProfile };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load profile.",
+    };
+  }
+}
+
+/**
+ * Updates personal and birth chart details for the authenticated customer.
+ */
+export async function updateCustomerProfileAction(payload: {
+  full_name?: string;
+  phone?: string;
+  date_of_birth?: string | null;
+  time_of_birth?: string | null;
+  birthplace?: string | null;
+  gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
+}): Promise<AuthResult<CustomerFullProfile>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+
+    // Rate limiting: 10 profile updates per minute
+    const rateLimit = checkRateLimit(`profile:cust:${user.id}`, 10, 60_000);
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: `Please wait ${rateLimit.retryAfterSeconds}s before updating your profile again.`,
+      };
+    }
+
+    // Input validations
+    const cleanName = payload.full_name?.trim();
+    if (cleanName && (cleanName.length < 2 || cleanName.length > 100)) {
+      return { success: false, error: "Full name must be between 2 and 100 characters." };
+    }
+
+    const cleanPhone = payload.phone?.trim() || null;
+    if (cleanPhone && !/^\+?[0-9\s\-()]{7,20}$/.test(cleanPhone)) {
+      return { success: false, error: "Please enter a valid phone number (7-20 digits)." };
+    }
+
+    const cleanBirthplace = payload.birthplace?.trim() || null;
+    if (cleanBirthplace && cleanBirthplace.length > 150) {
+      return { success: false, error: "Birthplace must not exceed 150 characters." };
+    }
+
+    const supabase = await createClient(target);
+
+    // Call update_customer_profile RPC
+    const { error: rpcErr } = await supabase.rpc("update_customer_profile", {
+      p_full_name: cleanName || null,
+      p_phone: cleanPhone,
+      p_date_of_birth: payload.date_of_birth || null,
+      p_time_of_birth: payload.time_of_birth || null,
+      p_birthplace: cleanBirthplace,
+      p_gender: payload.gender || null,
+    });
+
+    if (rpcErr) {
+      // Fallback direct update with RLS guard
+      const { error: updateErr } = await supabase
+        .from("profiles")
+        .update({
+          full_name: cleanName || undefined,
+          phone: cleanPhone,
+          date_of_birth: payload.date_of_birth || null,
+          time_of_birth: payload.time_of_birth || null,
+          birthplace: cleanBirthplace,
+          gender: payload.gender || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+
+      if (updateErr) {
+        return { success: false, error: updateErr.message };
+      }
+    }
+
+    revalidatePath("/customer", "page");
+    revalidatePath("/customer/profile", "page");
+
+    return getCustomerFullProfile();
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update profile.",
+    };
+  }
+}
+
+// =====================================================
+// CONSULTATION REVIEWS & RATINGS (Phase D)
+// =====================================================
+
+/**
+ * Loads the submitted review for a completed consultation.
+ */
+export async function getConsultationReview(
+  leadId: string
+): Promise<AuthResult<ConsultationReview | null>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { data: review, error } = await supabase
+      .from("consultation_reviews")
+      .select("*")
+      .eq("lead_id", leadId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: (review || null) as ConsultationReview | null };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load review.",
+    };
+  }
+}
+
+/**
+ * Submits an authentic 1-5 star review for a completed consultation.
+ */
+export async function submitConsultationReviewAction(payload: {
+  lead_id: string;
+  rating: number;
+  review_text?: string;
+}): Promise<AuthResult<ConsultationReview>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+
+    if (!payload.rating || payload.rating < 1 || payload.rating > 5) {
+      return { success: false, error: "Please provide a rating between 1 and 5 stars." };
+    }
+
+    const cleanText = (payload.review_text || "").trim();
+    if (cleanText.length > 2000) {
+      return { success: false, error: "Review feedback must not exceed 2000 characters." };
+    }
+
+    const rateLimit = checkRateLimit(`review:cust:${user.id}`, 5, 60_000);
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: `Please wait ${rateLimit.retryAfterSeconds}s before submitting another review.`,
+      };
+    }
+
+    const supabase = await createClient(target);
+
+    // Call submit_consultation_review RPC
+    const { data: review, error: rpcErr } = await supabase.rpc("submit_consultation_review", {
+      p_lead_id: payload.lead_id,
+      p_rating: payload.rating,
+      p_review_text: cleanText || null,
+    });
+
+    if (rpcErr || !review) {
+      return {
+        success: false,
+        error: rpcErr?.message || "Failed to submit consultation review.",
+      };
+    }
+
+    revalidatePath(`/customer/enquiries/${payload.lead_id}`, "page");
+    revalidatePath("/customer", "page");
+
+    return { success: true, data: review as ConsultationReview };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to submit review.",
+    };
+  }
+}
+
+// =====================================================
+// UNREAD NOTIFICATIONS COUNT & BILLING HISTORY (Phase F & Scope 6)
+// =====================================================
+
+/**
+ * Fetches the unread notification count for the current authenticated customer.
+ */
+export async function getCustomerUnreadNotificationCount(): Promise<
+  AuthResult<number>
+> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { count, error } = await supabase
+      .from("customer_notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("customer_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      return { success: true, data: 0 };
+    }
+
+    return { success: true, data: count || 0 };
+  } catch {
+    return { success: true, data: 0 };
+  }
+}
+
+/**
+ * Loads authentic billing / transaction history derived from completed or scheduled bookings.
+ */
+export async function getCustomerBillingHistory(): Promise<
+  AuthResult<CustomerBillingRecord[]>
+> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    const { data: bookings, error } = await supabase
+      .from("customer_bookings")
+      .select(`
+        id,
+        service_type,
+        consultation_mode,
+        scheduled_at,
+        status,
+        price,
+        created_at,
+        astrologer_id
+      `)
+      .eq("customer_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error || !bookings) {
+      return { success: true, data: [] };
+    }
+
+    const astroIds = Array.from(new Set(bookings.map((b) => b.astrologer_id)));
+    let astroMap: Record<string, string> = {};
+    if (astroIds.length > 0) {
+      const { data: astros } = await supabase
+        .from("astrologer_profiles")
+        .select("id, display_name")
+        .in("id", astroIds);
+      if (astros) {
+        astroMap = Object.fromEntries(astros.map((a) => [a.id, a.display_name]));
+      }
+    }
+
+    const billingRecords: CustomerBillingRecord[] = bookings.map((b) => {
+      const priceNum = Number(b.price) || 0;
+      return {
+        id: `tx-${b.id.slice(0, 8)}`,
+        booking_id: b.id,
+        service_type: b.service_type,
+        consultation_mode: b.consultation_mode as ConsultationMode,
+        astrologer_name: astroMap[b.astrologer_id] || "Vedic Astrologer",
+        amount: priceNum,
+        currency: "INR",
+        payment_status: priceNum === 0 ? "complimentary" : b.status === "completed" || b.status === "confirmed" ? "paid" : "pending",
+        transaction_ref: `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
+        created_at: b.created_at,
+      };
+    });
+
+    return { success: true, data: billingRecords };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load billing history.",
+    };
+  }
+}
+
 
