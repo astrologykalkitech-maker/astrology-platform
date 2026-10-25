@@ -233,21 +233,20 @@ export async function signIn(
       });
 
       const lower = diag.message.toLowerCase();
-      if (lower.includes("invalid login credentials")) {
-        // If not found in DB1, check if this is an Admin user in DB2
-        try {
-          const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
-          const adminSupabaseAnon =
-            process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.ADMIN_SUPABASE_ANON_KEY;
+      // If authentication fails in DB1, check if this is an Admin/Super Admin user in DB2
+      try {
+        const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
+        const adminSupabaseAnon =
+          process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
+          process.env.ADMIN_SUPABASE_ANON_KEY;
 
-          if (adminSupabaseUrl && adminSupabaseAnon) {
-            const adminClient = await createClient("admin");
-            const { data: adminAuthData, error: adminAuthError } =
-              await adminClient.auth.signInWithPassword({
-                email,
-                password,
-              });
+        if (adminSupabaseUrl && adminSupabaseAnon) {
+          const adminClient = await createClient("admin");
+          const { data: adminAuthData, error: adminAuthError } =
+            await adminClient.auth.signInWithPassword({
+              email,
+              password,
+            });
 
             if (adminAuthError) {
               console.warn("[DB2 Admin Auth Attempt Error]", {
@@ -283,10 +282,11 @@ export async function signIn(
               }
             }
           }
-        } catch (adminErr) {
-          console.error("[DB2 Admin Login Catch Error]", adminErr);
-        }
+      } catch (adminErr) {
+        console.error("[DB2 Admin Login Catch Error]", adminErr);
+      }
 
+      if (lower.includes("invalid login credentials")) {
         return {
           success: false,
           error: "Invalid email or password.",
