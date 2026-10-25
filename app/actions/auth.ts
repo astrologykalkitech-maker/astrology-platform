@@ -236,13 +236,10 @@ export async function signIn(
       if (lower.includes("invalid login credentials")) {
         // If not found in DB1, check if this is an Admin user in DB2
         try {
-          const adminSupabaseUrl =
-            process.env.ADMIN_SUPABASE_URL ||
-            "https://gvvaukpcsqmgmlitrodd.supabase.co";
+          const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
           const adminSupabaseAnon =
             process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.ADMIN_SUPABASE_ANON_KEY ||
-            "sb_publishable_jrMqe0JoQjEDGdNJ4jmo2A_B1JKxFa6";
+            process.env.ADMIN_SUPABASE_ANON_KEY;
 
           if (adminSupabaseUrl && adminSupabaseAnon) {
             const adminClient = await createClient("admin");

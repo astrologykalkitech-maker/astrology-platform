@@ -1,10 +1,9 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Bell, CheckCircle2, Clock, Calendar, MessageSquare, ShieldAlert } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
-import { getAstrologerNotificationsAction, markAstrologerNotificationReadAction } from "@/app/actions/astrologer-portal";
+import { getAstrologerNotificationsAction } from "@/app/actions/astrologer-portal";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
-import { formatExactDateTime } from "@/lib/astrologer/format";
 import AstrologerNotificationsClient from "./AstrologerNotificationsClient";
 
 export const dynamic = "force-dynamic";

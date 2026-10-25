@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Wallet, ShieldCheck, TrendingUp, Clock, CheckCircle } from "lucide-react";
+import { ArrowLeft, Wallet, ShieldCheck } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerEarningsAction } from "@/app/actions/astrologer-portal";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";

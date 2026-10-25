@@ -1,9 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import type { CustomerFullProfile, ConsultationReview, CustomerBillingRecord } from "../lib/types/database.types";
+import type { CustomerBillingRecord } from "../lib/types/database.types";
 import { isAstrologerEligibleForBooking } from "../lib/astrologer/visibility";
-import { checkRateLimit } from "../lib/security/rate-limit";
 
 /**
  * COMPREHENSIVE CUSTOMER DASHBOARD RELEASE TEST MATRIX

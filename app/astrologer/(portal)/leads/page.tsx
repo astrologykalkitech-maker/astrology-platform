@@ -9,7 +9,7 @@ import { EmptyState, ErrorState } from "@/components/astrologer/ui/feedback";
 import { PageHeader } from "@/components/astrologer/ui/PageHeader";
 import { AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
-import { formatDate, formatDateTime, timeAgo } from "@/lib/astrologer/format";
+import { formatDateTime, timeAgo } from "@/lib/astrologer/format";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 
 export const metadata: Metadata = { title: "My Leads" };

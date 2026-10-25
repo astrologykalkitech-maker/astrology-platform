@@ -5,9 +5,7 @@ import {
   LifeBuoy,
   ShieldCheck,
   Mail,
-  Send,
   HelpCircle,
-  FileCheck,
 } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Gift, Sparkles, ArrowRight, Compass } from "lucide-react";
+import { ArrowLeft, Gift, Sparkles, Compass } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { HeroArt } from "@/components/astrologer/art/HeroArt";
 import { buttonStyles } from "@/components/astrologer/ui/Button";

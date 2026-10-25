@@ -12,8 +12,6 @@ import {
   ChevronUp,
   HelpCircle,
   Mail,
-  Phone,
-  FileQuestion,
   Loader2,
 } from "lucide-react";
 import { submitCustomerEnquiryAction } from "@/app/actions/customer";

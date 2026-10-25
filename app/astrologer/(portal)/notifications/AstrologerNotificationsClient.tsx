@@ -4,11 +4,9 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   Bell,
-  CheckCircle2,
   Clock,
   Calendar,
   MessageSquare,
-  ShieldAlert,
   ArrowRight,
   Sparkles,
 } from "lucide-react";

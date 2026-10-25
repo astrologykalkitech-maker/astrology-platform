@@ -1,16 +1,13 @@
 import React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { getPublicApprovedAstrologerBySlug } from "@/lib/astrologer/queries";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
-import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import {
   ArrowLeft,
   Clock,
   MapPin,
   Languages,
-  Sparkles,
   ShieldCheck,
   Send,
   Star,

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Star, MessageSquare, Send, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Star, Send, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import type { ConsultationReview } from "@/lib/types/database.types";
 import { submitConsultationReviewAction } from "@/app/actions/customer";
 import { buttonStyles } from "@/components/astrologer/ui/Button";

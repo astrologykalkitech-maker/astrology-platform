@@ -49,18 +49,6 @@ export interface CustomerDashboardSummary {
   recentEnquiries: CustomerEnquiryItem[];
 }
 
-interface LeadRowResult {
-  id: string;
-  subject: string;
-  message: string;
-  status: string;
-  created_at: string;
-  astrologer_id: string | null;
-  astrologer_profiles: {
-    display_name: string;
-  } | null;
-}
-
 /**
  * Loads the dashboard summary strictly for the authenticated customer.
  * Enforces server-side customer role and queries solely user-scoped records.

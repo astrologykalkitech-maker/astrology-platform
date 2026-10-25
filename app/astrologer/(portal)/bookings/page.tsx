@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Clock, Video, User, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Video } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerBookingsAction } from "@/app/actions/astrologer-portal";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";

@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
-  UserRound,
   Users,
   Wallet,
 } from "lucide-react";
@@ -26,7 +25,7 @@ import { CompletionRing } from "@/components/astrologer/ui/CompletionRing";
 import { EmptyState, ErrorState } from "@/components/astrologer/ui/feedback";
 import { StatCard } from "@/components/astrologer/ui/StatCard";
 import { ApprovalBadge, AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
-import { formatDate, formatDateTime } from "@/lib/astrologer/format";
+import { formatDateTime } from "@/lib/astrologer/format";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
 import { getProfileCompletion } from "@/lib/astrologer/profile-completion";
 import { getOwnAstrologerProfile, requireAstrologerPage } from "@/lib/astrologer/guard";

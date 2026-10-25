@@ -6,7 +6,6 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentProfile, getCurrentUser, requireAuth } from "@/lib/auth/session";
 import { checkPermission } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
 import type { AdminPermissionKey, Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
 

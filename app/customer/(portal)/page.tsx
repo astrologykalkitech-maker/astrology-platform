@@ -7,7 +7,6 @@ import {
   Sparkles,
   CheckCircle2,
   CalendarCheck2,
-  UserRound,
   ShieldCheck,
   Compass,
   MessageSquarePlus,

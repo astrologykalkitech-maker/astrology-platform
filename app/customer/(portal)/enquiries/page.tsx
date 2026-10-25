@@ -3,11 +3,7 @@ import Link from "next/link";
 import {
   Plus,
   ClipboardList,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   ArrowRight,
-  MessageSquare,
 } from "lucide-react";
 import { getCustomerEnquiries } from "@/app/actions/customer";
 import { formatExactDateTime } from "@/lib/astrologer/format";
