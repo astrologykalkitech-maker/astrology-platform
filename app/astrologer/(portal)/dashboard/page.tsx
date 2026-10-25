@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
+  CalendarClock,
   Check,
   ChevronRight,
   ClipboardList,
@@ -11,8 +12,10 @@ import {
   Phone,
   ShieldCheck,
   Sparkles,
+  Star,
   UserRound,
   Users,
+  Wallet,
 } from "lucide-react";
 import { getMyAssignedLeads } from "@/app/actions/astrologer-leads";
 import { HeroArt } from "@/components/astrologer/art/HeroArt";
@@ -143,9 +146,11 @@ export default async function DashboardPage() {
           <CardTitle id="qa-title">Quick Actions</CardTitle>
           <nav aria-label="Quick actions" className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
             {[
-              { href: "/astrologer/profile/edit", title: "Edit Profile", note: "Update your details", icon: PencilLine, tone: "from-amber-100 to-amber-200 text-amber-700" },
+              { href: "/astrologer/bookings", title: "Bookings", note: "Scheduled sessions", icon: CalendarClock, tone: "from-emerald-100 to-emerald-200 text-emerald-700" },
               { href: "/astrologer/leads", title: "My Leads", note: "View all enquiries", icon: ClipboardList, tone: "from-sky-100 to-sky-200 text-sky-700" },
-              { href: "/astrologer/profile", title: "My Profile", note: "See how you appear", icon: UserRound, tone: "from-rose-100 to-rose-200 text-maroon" },
+              { href: "/astrologer/reviews", title: "Client Reviews", note: "Ratings & feedback", icon: Star, tone: "from-amber-100 to-amber-200 text-amber-700" },
+              { href: "/astrologer/earnings", title: "Earnings", note: "Consultation fees", icon: Wallet, tone: "from-teal-100 to-teal-200 text-teal-700" },
+              { href: "/astrologer/profile/edit", title: "Edit Profile", note: "Update your details", icon: PencilLine, tone: "from-rose-100 to-rose-200 text-maroon" },
             ].map(({ href, title, note, icon: Icon, tone }) => (
               <Link key={href} href={href} className="group flex items-center gap-3 rounded-xl border border-line bg-gradient-to-r from-ivory to-white p-3 transition-all hover:-translate-y-0.5 hover:border-gold/60 hover:shadow-md">
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-inner ${tone}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>

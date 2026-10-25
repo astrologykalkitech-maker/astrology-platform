@@ -12,6 +12,8 @@ import {
   Star,
   UserRound,
   Wallet,
+  Bell,
+  LifeBuoy,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -29,15 +31,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
   { href: "/astrologer/leads", label: "My Leads", icon: MessageSquareText },
+  { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
+  { href: "/astrologer/reviews", label: "Reviews", icon: Star },
+  { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
+  { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
+  { href: "/astrologer/support", label: "Support", icon: LifeBuoy },
   { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
-];
-
-// Shown in the reference design but not supported by the backend yet.
-const COMING_SOON: { label: string; icon: LucideIcon }[] = [
-  { label: "Availability", icon: CalendarClock },
-  { label: "Reviews", icon: Star },
-  { label: "Earnings", icon: Wallet },
-  { label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -69,21 +68,21 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         aria-hidden="true"
         className="pointer-events-none object-cover object-top"
       />
-      {/* Darken the middle so navigation text stays readable; keep the sage and wheel visible at the bottom. */}
+      {/* Darken the middle so navigation text stays readable */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(21,16,39,0) 22%, rgba(21,16,39,0.8) 33%, rgba(21,16,39,0.8) 80%, rgba(21,16,39,0.2) 90%, rgba(21,16,39,0) 100%)",
+            "linear-gradient(to bottom, rgba(21,16,39,0) 18%, rgba(21,16,39,0.85) 28%, rgba(21,16,39,0.85) 85%, rgba(21,16,39,0.3) 92%, rgba(21,16,39,0) 100%)",
         }}
       />
 
-      {/* The logo is painted into the artwork, so this link sits invisibly over it. */}
+      {/* Brand click area */}
       <Link
         href="/astrologer/dashboard"
         onClick={onNavigate}
-        className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
+        className="absolute inset-x-6 top-[5%] z-10 h-[18%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
       >
         <span className="sr-only">JyotishSetu Astrologer Portal, go to dashboard</span>
       </Link>
@@ -96,7 +95,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         <X className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5">
+      <div className="absolute inset-x-0 bottom-3 top-[24%] z-10 flex flex-col overflow-y-auto px-4">
         <nav aria-label="Astrologer portal" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item);
@@ -114,30 +113,11 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
                     : "text-ivory/75 hover:translate-x-0.5 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 {item.label}
               </Link>
             );
           })}
-
-          <Ornament className="mt-3 px-2" />
-          <p className="mt-2 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
-            Coming soon
-          </p>
-
-          {COMING_SOON.map(({ label, icon: Icon }) => (
-            <div
-              key={label}
-              aria-disabled="true"
-              className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-2 text-sm text-ivory/70"
-            >
-              <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-              <span>{label}</span>
-              <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                Soon
-              </span>
-            </div>
-          ))}
         </nav>
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">

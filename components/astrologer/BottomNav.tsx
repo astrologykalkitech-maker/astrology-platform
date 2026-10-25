@@ -2,12 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, Ellipsis, House, UserRound, type LucideIcon } from "lucide-react";
+import {
+  ClipboardList,
+  Ellipsis,
+  House,
+  UserRound,
+  CalendarClock,
+  Bell,
+  type LucideIcon,
+} from "lucide-react";
 
 const ITEMS: { href: string; label: string; icon: LucideIcon; exact?: boolean }[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", icon: House },
-  { href: "/astrologer/profile", label: "Profile", icon: UserRound, exact: true },
   { href: "/astrologer/leads", label: "Leads", icon: ClipboardList },
+  { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
+  { href: "/astrologer/notifications", label: "Alerts", icon: Bell },
+  { href: "/astrologer/profile", label: "Profile", icon: UserRound, exact: true },
 ];
 
 export function BottomNav({ menuOpen, onMore }: { menuOpen: boolean; onMore: () => void }) {
