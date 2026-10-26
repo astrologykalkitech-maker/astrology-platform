@@ -938,6 +938,121 @@ export async function markNotificationReadAction(
   }
 }
 
+/**
+ * Deletes all notifications for the authenticated customer.
+ */
+export async function clearAllCustomerNotificationsAction(): Promise<
+  AuthResult<{ success: boolean }>
+> {
+  try {
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .delete()
+      .eq("customer_id", user.id);
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to clear notifications: ${error.message}`,
+      };
+    }
+
+    revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "page");
+
+    return {
+      success: true,
+      data: { success: true },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to clear notifications.",
+    };
+  }
+}
+
+/**
+ * Deletes a single notification for the authenticated customer.
+ */
+export async function deleteCustomerNotificationAction(
+  notificationId: string
+): Promise<AuthResult<{ success: boolean }>> {
+  try {
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .delete()
+      .eq("id", notificationId)
+      .eq("customer_id", user.id);
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to delete notification: ${error.message}`,
+      };
+    }
+
+    revalidatePath("/customer/notification", "page");
+
+    return {
+      success: true,
+      data: { success: true },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete notification.",
+    };
+  }
+}
+
+/**
+ * Marks all unread notifications as read for the authenticated customer.
+ */
+export async function markAllCustomerNotificationsReadAction(): Promise<
+  AuthResult<{ success: boolean }>
+> {
+  try {
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+      })
+      .eq("customer_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      return {
+        success: false,
+        error: "Failed to mark all notifications as read.",
+      };
+    }
+
+    revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "page");
+
+    return {
+      success: true,
+      data: { success: true },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to mark all notifications.",
+    };
+  }
+}
+
 // =====================================================
 // DIRECT CONSULTATION MESSAGING SERVER ACTIONS (Problem 4)
 // =====================================================

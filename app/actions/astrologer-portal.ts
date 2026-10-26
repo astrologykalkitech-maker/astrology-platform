@@ -294,6 +294,103 @@ export async function markAstrologerNotificationReadAction(
 }
 
 /**
+ * Deletes all notifications for the authenticated astrologer.
+ */
+export async function clearAllAstrologerNotificationsAction(): Promise<
+  AuthResult<{ success: boolean }>
+> {
+  try {
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .delete()
+      .eq("customer_id", user.id);
+
+    if (error) {
+      return { success: false, error: `Failed to clear notifications: ${error.message}` };
+    }
+
+    revalidatePath("/astrologer/notifications", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+
+    return { success: true, data: { success: true } };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to clear notifications.",
+    };
+  }
+}
+
+/**
+ * Deletes a single notification for the authenticated astrologer.
+ */
+export async function deleteAstrologerNotificationAction(
+  notificationId: string
+): Promise<AuthResult<{ success: boolean }>> {
+  try {
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .delete()
+      .eq("id", notificationId)
+      .eq("customer_id", user.id);
+
+    if (error) {
+      return { success: false, error: `Failed to delete notification: ${error.message}` };
+    }
+
+    revalidatePath("/astrologer/notifications", "page");
+
+    return { success: true, data: { success: true } };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete notification.",
+    };
+  }
+}
+
+/**
+ * Marks all notifications as read for the authenticated astrologer.
+ */
+export async function markAllAstrologerNotificationsReadAction(): Promise<
+  AuthResult<{ success: boolean }>
+> {
+  try {
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
+
+    const { error } = await admin
+      .from("customer_notifications")
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+      })
+      .eq("customer_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      return { success: false, error: "Failed to mark all notifications as read." };
+    }
+
+    revalidatePath("/astrologer/notifications", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+
+    return { success: true, data: { success: true } };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to mark all notifications.",
+    };
+  }
+}
+
+/**
  * Returns the unread notification count for the authenticated astrologer.
  */
 export async function getAstrologerUnreadNotificationCount(): Promise<AuthResult<number>> {
