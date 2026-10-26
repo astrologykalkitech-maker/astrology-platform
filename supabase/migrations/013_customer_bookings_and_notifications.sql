@@ -229,3 +229,8 @@ create policy "Customers can mark own notifications as read"
   to authenticated
   using (customer_id = (select auth.uid()))
   with check (customer_id = (select auth.uid()));
+
+-- Grant table privileges to authenticated users (RLS policies govern row access)
+grant select, update on public.customer_bookings to authenticated;
+grant select, update on public.customer_notifications to authenticated;
+

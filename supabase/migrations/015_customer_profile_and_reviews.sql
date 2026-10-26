@@ -232,3 +232,8 @@ $$;
 
 revoke all on function public.submit_consultation_review from public;
 grant execute on function public.submit_consultation_review to authenticated;
+
+-- Grant table privileges (RLS policies govern row access)
+grant select on public.consultation_reviews to anon, authenticated;
+grant insert on public.consultation_reviews to authenticated;
+

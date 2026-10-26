@@ -2361,6 +2361,10 @@ create policy "Customers can mark own notifications as read"
   using (customer_id = (select auth.uid()))
   with check (customer_id = (select auth.uid()));
 
+grant select, update on public.customer_bookings to authenticated;
+grant select, update on public.customer_notifications to authenticated;
+
+
 
 -- ==============================================================================
 -- SECTION 14: DIRECT CONSULTATION MESSAGING (Migration 014)
@@ -2436,6 +2440,9 @@ create policy "Astrologers can send messages on assigned leads"
       )
     )
   );
+
+grant select, insert on public.consultation_messages to authenticated;
+
 
 
 -- ==============================================================================
@@ -2647,4 +2654,8 @@ $$;
 
 revoke all on function public.submit_consultation_review from public;
 grant execute on function public.submit_consultation_review to authenticated;
+
+grant select on public.consultation_reviews to anon, authenticated;
+grant insert on public.consultation_reviews to authenticated;
+
 

@@ -80,3 +80,7 @@ create policy "Astrologers can send messages on assigned leads"
       )
     )
   );
+
+-- Grant table privileges to authenticated users (RLS policies govern row access)
+grant select, insert on public.consultation_messages to authenticated;
+
