@@ -8,6 +8,7 @@ import {
   User,
   Loader2,
   Clock,
+  Lock,
 } from "lucide-react";
 import type { ConsultationMessage } from "@/lib/types/database.types";
 import { sendCustomerConsultationMessageAction, getConsultationMessages } from "@/app/actions/customer";
@@ -18,14 +19,17 @@ interface Props {
   leadId: string;
   initialMessages: ConsultationMessage[];
   astrologerName: string;
+  isClosed?: boolean;
 }
 
 export function ConsultationThreadClient({
   leadId,
   initialMessages,
   astrologerName,
+  isClosed = false,
 }: Props) {
   const [messages, setMessages] = useState<ConsultationMessage[]>(initialMessages);
+  const [isQueryClosed, setIsQueryClosed] = useState<boolean>(Boolean(isClosed));
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,9 @@ export function ConsultationThreadClient({
         const res = await getConsultationMessages(leadId);
         if (mounted && res.success && Array.isArray(res.data)) {
           setMessages(res.data);
+          if (res.isClosed !== undefined) {
+            setIsQueryClosed(res.isClosed);
+          }
         }
       } catch {
         // Non-blocking poll
@@ -51,9 +58,12 @@ export function ConsultationThreadClient({
     };
   }, [leadId]);
 
-
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
+    if (isQueryClosed) {
+      setError("This consultation query has been closed by the astrologer. You can no longer send new messages.");
+      return;
+    }
     if (!text.trim() || sending) return;
 
     setError(null);
@@ -66,6 +76,9 @@ export function ConsultationThreadClient({
       setMessages((prev) => [...prev, res.data]);
       setText("");
     } else {
+      if (res.error?.includes("closed")) {
+        setIsQueryClosed(true);
+      }
       setError(res.error || "Failed to send message. Please try again.");
     }
   }
@@ -143,40 +156,52 @@ export function ConsultationThreadClient({
         )}
       </div>
 
-      {/* Input Box */}
-      <form onSubmit={handleSend} className="space-y-2">
-        {error && (
-          <p className="text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
-            {error}
+      {/* Input Box or Closed Notice */}
+      {isQueryClosed ? (
+        <div className="rounded-xl border border-gold/30 bg-amber-50/60 p-4 text-center">
+          <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-midnight mb-1">
+            <Lock className="h-4 w-4 text-gold-deep" />
+            <span>Consultation Query Closed</span>
+          </div>
+          <p className="text-[11px] text-muted max-w-sm mx-auto">
+            This consultation has been closed by the astrologer. Further follow-up questions and messaging have concluded.
           </p>
-        )}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Type a follow-up question or clarification for the astrologer..."
-            disabled={sending}
-            className="flex-1 rounded-xl border border-gold/30 bg-white px-3.5 py-2 text-xs text-midnight placeholder:text-muted focus:border-gold focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={sending || !text.trim()}
-            className={buttonStyles({
-              variant: "gold",
-              size: "sm",
-              className: "shrink-0",
-            })}
-          >
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5" />
-            )}
-            Send
-          </button>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={handleSend} className="space-y-2">
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type a follow-up question or clarification for the astrologer..."
+              disabled={sending}
+              className="flex-1 rounded-xl border border-gold/30 bg-white px-3.5 py-2 text-xs text-midnight placeholder:text-muted focus:border-gold focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={sending || !text.trim()}
+              className={buttonStyles({
+                variant: "gold",
+                size: "sm",
+                className: "shrink-0",
+              })}
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Send
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

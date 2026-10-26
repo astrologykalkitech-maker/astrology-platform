@@ -282,6 +282,29 @@ export async function updateAssignmentStatus(
             .from("leads")
             .update({ status: targetLeadStatus })
             .eq("id", leadId);
+
+          if (targetStatus === "closed") {
+            try {
+              const { data: leadCustomer } = await db1Client
+                .from("leads")
+                .select("customer_id, subject")
+                .eq("id", leadId)
+                .maybeSingle();
+
+              if (leadCustomer?.customer_id) {
+                await createInAppNotification({
+                  recipientUserId: leadCustomer.customer_id,
+                  title: "Consultation Query Concluded",
+                  message: `Your consultation "${leadCustomer.subject.slice(0, 40)}" has been completed and closed by the astrologer.`,
+                  linkUrl: `/customer/enquiries/${leadId}`,
+                  eventType: "lead_closed",
+                  metadata: { lead_id: leadId },
+                });
+              }
+            } catch {
+              // Non-blocking notification
+            }
+          }
         } catch (db1Err) {
           console.error("[updateAssignmentStatus] DB1 lead sync error:", db1Err);
         }
@@ -334,8 +357,11 @@ export async function updateAssignmentStatus(
     }
 
     // 8. Revalidate customer, astrologer, and admin paths so all dashboards update immediately
+    revalidatePath(`/customer/enquiries/${existing.lead.id}`, "page");
+    revalidatePath(`/astrologer/leads/${existing.lead.id}`, "page");
     revalidatePath("/customer", "page");
     revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/customer/notification", "page");
     revalidatePath("/astrologer/leads", "page");
     revalidatePath("/astrologer/dashboard", "page");
     revalidatePath("/super-admin", "page");

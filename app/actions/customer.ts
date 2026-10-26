@@ -1063,21 +1063,35 @@ export async function markAllCustomerNotificationsReadAction(): Promise<
  */
 export async function getConsultationMessages(
   leadId: string
-): Promise<AuthResult<ConsultationMessage[]>> {
+): Promise<AuthResult<ConsultationMessage[]> & { isClosed?: boolean }> {
   try {
     const { user } = await requireCustomerContext();
     const admin = await createAdminClient("main");
 
-    // Verify lead ownership
+    // Verify lead ownership and status
     const { data: lead, error: leadErr } = await admin
       .from("leads")
-      .select("id, customer_id")
+      .select("id, customer_id, status")
       .eq("id", leadId)
       .eq("customer_id", user.id)
       .maybeSingle();
 
     if (leadErr || !lead) {
       return { success: false, error: "Consultation enquiry not found or access denied." };
+    }
+
+    let isLeadClosed = lead.status === "closed";
+    if (!isLeadClosed) {
+      const { data: closedAssign } = await admin
+        .from("lead_assignments")
+        .select("id, status")
+        .eq("lead_id", leadId)
+        .eq("status", "closed")
+        .limit(1)
+        .maybeSingle();
+      if (closedAssign) {
+        isLeadClosed = true;
+      }
     }
 
     const { data: messages, error } = await admin
@@ -1117,7 +1131,7 @@ export async function getConsultationMessages(
       created_at: m.created_at,
     }));
 
-    return { success: true, data: result };
+    return { success: true, data: result, isClosed: isLeadClosed };
   } catch (err) {
     return {
       success: false,
@@ -1152,16 +1166,38 @@ export async function sendCustomerConsultationMessageAction(
 
     const admin = await createAdminClient("main");
 
-    // Verify lead ownership
+    // Verify lead ownership and status
     const { data: lead } = await admin
       .from("leads")
-      .select("id, customer_id, astrologer_id")
+      .select("id, customer_id, astrologer_id, status")
       .eq("id", cleanLeadId)
       .eq("customer_id", user.id)
       .maybeSingle();
 
     if (!lead) {
       return { success: false, error: "Consultation enquiry not found." };
+    }
+
+    // Check if query is closed either on lead or assignment
+    let isLeadClosed = lead.status === "closed";
+    if (!isLeadClosed) {
+      const { data: closedAssign } = await admin
+        .from("lead_assignments")
+        .select("id, status")
+        .eq("lead_id", cleanLeadId)
+        .eq("status", "closed")
+        .limit(1)
+        .maybeSingle();
+      if (closedAssign) {
+        isLeadClosed = true;
+      }
+    }
+
+    if (isLeadClosed) {
+      return {
+        success: false,
+        error: "This consultation enquiry has been closed by the astrologer. Further messaging is disabled.",
+      };
     }
 
     const { data: inserted, error } = await admin

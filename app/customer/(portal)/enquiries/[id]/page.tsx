@@ -171,6 +171,7 @@ export default async function CustomerEnquiryDetailPage({
           leadId={leadId}
           initialMessages={initialMessages}
           astrologerName={astrologerName}
+          isClosed={Boolean(lead.status === "closed" || msgResult.isClosed)}
         />
       </div>
     </div>
