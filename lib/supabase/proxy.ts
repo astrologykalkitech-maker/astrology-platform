@@ -8,7 +8,7 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function updateSession(
   request: NextRequest
 ): Promise<NextResponse> {
-  let supabaseResponse = NextResponse.next({
+  const supabaseResponse = NextResponse.next({
     request,
   });
 

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Clock, Video } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Video, PhoneCall, MessageSquare, ExternalLink, ShieldAlert } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerBookingsAction } from "@/app/actions/astrologer-portal";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
@@ -16,10 +16,34 @@ export const metadata = {
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
+/**
+ * Constructs the consultation room URL for a given booking.
+ * Uses full booking UUID to maximize entropy and reduce guessability.
+ * Note: Jit.si public rooms do not require authentication — the full UUID
+ * is used as a long, high-entropy room name to deter casual guessing.
+ * For production with authenticated rooms, replace with a token-based provider.
+ */
+function getConsultationRoomUrl(bookingId: string): string {
+  return `https://meet.jit.si/jyotishsetu-${bookingId}`;
+}
+
+/**
+ * Checks if the current server time is within the consultation join window.
+ * Window opens 15 minutes before the scheduled time and closes at session end.
+ */
+function isJoinWindowActive(scheduledAt: string, durationMinutes: number, now: Date): boolean {
+  const slotTime = new Date(scheduledAt).getTime();
+  const windowStart = slotTime - 15 * 60 * 1000; // 15 mins before
+  const windowEnd = slotTime + durationMinutes * 60 * 1000; // session end
+  const nowMs = now.getTime();
+  return nowMs >= windowStart && nowMs <= windowEnd;
+}
+
 export default async function AstrologerBookingsPage() {
   await requireAstrologerPage();
   const res = await getAstrologerBookingsAction();
   const bookings = res.success && res.data ? res.data : [];
+  const now = new Date();
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -61,15 +85,29 @@ export default async function AstrologerBookingsPage() {
             const isCompleted = booking.status === "completed";
             const isConfirmed = booking.status === "confirmed";
             const isCancelled = booking.status === "cancelled";
+            const joinWindowActive = isConfirmed && isJoinWindowActive(
+              booking.scheduled_at,
+              booking.duration_minutes,
+              now
+            );
+            const roomUrl = getConsultationRoomUrl(booking.id);
+
+            const ModeIcon =
+              booking.consultation_mode === "Video"
+                ? Video
+                : booking.consultation_mode === "Call"
+                ? PhoneCall
+                : MessageSquare;
 
             return (
               <div key={booking.id} className={`${CARD} p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4`}>
-                <div className="flex items-start gap-3.5">
+                {/* Left: Booking Details */}
+                <div className="flex items-start gap-3.5 flex-1">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold-deep">
-                    <Video className="h-5 w-5" />
+                    <ModeIcon className="h-5 w-5" />
                   </span>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-semibold text-midnight capitalize">
                         {booking.service_type || "Vedic Consultation"}
                       </h3>
@@ -97,20 +135,63 @@ export default async function AstrologerBookingsPage() {
                   </div>
                 </div>
 
+                {/* Right: Fee + Join Action */}
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-end border-t border-line sm:border-0 pt-3 sm:pt-0">
                   <div className="text-right">
                     <p className="text-xs text-muted">Consultation Fee</p>
                     <p className="text-sm font-bold text-midnight">₹{booking.price || 0}</p>
                   </div>
-                  {isConfirmed && (
-                    <span className="rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-3.5 py-1.5 text-xs font-semibold text-midnight shadow">
-                      {booking.consultation_mode} Session
+
+                  {isConfirmed && booking.consultation_mode !== "Chat" && (
+                    joinWindowActive ? (
+                      <a
+                        href={roomUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold shadow transition-colors animate-pulse"
+                        aria-label={`Join ${booking.consultation_mode} session`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Join {booking.consultation_mode}
+                      </a>
+                    ) : (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="rounded-xl bg-gold/15 text-gold-deep px-3.5 py-1.5 text-xs font-semibold">
+                          {booking.consultation_mode} — Scheduled
+                        </span>
+                        <span className="text-[10px] text-muted text-right">
+                          Join opens 15 min before
+                        </span>
+                      </div>
+                    )
+                  )}
+
+                  {isConfirmed && booking.consultation_mode === "Chat" && (
+                    <span className="rounded-xl bg-gold/15 text-gold-deep px-3.5 py-1.5 text-xs font-semibold">
+                      Chat — Use Enquiry Thread
                     </span>
                   )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Room Security Notice */}
+      {bookings.some((b) => b.status === "confirmed" && b.consultation_mode !== "Chat") && (
+        <div className={`${CARD} p-4`}>
+          <div className="flex items-start gap-3 text-xs text-muted">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+            <div>
+              <p className="font-semibold text-ink/80 mb-0.5">About Consultation Rooms</p>
+              <p>
+                Video and call consultations use Jit.si browser-based rooms. The room link is
+                shared only with confirmed participants. For enhanced privacy, a private Jit.si
+                deployment or an authenticated room provider may be configured by the platform administrator.
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

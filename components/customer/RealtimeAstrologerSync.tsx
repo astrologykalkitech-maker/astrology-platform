@@ -63,10 +63,10 @@ export function RealtimeAstrologerSync() {
         }
       };
 
-      window.addEventListener("visibilitychange", handleVisibilityChange);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
 
       return () => {
-        window.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
         if (channel) {
           supabase.removeChannel(channel);
         }

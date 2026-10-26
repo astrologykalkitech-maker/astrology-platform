@@ -145,25 +145,49 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                     <span className="font-semibold text-midnight">₹{booking.price}</span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 text-[11px] text-muted">
-                    <span className="font-mono text-[10px] truncate max-w-[150px]">
-                      {booking.id}
-                    </span>
-                    {!isCancelled && (
+                  {/* Mobile actions row: Join + Cancel */}
+                  <div className="flex items-center justify-between pt-1 gap-2">
+                    {/* Join button in mobile card view (F-08 fix) */}
+                    {isConfirmed && booking.consultation_mode !== "Chat" && (
                       <button
                         type="button"
-                        disabled={cancellingId === booking.id}
-                        onClick={() => handleCancelBooking(booking.id)}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium py-1 px-2 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                        onClick={() => setActiveJoinBooking(booking)}
+                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                          isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
+                            : "bg-gold/15 text-gold-deep hover:bg-gold/25"
+                        }`}
                       >
-                        {cancellingId === booking.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {booking.consultation_mode === "Video" ? (
+                          <Video className="h-3.5 w-3.5" />
                         ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <PhoneCall className="h-3.5 w-3.5" />
                         )}
-                        Cancel Booking
+                        {isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
+                          ? `Join ${booking.consultation_mode}`
+                          : `${booking.consultation_mode}`}
                       </button>
                     )}
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="font-mono text-[10px] text-muted truncate max-w-[100px]">
+                        {booking.id.slice(0, 8)}
+                      </span>
+                      {!isCancelled && (
+                        <button
+                          type="button"
+                          disabled={cancellingId === booking.id}
+                          onClick={() => handleCancelBooking(booking.id)}
+                          className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium py-1 px-2 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                        >
+                          {cancellingId === booking.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -337,7 +361,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
 
                 <div className="flex flex-col gap-2">
                   <a
-                    href={`https://meet.jit.si/jyotishsetu-${activeJoinBooking.id.slice(0, 8)}`}
+                    href={`https://meet.jit.si/jyotishsetu-${activeJoinBooking.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={buttonStyles({
@@ -347,10 +371,11 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       className: "justify-center shadow-md",
                     })}
                   >
-                    <ExternalLink className="h-4 w-4" /> Enter Secure Encrypted Room
+                    <ExternalLink className="h-4 w-4" /> Enter Consultation Room
                   </a>
                   <p className="text-[11px] text-muted text-center">
-                    Peer-to-peer browser video/audio connection with zero third-party recording.
+                    Browser-based video/audio room via Jit.si. Share the room link only with your
+                    scheduled astrologer. For highest privacy, connect on a private network.
                   </p>
                 </div>
               </div>

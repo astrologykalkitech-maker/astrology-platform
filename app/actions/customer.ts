@@ -571,6 +571,8 @@ export async function getCustomerBookings(): Promise<
 
 /**
  * Creates a persistent booking using server-side slot check and overlap prevention.
+ * The consultation price is derived AUTHORITATIVELY from the astrologer's profile
+ * on the database side — never from client-submitted values.
  */
 export async function createCustomerBookingAction(payload: {
   astrologer_id: string;
@@ -578,7 +580,8 @@ export async function createCustomerBookingAction(payload: {
   consultation_mode: ConsultationMode;
   scheduled_at: string;
   duration_minutes?: number;
-  price?: number;
+  // NOTE: price is intentionally omitted — it is derived from astrologer_profiles.consultation_fee
+  // on the server side inside the book_astrologer_consultation RPC. Do NOT accept client prices.
   notes?: string;
 }): Promise<AuthResult<CustomerBooking>> {
   try {
@@ -596,6 +599,7 @@ export async function createCustomerBookingAction(payload: {
     const supabase = await createClient(target);
 
     // Call book_astrologer_consultation RPC
+    // Price is NOT passed — it is derived from astrologer_profiles.consultation_fee inside the RPC
     const { data: booking, error: rpcErr } = await supabase.rpc(
       "book_astrologer_consultation",
       {
@@ -604,14 +608,16 @@ export async function createCustomerBookingAction(payload: {
         p_consultation_mode: payload.consultation_mode,
         p_scheduled_at: payload.scheduled_at,
         p_duration_minutes: payload.duration_minutes || 30,
-        p_price: payload.price || 0.0,
         p_notes: payload.notes || null,
       }
     );
 
     if (rpcErr || !booking) {
       const safeMessage =
-        rpcErr?.message?.includes("available") || rpcErr?.message?.includes("advance")
+        rpcErr?.message?.includes("available") ||
+        rpcErr?.message?.includes("advance") ||
+        rpcErr?.message?.includes("slot") ||
+        rpcErr?.message?.includes("mode")
           ? rpcErr.message
           : "Unable to complete booking. Please select another slot or astrologer.";
 
@@ -623,6 +629,7 @@ export async function createCustomerBookingAction(payload: {
 
     revalidatePath("/customer/bookings", "page");
     revalidatePath("/customer", "page");
+    revalidatePath("/astrologer/bookings", "page");
 
     return {
       success: true,

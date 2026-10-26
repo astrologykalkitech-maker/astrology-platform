@@ -276,7 +276,7 @@ test("Security: createAdminClient fails closed if SUPABASE_SERVICE_ROLE_KEY is m
       async () => {
         await createAdminClient();
       },
-      /Server configuration error: SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is missing/i
+      /Server configuration error: Required Supabase credentials are missing/i
     );
   } finally {
     if (prevKey) process.env.SUPABASE_SERVICE_ROLE_KEY = prevKey;

@@ -1,7 +1,31 @@
-
--- =====================================================
--- ASTROLOGER PLATFORM - INITIAL DATABASE SCHEMA
--- =====================================================
+-- ==============================================================================
+-- JYOTISHSETU PLATFORM — COMPLETE CONSOLIDATED DATABASE SETUP
+-- Single authoritative initialization script for fresh database provisioning.
+--
+-- Contains all schemas, tables, constraints, indexes, RLS policies, triggers,
+-- views, publications, and RPC functions from Migrations 001 through 016:
+--
+--   Section 01: User Profiles (public.profiles & self-update)
+--   Section 02: Astrologer Profiles (public.astrologer_profiles & moderation)
+--   Section 03: Lead Management (public.leads & public.lead_assignments)
+--   Section 04: Astrologer Profile Security (anti-tamper triggers)
+--   Section 05: Super Admin Workspace (permissions, audit logs, platform settings)
+--   Section 06: Owner Role Hardening (last active admin protection, RBAC)
+--   Section 07: Transactional Lead Capture (60s anti-duplication hash index)
+--   Section 08: Atomic Lead Assignment (concurrency-safe assign/reassign RPC)
+--   Section 09: Security & RLS Hardening (listing moderation & access isolation)
+--   Section 10: Lead Lifecycle & Assignment Sync (Migration 010)
+--   Section 11: Trigger Type-Casting Defense (Migration 011)
+--   Section 12: Realtime Astrologer Discovery & Visibility (Migration 012)
+--   Section 13: Customer Bookings & Notifications (Migration 013 & 016)
+--   Section 14: Direct Consultation Messaging & Predictions (Migration 014)
+--   Section 15: Customer Profile Expansion & Reviews (Migration 015)
+--   Section 16: Booking Integrity Hardening & Authoritative Pricing (Migration 016)
+--
+-- Deployment Instructions:
+--   - Fresh Install: Run this entire script in Supabase SQL Editor.
+--   - Existing Database: Run individual migrations in supabase/migrations/.
+-- ==============================================================================
 
 -- 1. USER PROFILES
 
@@ -1836,3 +1860,791 @@ using (
   public.is_super_admin()
   or public.has_admin_permission('listing.read')
 );
+
+
+-- ==============================================================================
+-- SECTION 10: LEAD LIFECYCLE & ASSIGNMENT SYNC (Migration 010)
+-- ==============================================================================
+
+alter table public.leads
+  drop constraint if exists leads_status_check;
+
+alter table public.leads
+  add constraint leads_status_check
+    check (status in ('new', 'assigned', 'contacted', 'qualified', 'converted', 'closed', 'invalid', 'duplicate'));
+
+alter table public.leads
+  add column if not exists source_type text not null default 'platform'
+    check (source_type in ('platform', 'direct', 'campaign', 'referral', 'organic')),
+  add column if not exists source_url text,
+  add column if not exists utm_source text,
+  add column if not exists utm_medium text,
+  add column if not exists utm_campaign text,
+  add column if not exists priority text not null default 'medium'
+    check (priority in ('low', 'medium', 'high', 'urgent')),
+  add column if not exists qualification_status text not null default 'unqualified'
+    check (qualification_status in ('unqualified', 'qualified', 'duplicate', 'invalid')),
+  add column if not exists contact_email text,
+  add column if not exists contact_phone text;
+
+grant select, insert on public.leads to authenticated;
+
+create or replace function public.sync_lead_status_from_assignment()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.status = 'closed' then
+    update public.leads
+    set status = 'closed'
+    where id = new.lead_id
+      and status != 'closed';
+  elsif new.status = 'contacted' then
+    update public.leads
+    set status = 'contacted'
+    where id = new.lead_id
+      and status in ('new', 'assigned');
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.sync_lead_status_from_assignment() from public;
+grant execute on function public.sync_lead_status_from_assignment() to authenticated, anon, service_role;
+
+drop trigger if exists trg_sync_lead_status_from_assignment on public.lead_assignments;
+create trigger trg_sync_lead_status_from_assignment
+  after update of status on public.lead_assignments
+  for each row execute function public.sync_lead_status_from_assignment();
+
+
+-- ==============================================================================
+-- SECTION 11: TRIGGER TYPE-CASTING DEFENSE (Migration 011)
+-- ==============================================================================
+
+create or replace function public.guard_astrologer_profile_security()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  jwt_role text;
+begin
+  if new.user_id is distinct from old.user_id then
+    raise exception 'The user_id field is immutable and cannot be changed.'
+      using errcode = '42501';
+  end if;
+
+  if new.approval_status is distinct from old.approval_status then
+    if current_user not in ('postgres', 'supabase_admin', 'service_role') then
+      raise exception 'Only administrators (via service-role or SQL Editor) can update astrologer approval status.'
+        using errcode = '42501';
+    end if;
+
+    jwt_role := nullif(
+      pg_catalog.current_setting('request.jwt.claim.role', true),
+      ''
+    );
+
+    if jwt_role is not null and jwt_role not in ('service_role', 'supabase_admin') then
+      raise exception 'Only administrators (via service-role or SQL Editor) can update astrologer approval status.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.guard_astrologer_profile_security() from public;
+grant execute on function public.guard_astrologer_profile_security() to authenticated, anon, service_role;
+
+create or replace function public.guard_lead_assignment_status_security()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  jwt_role text;
+  current_user_id uuid;
+  assigned_astro_user_id uuid;
+begin
+  if current_user in ('postgres', 'supabase_admin', 'service_role') then
+    return new;
+  end if;
+
+  jwt_role := nullif(
+    pg_catalog.current_setting('request.jwt.claim.role', true),
+    ''
+  );
+
+  if jwt_role in ('service_role', 'supabase_admin') then
+    return new;
+  end if;
+
+  if new.status is distinct from old.status then
+    if old.status = 'closed' and new.status != 'closed' then
+      raise exception 'Closed lead assignments are finalized and cannot be reopened.'
+        using errcode = '42501';
+    end if;
+
+    if old.status in ('assigned', 'contacted') and new.status in ('contacted', 'closed') then
+      current_user_id := (select auth.uid());
+      if current_user_id is null then
+        raise exception 'Authentication required to update lead assignment status.'
+          using errcode = '42501';
+      end if;
+
+      select ap.user_id into assigned_astro_user_id
+      from public.astrologer_profiles ap
+      where ap.id = old.astrologer_id;
+
+      if assigned_astro_user_id is not null and assigned_astro_user_id = current_user_id then
+        return new;
+      end if;
+    end if;
+
+    raise exception 'Unauthorized status transition on lead assignment.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.guard_lead_assignment_status_security() from public;
+grant execute on function public.guard_lead_assignment_status_security() to authenticated, anon, service_role;
+
+
+-- ==============================================================================
+-- SECTION 12: REALTIME ASTROLOGER DISCOVERY & VISIBILITY (Migration 012)
+-- ==============================================================================
+
+alter table public.astrologer_profiles
+  drop constraint if exists astrologer_profiles_approval_status_check;
+
+alter table public.astrologer_profiles
+  add constraint astrologer_profiles_approval_status_check
+    check (approval_status in (
+      'draft',
+      'pending',
+      'changes_requested',
+      'approved',
+      'rejected',
+      'suspended',
+      'archived'
+    ));
+
+drop policy if exists "Public can view approved astrologers" on public.astrologer_profiles;
+
+create policy "Public can view approved astrologers"
+on public.astrologer_profiles
+for select
+to anon, authenticated
+using (approval_status = 'approved');
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'astrologer_profiles'
+  ) then
+    alter publication supabase_realtime add table public.astrologer_profiles;
+  end if;
+exception
+  when undefined_object then
+    null;
+end $$;
+
+-- Ensure discovery ranking columns exist before indexing
+alter table public.astrologer_profiles
+  add column if not exists is_featured boolean not null default false,
+  add column if not exists ranking_priority integer not null default 0,
+  add column if not exists featured_until timestamptz,
+  add column if not exists review_notes text,
+  add column if not exists reviewed_by uuid references public.profiles(id),
+  add column if not exists reviewed_at timestamptz;
+
+create index if not exists idx_astrologer_profiles_approved_active_discovery
+  on public.astrologer_profiles(is_featured desc, ranking_priority desc, created_at desc)
+  where approval_status = 'approved';
+
+
+-- ==============================================================================
+-- SECTION 13: CUSTOMER BOOKINGS & NOTIFICATIONS (Migrations 013 & 016)
+-- ==============================================================================
+
+create table if not exists public.customer_bookings (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.profiles(id) on delete cascade,
+  astrologer_id uuid not null references public.astrologer_profiles(id) on delete restrict,
+  service_type text not null default 'General Consultation',
+  consultation_mode text not null default 'Chat'
+    check (consultation_mode in ('Chat', 'Call', 'Video')),
+  scheduled_at timestamptz not null,
+  duration_minutes integer not null default 30
+    check (duration_minutes >= 10 and duration_minutes <= 180),
+  status text not null default 'pending'
+    check (status in ('pending', 'confirmed', 'cancelled', 'completed', 'no_show')),
+  price numeric(10,2) not null default 0.00
+    check (price >= 0),
+  notes text,
+  cancellation_reason text,
+  cancelled_at timestamptz,
+  cancelled_by uuid references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_customer_bookings_customer
+  on public.customer_bookings (customer_id, scheduled_at desc);
+
+create index if not exists idx_customer_bookings_astrologer_slot
+  on public.customer_bookings (astrologer_id, scheduled_at)
+  where status in ('pending', 'confirmed');
+
+alter table public.customer_bookings enable row level security;
+
+create policy "Customers can view own bookings"
+  on public.customer_bookings
+  for select
+  to authenticated
+  using (customer_id = (select auth.uid()));
+
+create policy "Customers can cancel own bookings"
+  on public.customer_bookings
+  for update
+  to authenticated
+  using (customer_id = (select auth.uid()))
+  with check (
+    customer_id = (select auth.uid())
+    and status = 'cancelled'
+  );
+
+create policy "Astrologers can view their assigned bookings"
+  on public.customer_bookings
+  for select
+  to authenticated
+  using (
+    astrologer_id in (
+      select id from public.astrologer_profiles
+      where user_id = (select auth.uid())
+    )
+  );
+
+-- Direct booking insert protection (F-05 & Migration 016)
+create or replace function public.guard_customer_booking_insert()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  jwt_role text;
+begin
+  if current_user in ('postgres', 'supabase_admin', 'service_role') then
+    return new;
+  end if;
+
+  jwt_role := nullif(pg_catalog.current_setting('request.jwt.claim.role', true), '');
+  if jwt_role in ('service_role', 'supabase_admin') then
+    return new;
+  end if;
+
+  raise exception 'Direct booking inserts are not permitted. Use the book_astrologer_consultation RPC.'
+    using errcode = '42501';
+end;
+$$;
+
+revoke all on function public.guard_customer_booking_insert() from public;
+grant execute on function public.guard_customer_booking_insert() to authenticated, anon, service_role;
+
+drop trigger if exists trg_guard_booking_direct_insert on public.customer_bookings;
+create trigger trg_guard_booking_direct_insert
+  before insert on public.customer_bookings
+  for each row execute function public.guard_customer_booking_insert();
+
+-- Completed booking cancellation protection (F-09 & Migration 016)
+create or replace function public.guard_customer_booking_cancellation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.status = 'completed' and new.status = 'cancelled' then
+    raise exception 'Completed consultations cannot be cancelled.'
+      using errcode = '42501';
+  end if;
+
+  if old.status = 'no_show' and new.status = 'cancelled' then
+    raise exception 'No-show consultations cannot be cancelled.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.guard_customer_booking_cancellation() from public;
+grant execute on function public.guard_customer_booking_cancellation() to authenticated, anon, service_role;
+
+drop trigger if exists trg_guard_booking_cancellation on public.customer_bookings;
+create trigger trg_guard_booking_cancellation
+  before update of status on public.customer_bookings
+  for each row execute function public.guard_customer_booking_cancellation();
+
+-- Authoritative Booking Engine RPC with Concurrency Lock & Server-Side Pricing (Migrations 013 & 016)
+create or replace function public.book_astrologer_consultation(
+  p_astrologer_id uuid,
+  p_service_type text,
+  p_consultation_mode text,
+  p_scheduled_at timestamptz,
+  p_duration_minutes integer default 30,
+  p_price numeric default null,
+  p_notes text default null
+)
+returns public.customer_bookings
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_caller_id uuid;
+  v_caller_role text;
+  v_astro_status text;
+  v_authoritative_price numeric(10,2);
+  v_overlap_count integer;
+  v_new_end timestamptz;
+  v_booking public.customer_bookings;
+begin
+  -- 1. Validate caller authentication
+  v_caller_id := (select auth.uid());
+  if v_caller_id is null then
+    raise exception 'Authentication required to schedule a booking.'
+      using errcode = '42501';
+  end if;
+
+  -- 2. Verify caller role is customer
+  select role into v_caller_role
+  from public.profiles
+  where id = v_caller_id;
+
+  if v_caller_role is null or v_caller_role != 'customer' then
+    raise exception 'Only customer accounts can book consultations.'
+      using errcode = '42501';
+  end if;
+
+  -- 3. Row lock on astrologer profile and retrieve authoritative consultation fee
+  select approval_status, coalesce(consultation_fee, 0.00)
+    into v_astro_status, v_authoritative_price
+  from public.astrologer_profiles
+  where id = p_astrologer_id
+  for update;
+
+  if v_astro_status is null then
+    raise exception 'Astrologer not found.'
+      using errcode = 'P0002';
+  end if;
+
+  if v_astro_status != 'approved' then
+    raise exception 'Selected astrologer is not currently available for bookings.'
+      using errcode = 'P0002';
+  end if;
+
+  -- 4. Validate time slot is at least 5 minutes in the future
+  if p_scheduled_at <= (pg_catalog.now() + interval '5 minutes') then
+    raise exception 'Booking slot must be scheduled at least 5 minutes in advance.'
+      using errcode = '22000';
+  end if;
+
+  v_new_end := p_scheduled_at + (coalesce(p_duration_minutes, 30) || ' minutes')::interval;
+
+  -- 5. Atomic Overlap Check for active bookings with this astrologer
+  select count(*) into v_overlap_count
+  from public.customer_bookings
+  where astrologer_id = p_astrologer_id
+    and status in ('pending', 'confirmed')
+    and (
+      (scheduled_at, scheduled_at + (duration_minutes || ' minutes')::interval)
+      overlaps
+      (p_scheduled_at, v_new_end)
+    );
+
+  if v_overlap_count > 0 then
+    raise exception 'This time slot is no longer available. Please select another slot.'
+      using errcode = '23505';
+  end if;
+
+  -- 6. Insert persistent booking record using authoritative server-side price
+  insert into public.customer_bookings (
+    customer_id,
+    astrologer_id,
+    service_type,
+    consultation_mode,
+    scheduled_at,
+    duration_minutes,
+    status,
+    price,
+    notes
+  ) values (
+    v_caller_id,
+    p_astrologer_id,
+    coalesce(nullif(trim(p_service_type), ''), 'General Consultation'),
+    case when p_consultation_mode in ('Chat', 'Call', 'Video') then p_consultation_mode else 'Chat' end,
+    p_scheduled_at,
+    coalesce(p_duration_minutes, 30),
+    'confirmed',
+    greatest(v_authoritative_price, 0.00),
+    nullif(trim(p_notes), '')
+  )
+  returning * into v_booking;
+
+  -- 7. Create in-app notification for the customer
+  insert into public.customer_notifications (
+    customer_id,
+    title,
+    message,
+    link_url,
+    event_type,
+    metadata
+  ) values (
+    v_caller_id,
+    'Consultation Confirmed',
+    'Your ' || v_booking.consultation_mode || ' consultation has been confirmed for ' || to_char(p_scheduled_at, 'Mon DD, YYYY HH12:MI AM') || '.',
+    '/customer/bookings',
+    'booking_confirmed',
+    jsonb_build_object('booking_id', v_booking.id, 'astrologer_id', p_astrologer_id)
+  );
+
+  return v_booking;
+end;
+$$;
+
+revoke all on function public.book_astrologer_consultation from public;
+grant execute on function public.book_astrologer_consultation to authenticated;
+
+-- Notifications Table
+create table if not exists public.customer_notifications (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  message text not null,
+  link_url text,
+  event_type text not null default 'general',
+  is_read boolean not null default false,
+  read_at timestamptz,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_customer_notifications_unread
+  on public.customer_notifications (customer_id, is_read, created_at desc);
+
+alter table public.customer_notifications enable row level security;
+
+create policy "Customers can view own notifications"
+  on public.customer_notifications
+  for select
+  to authenticated
+  using (customer_id = (select auth.uid()));
+
+create policy "Customers can mark own notifications as read"
+  on public.customer_notifications
+  for update
+  to authenticated
+  using (customer_id = (select auth.uid()))
+  with check (customer_id = (select auth.uid()));
+
+
+-- ==============================================================================
+-- SECTION 14: DIRECT CONSULTATION MESSAGING (Migration 014)
+-- ==============================================================================
+
+create table if not exists public.consultation_messages (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references public.leads(id) on delete cascade,
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  sender_role text not null check (sender_role in ('customer', 'astrologer', 'admin')),
+  message text not null,
+  prediction_title text,
+  is_official_prediction boolean not null default false,
+  attachments jsonb default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_consultation_messages_lead
+  on public.consultation_messages (lead_id, created_at asc);
+
+alter table public.consultation_messages enable row level security;
+
+create policy "Customers can view messages on their own leads"
+  on public.consultation_messages
+  for select
+  to authenticated
+  using (
+    lead_id in (
+      select id from public.leads
+      where customer_id = (select auth.uid())
+    )
+  );
+
+create policy "Customers can send messages on their own leads"
+  on public.consultation_messages
+  for insert
+  to authenticated
+  with check (
+    sender_id = (select auth.uid())
+    and sender_role = 'customer'
+    and lead_id in (
+      select id from public.leads
+      where customer_id = (select auth.uid())
+    )
+  );
+
+create policy "Astrologers can view messages on assigned leads"
+  on public.consultation_messages
+  for select
+  to authenticated
+  using (
+    lead_id in (
+      select lead_id from public.lead_assignments
+      where astrologer_id in (
+        select id from public.astrologer_profiles
+        where user_id = (select auth.uid())
+      )
+    )
+  );
+
+create policy "Astrologers can send messages on assigned leads"
+  on public.consultation_messages
+  for insert
+  to authenticated
+  with check (
+    sender_id = (select auth.uid())
+    and sender_role = 'astrologer'
+    and lead_id in (
+      select lead_id from public.lead_assignments
+      where astrologer_id in (
+        select id from public.astrologer_profiles
+        where user_id = (select auth.uid())
+      )
+    )
+  );
+
+
+-- ==============================================================================
+-- SECTION 15: CUSTOMER PROFILES & REVIEWS (Migration 015)
+-- ==============================================================================
+
+alter table public.profiles
+  add column if not exists phone text,
+  add column if not exists date_of_birth date,
+  add column if not exists time_of_birth time,
+  add column if not exists birthplace text,
+  add column if not exists gender text check (gender in ('male', 'female', 'other', 'prefer_not_to_say') or gender is null),
+  add column if not exists avatar_url text,
+  add column if not exists notification_preferences jsonb default '{"email": true, "in_app": true}'::jsonb;
+
+grant update (full_name, phone, date_of_birth, time_of_birth, birthplace, gender, avatar_url, notification_preferences)
+  on public.profiles to authenticated;
+
+create index if not exists idx_profiles_phone on public.profiles (phone) where phone is not null;
+
+create or replace function public.update_customer_profile(
+  p_full_name text default null,
+  p_phone text default null,
+  p_date_of_birth date default null,
+  p_time_of_birth time default null,
+  p_birthplace text default null,
+  p_gender text default null
+)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_caller_id uuid;
+  v_caller_role text;
+  v_profile public.profiles;
+begin
+  v_caller_id := (select auth.uid());
+  if v_caller_id is null then
+    raise exception 'Authentication required.' using errcode = '42501';
+  end if;
+
+  select role into v_caller_role
+  from public.profiles
+  where id = v_caller_id;
+
+  if v_caller_role is null or v_caller_role != 'customer' then
+    raise exception 'Only customer accounts can update customer profile details.' using errcode = '42501';
+  end if;
+
+  if p_gender is not null and p_gender not in ('male', 'female', 'other', 'prefer_not_to_say') then
+    raise exception 'Invalid gender value.' using errcode = '22000';
+  end if;
+
+  update public.profiles
+  set
+    full_name = coalesce(nullif(trim(p_full_name), ''), full_name),
+    phone = nullif(trim(p_phone), ''),
+    date_of_birth = p_date_of_birth,
+    time_of_birth = p_time_of_birth,
+    birthplace = nullif(trim(p_birthplace), ''),
+    gender = p_gender,
+    updated_at = pg_catalog.now()
+  where id = v_caller_id
+  returning * into v_profile;
+
+  return v_profile;
+end;
+$$;
+
+revoke all on function public.update_customer_profile from public;
+grant execute on function public.update_customer_profile to authenticated;
+
+create table if not exists public.consultation_reviews (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null unique references public.leads(id) on delete cascade,
+  customer_id uuid not null references public.profiles(id) on delete cascade,
+  astrologer_id uuid not null references public.astrologer_profiles(id) on delete cascade,
+  rating integer not null check (rating >= 1 and rating <= 5),
+  review_text text check (length(review_text) <= 2000),
+  is_published boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_consultation_reviews_astrologer
+  on public.consultation_reviews (astrologer_id, is_published, rating)
+  where is_published = true;
+
+create index if not exists idx_consultation_reviews_customer
+  on public.consultation_reviews (customer_id);
+
+alter table public.consultation_reviews enable row level security;
+
+create policy "Customers can view own reviews"
+  on public.consultation_reviews
+  for select
+  to authenticated
+  using (customer_id = (select auth.uid()));
+
+create policy "Anyone can view published reviews"
+  on public.consultation_reviews
+  for select
+  to anon, authenticated
+  using (is_published = true);
+
+create or replace function public.submit_consultation_review(
+  p_lead_id uuid,
+  p_rating integer,
+  p_review_text text default null
+)
+returns public.consultation_reviews
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_caller_id uuid;
+  v_caller_role text;
+  v_lead public.leads;
+  v_existing_id uuid;
+  v_review public.consultation_reviews;
+  v_clean_text text;
+begin
+  v_caller_id := (select auth.uid());
+  if v_caller_id is null then
+    raise exception 'Authentication required.' using errcode = '42501';
+  end if;
+
+  select role into v_caller_role
+  from public.profiles
+  where id = v_caller_id;
+
+  if v_caller_role is null or v_caller_role != 'customer' then
+    raise exception 'Only customer accounts can submit consultation reviews.' using errcode = '42501';
+  end if;
+
+  if p_rating is null or p_rating < 1 or p_rating > 5 then
+    raise exception 'Rating must be an integer between 1 and 5.' using errcode = '22000';
+  end if;
+
+  select * into v_lead
+  from public.leads
+  where id = p_lead_id
+    and customer_id = v_caller_id;
+
+  if v_lead.id is null then
+    raise exception 'Consultation enquiry not found or access unauthorized.' using errcode = 'P0002';
+  end if;
+
+  if v_lead.astrologer_id is null then
+    raise exception 'Cannot review an unassigned consultation enquiry.' using errcode = '22000';
+  end if;
+
+  if v_lead.status not in ('closed', 'converted') then
+    raise exception 'Only completed consultations can be rated and reviewed.' using errcode = '22000';
+  end if;
+
+  select id into v_existing_id
+  from public.consultation_reviews
+  where lead_id = p_lead_id;
+
+  if v_existing_id is not null then
+    raise exception 'You have already submitted a review for this consultation.' using errcode = '23505';
+  end if;
+
+  v_clean_text := nullif(trim(p_review_text), '');
+  if v_clean_text is not null and length(v_clean_text) > 2000 then
+    raise exception 'Review text must not exceed 2000 characters.' using errcode = '22000';
+  end if;
+
+  insert into public.consultation_reviews (
+    lead_id,
+    customer_id,
+    astrologer_id,
+    rating,
+    review_text,
+    is_published
+  ) values (
+    p_lead_id,
+    v_caller_id,
+    v_lead.astrologer_id,
+    p_rating,
+    v_clean_text,
+    true
+  )
+  returning * into v_review;
+
+  insert into public.customer_notifications (
+    customer_id,
+    title,
+    message,
+    link_url,
+    event_type,
+    metadata
+  ) values (
+    v_caller_id,
+    'Review Submitted',
+    'Thank you! Your ' || p_rating || '-star blessing has been received.',
+    '/customer/enquiries/' || p_lead_id,
+    'review_submitted',
+    jsonb_build_object('lead_id', p_lead_id, 'rating', p_rating)
+  );
+
+  return v_review;
+end;
+$$;
+
+revoke all on function public.submit_consultation_review from public;
+grant execute on function public.submit_consultation_review to authenticated;
+
