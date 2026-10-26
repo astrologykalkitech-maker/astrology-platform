@@ -1587,7 +1587,7 @@ export async function getCustomerBillingHistory(): Promise<
         astrologer_name: astroMap[b.astrologer_id] || "Vedic Astrologer",
         amount: priceNum,
         currency: "INR",
-        payment_status: priceNum === 0 ? "complimentary" : b.status === "completed" || b.status === "confirmed" ? "paid" : "pending",
+        payment_status: priceNum === 0 ? "complimentary" : b.status === "completed" ? "paid" : "pending",
         transaction_ref: `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
         created_at: b.created_at,
       };

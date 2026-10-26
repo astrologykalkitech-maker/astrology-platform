@@ -18,6 +18,7 @@ import {
   X,
   Shield,
   Sparkles,
+  LifeBuoy,
 } from "lucide-react";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 
@@ -74,6 +75,7 @@ export function AdminSidebar({
         { href: "/super-admin/leads", label: "Central Lead Pipeline", icon: Inbox },
         { href: "/super-admin/leads/distribution", label: "Lead Distribution", icon: GitBranch },
         { href: "/super-admin/bookings", label: "Consultation Bookings", icon: CalendarCheck2 },
+        { href: "/super-admin/support", label: "Customer & Astrologer Support", icon: LifeBuoy },
         { href: "/super-admin/settings", label: "Platform Settings", icon: Sliders },
       ],
     },

@@ -49,7 +49,7 @@ export async function getAdminBookings(
   try {
     await requireAdminAccess();
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
@@ -159,7 +159,7 @@ export async function updateAdminBookingStatus(params: {
       return { success: false, error: "Invalid booking status." };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
 
     // Fetch before-state
     const { data: beforeBooking, error: fetchErr } = await supabase

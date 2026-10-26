@@ -20,7 +20,7 @@ for (const line of envText.split('\n')) {
 // DB1: Customer and Astrologer Portal DB
 const s1 = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
-  env.DB1_SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY
+  env.DB1_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // DB2: Super Admin and Consultant Admin DB

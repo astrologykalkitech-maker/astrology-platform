@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 import {
   isAstrologerPubliclyVisible,
@@ -99,3 +101,37 @@ test("Super Admin Dashboard: Aggregated KPI metrics formula integrity", () => {
   const completionRate = Math.round((completed / totalBookings) * 100);
   assert.equal(completionRate, 20);
 });
+
+test("Customer Billing: Payment status derivation accurately reflects pending vs paid vs complimentary", () => {
+  function derivePaymentStatus(price: number, status: string): "paid" | "pending" | "complimentary" {
+    const priceNum = Number(price) || 0;
+    return priceNum === 0 ? "complimentary" : status === "completed" ? "paid" : "pending";
+  }
+
+  // Complimentary bookings (price 0)
+  assert.equal(derivePaymentStatus(0, "confirmed"), "complimentary");
+  assert.equal(derivePaymentStatus(0, "pending"), "complimentary");
+  assert.equal(derivePaymentStatus(0, "completed"), "complimentary");
+
+  // Scheduled / Confirmed bookings with non-zero fee must remain pending until session completed
+  assert.equal(derivePaymentStatus(1100, "confirmed"), "pending", "Confirmed bookings must NOT be prematurely marked as paid");
+  assert.equal(derivePaymentStatus(1100, "pending"), "pending");
+  assert.equal(derivePaymentStatus(1100, "cancelled"), "pending");
+
+  // Only completed sessions are marked paid
+  assert.equal(derivePaymentStatus(1100, "completed"), "paid");
+});
+
+test("Security Hygiene: .env.local does not expose secret keys with NEXT_PUBLIC_ prefix", () => {
+  const envPath = path.resolve(process.cwd(), ".env.local");
+
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, "utf-8");
+    assert.equal(
+      content.includes("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY"),
+      false,
+      "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY must not exist in .env.local"
+    );
+  }
+});
+

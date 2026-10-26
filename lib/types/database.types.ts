@@ -275,3 +275,75 @@ export interface CustomerBillingRecord {
   transaction_ref: string;
   created_at: string;
 }
+
+// =====================================================
+// SUPPORT & AI CUSTOMER CARE TYPES
+// =====================================================
+
+export type SupportTicketCategory =
+  | "account"
+  | "profile"
+  | "booking"
+  | "consultation"
+  | "leads"
+  | "billing"
+  | "technical"
+  | "general";
+
+export type SupportTicketStatus =
+  | "new"
+  | "open"
+  | "waiting_for_user"
+  | "waiting_for_support"
+  | "escalated"
+  | "resolved"
+  | "closed";
+
+export type SupportTicketPriority = "low" | "medium" | "high" | "urgent";
+
+export interface SupportTicket {
+  id: string;
+  ticket_number: string;
+  user_id: string;
+  user_role: "customer" | "astrologer";
+  user_name: string;
+  user_email: string | null;
+  subject: string;
+  category: SupportTicketCategory;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  assigned_to: string | null;
+  assigned_to_name?: string | null;
+  escalation_reason: string | null;
+  ai_summary: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  messages_count?: number;
+  last_message?: string | null;
+  last_message_at?: string | null;
+  last_message_by?: "customer" | "astrologer" | "ai" | "admin" | "system" | null;
+}
+
+export interface SupportMessage {
+  id: string;
+  ticket_id: string;
+  sender_id: string | null;
+  sender_role: "customer" | "astrologer" | "ai" | "admin" | "system";
+  sender_name: string;
+  message: string;
+  is_internal: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SupportTicketEvent {
+  id: string;
+  ticket_id: string;
+  actor_id: string | null;
+  actor_role: string;
+  action: string;
+  details?: Record<string, unknown>;
+  created_at: string;
+}

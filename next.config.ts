@@ -49,9 +49,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: [
-    "attacked-previews-pattern-according.trycloudflare.com",
-    "manor-salmon-greatest-predict.trycloudflare.com",
     "*.trycloudflare.com",
+    ...(process.env.ALLOWED_DEV_ORIGINS ? process.env.ALLOWED_DEV_ORIGINS.split(",") : []),
   ],
   async headers() {
     return [

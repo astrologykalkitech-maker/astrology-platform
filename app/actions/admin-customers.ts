@@ -47,7 +47,7 @@ export async function getAdminCustomers(
   try {
     await requireAdminAccess();
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
@@ -72,23 +72,19 @@ export async function getAdminCustomers(
     const customerProfiles = (profiles as Profile[]) ?? [];
     const customerIds = customerProfiles.map((p) => p.id);
 
-    // Fetch full profiles if customer_full_profiles table is available
-    const fullProfilesMap = new Map<string, Partial<CustomerFullProfile>>();
-    if (customerIds.length > 0) {
-      try {
-        const { data: fullProfiles } = await supabase
-          .from("customer_full_profiles")
-          .select("*")
-          .in("id", customerIds);
-
-        if (fullProfiles) {
-          for (const fp of fullProfiles) {
-            fullProfilesMap.set(fp.id, fp);
+    // Resolve emails from auth.admin
+    const emailMap = new Map<string, string>();
+    try {
+      const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+      if (authUsers?.users) {
+        for (const u of authUsers.users) {
+          if (u.id && u.email) {
+            emailMap.set(u.id, u.email);
           }
         }
-      } catch {
-        // Table may not have records
       }
+    } catch {
+      // Graceful fallback if auth listing is restricted
     }
 
     // Fetch booking counts
@@ -130,14 +126,14 @@ export async function getAdminCustomers(
     }
 
     const enrichedCustomers: AdminCustomerSummary[] = customerProfiles.map((p) => {
-      const fp = fullProfilesMap.get(p.id);
+      const raw = p as unknown as Record<string, unknown>;
       return {
         ...p,
-        email: fp?.email ?? null,
-        phone: fp?.phone ?? null,
-        date_of_birth: fp?.date_of_birth ?? null,
-        birthplace: fp?.birthplace ?? null,
-        gender: fp?.gender ?? null,
+        email: emailMap.get(p.id) ?? (raw.email as string | null) ?? null,
+        phone: (raw.phone as string | null) ?? null,
+        date_of_birth: (raw.date_of_birth as string | null) ?? null,
+        birthplace: (raw.birthplace as string | null) ?? null,
+        gender: (raw.gender as string | null) ?? null,
         total_bookings: bookingCountsMap.get(p.id) ?? 0,
         total_enquiries: leadCountsMap.get(p.id) ?? 0,
       };
@@ -171,7 +167,7 @@ export async function getAdminCustomerDetails(
       return { success: false, error: "Invalid customer identifier." };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
 
     // 1. Base profile
     const { data: profile, error: pErr } = await supabase
@@ -184,18 +180,35 @@ export async function getAdminCustomerDetails(
       return { success: false, error: "Customer profile not found." };
     }
 
-    // 2. Full Kundli / Seeker profile
-    let fullProfile: CustomerFullProfile | null = null;
+    // 2. Auth user info (email & verification)
+    let email: string | null = null;
+    let emailVerified = false;
     try {
-      const { data: fp } = await supabase
-        .from("customer_full_profiles")
-        .select("*")
-        .eq("id", customerId)
-        .maybeSingle();
-      fullProfile = fp;
+      const { data: authUser } = await supabase.auth.admin.getUserById(customerId);
+      if (authUser?.user) {
+        email = authUser.user.email ?? null;
+        emailVerified = Boolean(authUser.user.email_confirmed_at);
+      }
     } catch {
       // Graceful fallback
     }
+
+    const raw = profile as unknown as Record<string, unknown>;
+    const fullProfile: CustomerFullProfile = {
+      id: profile.id,
+      full_name: profile.full_name || null,
+      email,
+      phone: (raw.phone as string | null) ?? null,
+      date_of_birth: (raw.date_of_birth as string | null) ?? null,
+      time_of_birth: (raw.time_of_birth as string | null) ?? null,
+      birthplace: (raw.birthplace as string | null) ?? null,
+      gender: (raw.gender as "male" | "female" | "other" | "prefer_not_to_say" | null) ?? null,
+      avatar_url: (raw.avatar_url as string | null) ?? null,
+      emailVerified,
+      role: profile.role,
+      created_at: profile.created_at,
+      updated_at: profile.updated_at,
+    };
 
     // 3. Customer bookings
     let bookings: CustomerBooking[] = [];
