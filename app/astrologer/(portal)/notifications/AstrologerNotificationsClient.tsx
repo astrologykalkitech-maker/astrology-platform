@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { CustomerNotification } from "@/lib/types/database.types";
-import { markAstrologerNotificationReadAction } from "@/app/actions/astrologer-portal";
+import { markAstrologerNotificationReadAction, getAstrologerNotificationsAction } from "@/app/actions/astrologer-portal";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
 const CARD =
@@ -24,6 +24,27 @@ export default function AstrologerNotificationsClient({
 }) {
   const [notifications, setNotifications] = useState<CustomerNotification[]>(initialNotifications);
 
+  // Poll for live incoming notifications
+  useEffect(() => {
+    let mounted = true;
+    async function refresh() {
+      try {
+        const res = await getAstrologerNotificationsAction();
+        if (mounted && res.success && Array.isArray(res.data)) {
+          setNotifications(res.data);
+        }
+      } catch {
+        // Non-blocking poll
+      }
+    }
+
+    const interval = setInterval(refresh, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   async function handleMarkRead(id: string) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n))
@@ -32,6 +53,7 @@ export default function AstrologerNotificationsClient({
   }
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+
 
   return (
     <div className="space-y-4">

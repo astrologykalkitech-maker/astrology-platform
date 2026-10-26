@@ -2361,8 +2361,15 @@ create policy "Customers can mark own notifications as read"
   using (customer_id = (select auth.uid()))
   with check (customer_id = (select auth.uid()));
 
+create policy "Authenticated users can insert notifications"
+  on public.customer_notifications
+  for insert
+  to authenticated
+  with check (true);
+
 grant select, update on public.customer_bookings to authenticated;
-grant select, update on public.customer_notifications to authenticated;
+grant select, insert, update on public.customer_notifications to authenticated;
+
 
 
 

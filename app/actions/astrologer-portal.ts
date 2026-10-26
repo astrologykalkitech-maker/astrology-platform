@@ -289,3 +289,27 @@ export async function markAstrologerNotificationReadAction(
     };
   }
 }
+
+/**
+ * Returns the unread notification count for the authenticated astrologer.
+ */
+export async function getAstrologerUnreadNotificationCount(): Promise<AuthResult<number>> {
+  try {
+    const { user, supabase } = await getAuthenticatedAstrologerProfile();
+
+    const { count, error } = await supabase
+      .from("customer_notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("customer_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      return { success: true, data: 0 };
+    }
+
+    return { success: true, data: count || 0 };
+  } catch {
+    return { success: true, data: 0 };
+  }
+}
+

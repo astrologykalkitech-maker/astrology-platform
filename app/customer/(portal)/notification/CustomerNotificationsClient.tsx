@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -10,7 +10,7 @@ import {
   Calendar,
 } from "lucide-react";
 import type { CustomerNotification } from "@/lib/types/database.types";
-import { markNotificationReadAction } from "@/app/actions/customer";
+import { markNotificationReadAction, getCustomerNotifications } from "@/app/actions/customer";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 
@@ -27,6 +27,27 @@ export default function CustomerNotificationsClient({
   const [notifications, setNotifications] =
     useState<CustomerNotification[]>(initialNotifications);
 
+  // Poll for live incoming customer notifications
+  useEffect(() => {
+    let mounted = true;
+    async function refresh() {
+      try {
+        const res = await getCustomerNotifications();
+        if (mounted && res.success && Array.isArray(res.data)) {
+          setNotifications(res.data);
+        }
+      } catch {
+        // Non-blocking poll
+      }
+    }
+
+    const interval = setInterval(refresh, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   async function handleMarkRead(id: string) {
     const res = await markNotificationReadAction(id);
     if (res.success) {
@@ -37,6 +58,7 @@ export default function CustomerNotificationsClient({
   }
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
+
 
   if (notifications.length === 0) {
     return (

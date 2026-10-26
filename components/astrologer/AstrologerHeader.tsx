@@ -1,11 +1,13 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Bell } from "lucide-react";
 import { Logo } from "@/components/astrologer/Logo";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
+import { getAstrologerUnreadNotificationCount } from "@/app/actions/astrologer-portal";
 
 type HeaderProps = {
   displayName: string;
@@ -28,7 +30,32 @@ function pageTitleFor(pathname: string) {
 }
 
 export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick }: HeaderProps) {
-  const pageTitle = pageTitleFor(usePathname());
+  const pathname = usePathname();
+  const pageTitle = pageTitleFor(pathname);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadCount() {
+      try {
+        const res = await getAstrologerUnreadNotificationCount();
+        if (mounted && res.success && typeof res.data === "number") {
+          setUnreadCount(res.data);
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    loadCount();
+    const interval = setInterval(loadCount, 15_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [pathname]);
+
+  const displayCount = unreadCount > 9 ? "9+" : unreadCount.toString();
 
   return (
     <>
@@ -50,9 +77,14 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
           <Link
             href="/astrologer/notifications"
             aria-label="Notifications"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-champagne hover:bg-white/10 transition-colors"
+            className="relative flex h-9 w-9 items-center justify-center rounded-xl text-champagne hover:bg-white/10 transition-colors"
           >
             <Bell className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                {displayCount}
+              </span>
+            )}
           </Link>
           <Link
             href="/astrologer/profile"
@@ -75,9 +107,14 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
           <Link
             href="/astrologer/notifications"
             aria-label="Notifications"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors shadow-sm"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors shadow-sm"
           >
             <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                {displayCount}
+              </span>
+            )}
           </Link>
 
           <Link

@@ -25,6 +25,7 @@ import {
   getAstrologerAssignedLeads,
   getAstrologerAssignedLeadById,
 } from "@/lib/astrologer/lead-queries";
+import { createInAppNotification } from "@/lib/notifications";
 
 /**
  * Formats PostgreSQL trigger and RLS errors into clean, friendly error messages.
@@ -378,14 +379,27 @@ export async function getAstrologerLeadMessages(leadId: string) {
       return { success: false, error: "Astrologer profile not found." };
     }
 
+    // Verify access either by assignment or direct lead match
     const { data: assignment } = await supabase
       .from("lead_assignments")
       .select("id")
-      .eq("lead_id", leadId)
+      .or(`lead_id.eq.${leadId},id.eq.${leadId}`)
       .eq("astrologer_id", profile.id)
       .maybeSingle();
 
-    if (!assignment) {
+    let hasAccess = Boolean(assignment);
+
+    if (!hasAccess) {
+      const { data: directLead } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("id", leadId)
+        .eq("astrologer_id", profile.id)
+        .maybeSingle();
+      if (directLead) hasAccess = true;
+    }
+
+    if (!hasAccess) {
       return { success: false, error: "Access denied to this lead." };
     }
 
@@ -431,14 +445,26 @@ export async function sendAstrologerPredictionAction(payload: {
       return { success: false, error: "Astrologer profile not found." };
     }
 
+    // Verify assignment or direct lead
     const { data: assignment } = await supabase
       .from("lead_assignments")
       .select("id")
-      .eq("lead_id", payload.leadId)
+      .or(`lead_id.eq.${payload.leadId},id.eq.${payload.leadId}`)
       .eq("astrologer_id", profile.id)
       .maybeSingle();
 
-    if (!assignment) {
+    let hasAccess = Boolean(assignment);
+    if (!hasAccess) {
+      const { data: directLead } = await supabase
+        .from("leads")
+        .select("id")
+        .eq("id", payload.leadId)
+        .eq("astrologer_id", profile.id)
+        .maybeSingle();
+      if (directLead) hasAccess = true;
+    }
+
+    if (!hasAccess) {
       return { success: false, error: "You are not assigned to this consultation." };
     }
 
@@ -460,7 +486,7 @@ export async function sendAstrologerPredictionAction(payload: {
       return { success: false, error: error?.message || "Failed to post prediction." };
     }
 
-    // Notify the customer directly
+    // Notify the customer reliably using service role client
     try {
       const { data: lead } = await supabase
         .from("leads")
@@ -469,23 +495,27 @@ export async function sendAstrologerPredictionAction(payload: {
         .maybeSingle();
 
       if (lead?.customer_id) {
-        await supabase.from("customer_notifications").insert({
-          customer_id: lead.customer_id,
+        await createInAppNotification({
+          recipientUserId: lead.customer_id,
           title: payload.isOfficialPrediction
             ? "Astrological Prediction Received"
             : "New Message from Astrologer",
-          message: `${profile.display_name} has provided written guidance on: "${lead.subject.slice(0, 40)}"`,
-          link_url: `/customer/enquiries/${payload.leadId}`,
-          event_type: "consultation_message",
+          message: `${profile.display_name} has provided written guidance: "${lead.subject.slice(0, 40)}"`,
+          linkUrl: `/customer/enquiries/${payload.leadId}`,
+          eventType: "consultation_message",
           metadata: { lead_id: payload.leadId, astrologer_id: profile.id },
         });
       }
-    } catch {
-      // Non-blocking notification
+    } catch (notifErr) {
+      console.error("[sendAstrologerPredictionAction Notification Warning]", notifErr);
     }
 
     revalidatePath(`/astrologer/leads/${payload.leadId}`, "page");
+    revalidatePath("/astrologer/leads", "page");
     revalidatePath(`/customer/enquiries/${payload.leadId}`, "page");
+    revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "page");
 
     return { success: true, data: inserted };
   } catch (err) {
@@ -495,3 +525,4 @@ export async function sendAstrologerPredictionAction(payload: {
     };
   }
 }
+

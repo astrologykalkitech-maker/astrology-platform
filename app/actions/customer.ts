@@ -20,6 +20,7 @@ import type {
   CustomerBillingRecord,
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
+import { createInAppNotification } from "@/lib/notifications";
 
 export interface CustomerEnquiryItem {
   id: string;
@@ -455,17 +456,62 @@ export async function submitCustomerEnquiryAction(payload: {
       }
     }
 
+    // Send in-app notifications for both customer and assigned astrologer
+    try {
+      if (resolvedAstrologerId) {
+        const { data: astProf } = await supabase
+          .from("astrologer_profiles")
+          .select("user_id, display_name")
+          .eq("id", resolvedAstrologerId)
+          .maybeSingle();
+
+        if (astProf?.user_id) {
+          await createInAppNotification({
+            recipientUserId: astProf.user_id,
+            title: "New Consultation Request",
+            message: `${profile.full_name || "A seeker"} submitted: "${subject.slice(0, 45)}"`,
+            linkUrl: `/astrologer/leads/${createdLeadId}`,
+            eventType: "lead_assignment",
+            metadata: { lead_id: createdLeadId },
+          });
+        }
+
+        await createInAppNotification({
+          recipientUserId: user.id,
+          title: "Enquiry Submitted Successfully",
+          message: `Your consultation enquiry "${subject.slice(0, 45)}" was sent to ${astProf?.display_name || "your astrologer"}.`,
+          linkUrl: `/customer/enquiries/${createdLeadId}`,
+          eventType: "enquiry_created",
+          metadata: { lead_id: createdLeadId },
+        });
+      } else {
+        await createInAppNotification({
+          recipientUserId: user.id,
+          title: "Enquiry Submitted",
+          message: `Your consultation enquiry "${subject.slice(0, 45)}" has been received.`,
+          linkUrl: `/customer/enquiries/${createdLeadId}`,
+          eventType: "enquiry_created",
+          metadata: { lead_id: createdLeadId },
+        });
+      }
+    } catch (notifErr) {
+      console.error("[createCustomerEnquiryAction Notification Warning]", notifErr);
+    }
+
     // Revalidate customer, astrologer, and super admin dashboard paths immediately
     revalidatePath("/customer", "page");
     revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/customer/notification", "page");
     revalidatePath("/astrologer/dashboard", "page");
     revalidatePath("/astrologer/leads", "page");
+    revalidatePath("/astrologer/notifications", "page");
     revalidatePath("/super-admin", "page");
     revalidatePath("/super-admin/leads", "page");
     revalidatePath("/super-admin/analytics", "page");
     revalidatePath("/super-admin/audit-logs", "page");
     revalidatePath("/admin", "page");
     revalidatePath("/admin/leads", "page");
+
 
     return {
       success: true,
@@ -702,12 +748,12 @@ export async function cancelCustomerBookingAction(
 
     // Insert persistent cancellation notification
     try {
-      await supabase.from("customer_notifications").insert({
-        customer_id: user.id,
+      await createInAppNotification({
+        recipientUserId: user.id,
         title: "Booking Cancelled",
         message: "Your consultation appointment has been cancelled.",
-        link_url: "/customer/bookings",
-        event_type: "booking_cancelled",
+        linkUrl: "/customer/bookings",
+        eventType: "booking_cancelled",
         metadata: { booking_id: bookingId },
       });
     } catch {
@@ -715,6 +761,7 @@ export async function cancelCustomerBookingAction(
     }
 
     revalidatePath("/customer/bookings", "page");
+    revalidatePath("/customer/notification", "page");
     revalidatePath("/customer", "page");
 
     return {
@@ -934,8 +981,56 @@ export async function sendCustomerConsultationMessageAction(
       return { success: false, error: error?.message || "Failed to send message." };
     }
 
+    // Notify the assigned astrologer via in-app notification
+    try {
+      let astrologerProfileId = lead.astrologer_id;
+      if (!astrologerProfileId) {
+        const { data: assignment } = await supabase
+          .from("lead_assignments")
+          .select("astrologer_id")
+          .eq("lead_id", leadId)
+          .maybeSingle();
+        astrologerProfileId = assignment?.astrologer_id;
+      }
+
+      if (astrologerProfileId) {
+        const { data: astProfile } = await supabase
+          .from("astrologer_profiles")
+          .select("user_id")
+          .eq("id", astrologerProfileId)
+          .maybeSingle();
+
+        if (astProfile?.user_id) {
+          const { data: custProfile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          const senderName = custProfile?.full_name || "Customer";
+
+          await createInAppNotification({
+            recipientUserId: astProfile.user_id,
+            title: "New Message from Client",
+            message: `${senderName}: "${cleanMessage.slice(0, 60)}"`,
+            linkUrl: `/astrologer/leads/${leadId}`,
+            eventType: "consultation_message",
+            metadata: { lead_id: leadId, customer_id: user.id },
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.error("[sendCustomerConsultationMessageAction Notification Warning]", notifErr);
+    }
+
     revalidatePath(`/customer/enquiries/${leadId}`, "page");
+    revalidatePath(`/astrologer/leads/${leadId}`, "page");
+    revalidatePath("/astrologer/leads", "page");
+    revalidatePath("/astrologer/notifications", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+
     return { success: true, data: inserted as ConsultationMessage };
+
   } catch (err) {
     return {
       success: false,

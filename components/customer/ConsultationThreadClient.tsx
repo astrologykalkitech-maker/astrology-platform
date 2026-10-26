@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Send,
   Sparkles,
@@ -10,7 +10,7 @@ import {
   Clock,
 } from "lucide-react";
 import type { ConsultationMessage } from "@/lib/types/database.types";
-import { sendCustomerConsultationMessageAction } from "@/app/actions/customer";
+import { sendCustomerConsultationMessageAction, getConsultationMessages } from "@/app/actions/customer";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 
@@ -29,6 +29,28 @@ export function ConsultationThreadClient({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-refresh consultation messages so incoming astrologer predictions appear live
+  useEffect(() => {
+    let mounted = true;
+    async function refreshMessages() {
+      try {
+        const res = await getConsultationMessages(leadId);
+        if (mounted && res.success && Array.isArray(res.data)) {
+          setMessages(res.data);
+        }
+      } catch {
+        // Non-blocking poll
+      }
+    }
+
+    const interval = setInterval(refreshMessages, 4000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [leadId]);
+
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
