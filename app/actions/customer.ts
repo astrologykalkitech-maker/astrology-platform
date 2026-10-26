@@ -380,21 +380,26 @@ export async function submitCustomerEnquiryAction(payload: {
         const { createAdminClient } = await import("@/lib/supabase/admin");
         const targetAdmin = await createAdminClient(target);
 
+        const leadPayload: Record<string, any> = {
+          customer_id: user.id,
+          astrologer_id: resolvedAstrologerId,
+          subject,
+          message,
+          status: resolvedAstrologerId ? "assigned" : "new",
+          source_type: sourceType,
+          source_url: payload.source_url || null,
+          contact_email: user.email,
+          priority,
+          qualification_status: "unqualified",
+        };
+
+        if (target === "admin") {
+          leadPayload.customer_name = profile.full_name || "Customer";
+        }
+
         const { data: directLead, error: directErr } = await targetAdmin
           .from("leads")
-          .insert({
-            customer_id: user.id,
-            astrologer_id: resolvedAstrologerId,
-            subject,
-            message,
-            status: resolvedAstrologerId ? "assigned" : "new",
-            source_type: sourceType,
-            source_url: payload.source_url || null,
-            customer_name: profile.full_name || "Customer",
-            contact_email: user.email,
-            priority,
-            qualification_status: "unqualified",
-          })
+          .insert(leadPayload)
           .select("id")
           .single();
 
