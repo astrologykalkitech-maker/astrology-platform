@@ -513,7 +513,7 @@ export default function AdminSupportDeskClient() {
                           </span>
                         ) : m.sender_role === "ai" ? (
                           <span className="inline-flex items-center gap-1 text-slate-700 font-bold">
-                            <Bot className="h-3 w-3" /> Grok AI Care
+                            <Bot className="h-3 w-3" /> Gemini AI Care
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-foreground font-bold">

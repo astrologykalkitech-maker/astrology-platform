@@ -259,7 +259,7 @@ export default function AstrologerSupportInteractiveClient() {
                   <h3 className="text-sm font-semibold text-midnight flex items-center gap-2">
                     Astrologer Care Assistant
                     <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      Grok AI Powered
+                      Gemini AI Powered
                     </span>
                   </h3>
                   <p className="text-xs text-muted">Technical guidance, lead lifecycle, and moderation inquiries</p>

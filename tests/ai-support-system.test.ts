@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { askGrokSupport, generateAiTicketSummary } from "../lib/ai/grok-service";
+import { askGeminiSupport, generateAiTicketSummary } from "../lib/ai/gemini-service";
 import type {
   SupportTicket,
   SupportMessage,
@@ -9,12 +9,12 @@ import type {
 } from "../lib/types/database.types";
 
 // ==============================================================================
-// 1. AI SERVICE & GROK INTEGRATION TESTS
+// 1. AI SERVICE & GEMINI INTEGRATION TESTS
 // ==============================================================================
 
-test("AI Integration: Graceful deterministic fallback when XAI_API_KEY is not configured", async () => {
+test("AI Integration: Graceful deterministic fallback when GEMINI_API_KEY is not configured", async () => {
   // Ensure unconfigured API key operates in grounded fallback mode
-  const res = await askGrokSupport({
+  const res = await askGeminiSupport({
     userId: "test-user-123",
     role: "customer",
     query: "When does my live consultation room unlock?",
@@ -28,7 +28,7 @@ test("AI Integration: Graceful deterministic fallback when XAI_API_KEY is not co
 });
 
 test("AI Integration: Astrologer-specific grounding for profile moderation", async () => {
-  const res = await askGrokSupport({
+  const res = await askGeminiSupport({
     userId: "test-astrologer-456",
     role: "astrologer",
     query: "How long does profile verification take to appear in the directory?",
@@ -47,7 +47,7 @@ test("AI Integration: Rate limiting prevents abusive rapid-fire queries", async 
 
   // Attempt 12 queries within 1 minute (limit is 10)
   for (let i = 0; i < 12; i++) {
-    const res = await askGrokSupport({
+    const res = await askGeminiSupport({
       userId: spamUserId,
       role: "customer",
       query: "Test query " + i,

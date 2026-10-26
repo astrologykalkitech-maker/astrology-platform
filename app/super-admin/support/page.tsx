@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Support Desk & Escalations | Super Admin | JyotishSetu",
-  description: "Centralized support management, Grok AI escalation queue, customer care, and consultant inquiries.",
+  description: "Centralized support management, Gemini AI escalation queue, customer care, and consultant inquiries.",
 };
 
 export default async function SuperAdminSupportPage() {

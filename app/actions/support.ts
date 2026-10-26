@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile, getCurrentUser, AuthRequiredError } from "@/lib/auth/session";
 import { requireAdminAccess } from "@/lib/auth/admin-guard";
 import { checkRateLimit } from "@/lib/security/rate-limit";
-import { askGrokSupport, generateAiTicketSummary } from "@/lib/ai/grok-service";
+import { askGeminiSupport, generateAiTicketSummary } from "@/lib/ai/gemini-service";
 import type {
   SupportTicket,
   SupportMessage,
@@ -42,7 +42,7 @@ async function requireSupportUser() {
 }
 
 /**
- * Ask Grok AI support assistant
+ * Ask Gemini AI support assistant
  */
 export async function askSupportAiAction(payload: {
   query: string;
@@ -66,7 +66,7 @@ export async function askSupportAiAction(payload: {
       return { success: false, error: "Query exceeds maximum limit of 2,000 characters." };
     }
 
-    const response = await askGrokSupport({
+    const response = await askGeminiSupport({
       userId: user.id,
       role,
       query,
@@ -189,7 +189,7 @@ export async function createSupportTicketAction(payload: {
             ticket_id: ticket.id,
             sender_id: item.role === "user" ? user.id : null,
             sender_role: item.role === "user" ? role : "ai",
-            sender_name: item.role === "user" ? name : "Grok AI Assistant",
+            sender_name: item.role === "user" ? name : "Gemini AI Assistant",
             message: item.content,
             is_internal: false,
           });
