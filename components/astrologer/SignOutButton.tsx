@@ -54,7 +54,7 @@ export function SignOutButton({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/70 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-midnight/80 p-4 backdrop-blur-sm"
         >
           <div className="w-full max-w-sm rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
@@ -71,6 +71,7 @@ export function SignOutButton({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowConfirm(false)}
+                className="!text-midnight border-gold/50 hover:bg-parchment"
               >
                 Stay Logged In
               </Button>
@@ -79,6 +80,7 @@ export function SignOutButton({
                 size="sm"
                 loading={isPending}
                 onClick={handleSignOut}
+                className="!bg-red-600 !text-white hover:!bg-red-700 font-semibold"
               >
                 Sign Out
               </Button>

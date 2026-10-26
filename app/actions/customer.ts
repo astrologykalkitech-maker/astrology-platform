@@ -925,6 +925,7 @@ export async function markNotificationReadAction(
     }
 
     revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "layout");
 
     return {
       success: true,
@@ -961,7 +962,7 @@ export async function clearAllCustomerNotificationsAction(): Promise<
     }
 
     revalidatePath("/customer/notification", "page");
-    revalidatePath("/customer", "page");
+    revalidatePath("/customer", "layout");
 
     return {
       success: true,
@@ -999,6 +1000,7 @@ export async function deleteCustomerNotificationAction(
     }
 
     revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "layout");
 
     return {
       success: true,
@@ -1039,7 +1041,7 @@ export async function markAllCustomerNotificationsReadAction(): Promise<
     }
 
     revalidatePath("/customer/notification", "page");
-    revalidatePath("/customer", "page");
+    revalidatePath("/customer", "layout");
 
     return {
       success: true,

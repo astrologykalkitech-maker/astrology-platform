@@ -15,6 +15,11 @@ export const dynamic = "force-dynamic";
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
+// For the data table card we need overflow-x-auto at the card level, not overflow-hidden,
+// otherwise the inner scroll container gets clipped and the Actions column disappears.
+const CARD_TABLE =
+  "relative overflow-x-auto rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
+
 export default async function EnquiriesPage() {
   const result = await getCustomerEnquiries();
 
@@ -69,7 +74,7 @@ export default async function EnquiriesPage() {
           </Link>
         </div>
       ) : (
-        <div className={`${CARD} overflow-hidden p-0`}>
+        <div className={`${CARD_TABLE} p-0`}>
           {/* Mobile Card Reflow (screens < md) */}
           <div className="divide-y divide-gold/10 md:hidden">
             {enquiries.map((item) => {
@@ -132,16 +137,16 @@ export default async function EnquiriesPage() {
           </div>
 
           {/* Desktop Table View (screens >= md) */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="hidden md:block">
+            <table className="w-full min-w-0 text-left text-sm">
               <thead>
                 <tr className="border-b border-gold/20 bg-parchment/40 text-xs font-semibold uppercase tracking-wider text-muted">
-                  <th className="py-3.5 px-4">Subject</th>
-                  <th className="py-3.5 px-4">Message Preview</th>
-                  <th className="py-3.5 px-4">Assigned Astrologer</th>
-                  <th className="py-3.5 px-4">Submitted Date</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 min-w-0">Subject</th>
+                  <th className="py-3.5 px-4 min-w-0">Message Preview</th>
+                  <th className="py-3.5 px-4 min-w-0">Assigned Astrologer</th>
+                  <th className="py-3.5 px-4 min-w-0">Submitted Date</th>
+                  <th className="py-3.5 px-4 text-center min-w-0">Status</th>
+                  <th className="py-3.5 px-4 text-right min-w-0">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gold/10">
@@ -172,10 +177,10 @@ export default async function EnquiriesPage() {
 
                   return (
                     <tr key={item.id} className="hover:bg-parchment/30 transition-colors">
-                      <td className="py-4 px-4 font-semibold text-midnight max-w-[220px]">
+                      <td className="py-4 px-4 font-semibold text-midnight">
                         {item.subject}
                       </td>
-                      <td className="py-4 px-4 text-ink/75 max-w-[320px] truncate">
+                      <td className="py-4 px-4 text-ink/75 max-w-[280px] truncate">
                         {item.message}
                       </td>
                       <td className="py-4 px-4 text-ink font-medium">
@@ -191,7 +196,7 @@ export default async function EnquiriesPage() {
                           {displayStatus}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-right whitespace-nowrap">
                         <Link
                           href={`/customer/enquiries/${item.id}`}
                           className={buttonStyles({ variant: "outline", size: "sm" })}

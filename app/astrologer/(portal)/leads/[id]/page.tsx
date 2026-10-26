@@ -78,8 +78,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </Card>
 
       <Card className="p-6">
-        <h2 className="mb-4 font-display text-lg font-semibold text-midnight">Update Lead Status</h2>
-        <LeadStatusActions assignmentId={item.id} status={item.status} />
+        <h2 className="mb-4 font-display text-lg font-semibold text-midnight">Consultation & Status Controls</h2>
+        <LeadStatusActions
+          assignmentId={item.id}
+          leadId={item.lead.id}
+          status={item.status}
+          customerName={name}
+        />
       </Card>
     </div>
   );

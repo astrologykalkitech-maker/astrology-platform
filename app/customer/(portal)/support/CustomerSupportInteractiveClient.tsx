@@ -187,7 +187,7 @@ export default function CustomerSupportInteractiveClient() {
   function handleEscalateFromAi() {
     const lastUserQuery = [...aiMessages].reverse().find((m) => m.role === "user")?.content || "";
     setSubject(lastUserQuery.slice(0, 80) || "Consultation Support Escalation");
-    setMessage(`User conversation with AI:\n${aiMessages.slice(-4).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n")}`);
+    setMessage(""); // Keep detailed description empty and ready for customer to write their problem
     setCategory("consultation");
     setPriority("high");
     setActiveTab("new_ticket");

@@ -38,6 +38,19 @@ export default function CustomerNotificationsClient({
   const [markingAll, setMarkingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // On mount: immediately sync the header badge with the real unread count
+  useEffect(() => {
+    const unread = initialNotifications.filter((n) => !n.is_read).length;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: unread },
+        })
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Poll for live incoming customer notifications
   useEffect(() => {
     let mounted = true;
@@ -46,6 +59,15 @@ export default function CustomerNotificationsClient({
         const res = await getCustomerNotifications();
         if (mounted && res.success && Array.isArray(res.data)) {
           setNotifications(res.data);
+          // Keep header badge in sync with live poll results
+          const unread = res.data.filter((n) => !n.is_read).length;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("jyotishsetu:notifications-updated", {
+                detail: { count: unread },
+              })
+            );
+          }
         }
       } catch {
         // Non-blocking poll
@@ -59,13 +81,24 @@ export default function CustomerNotificationsClient({
     };
   }, []);
 
-  async function handleMarkRead(id: string) {
-    const res = await markNotificationReadAction(id);
-    if (res.success) {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+  function notifyCountChanged(remainingCount?: number) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: remainingCount },
+        })
       );
     }
+  }
+
+  async function handleMarkRead(id: string) {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+      const unread = updated.filter((n) => !n.is_read).length;
+      notifyCountChanged(unread);
+      return updated;
+    });
+    await markNotificationReadAction(id);
   }
 
   async function handleMarkAllRead() {
@@ -74,6 +107,7 @@ export default function CustomerNotificationsClient({
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
     );
+    notifyCountChanged(0);
     try {
       await markAllCustomerNotificationsReadAction();
     } catch {
@@ -89,14 +123,17 @@ export default function CustomerNotificationsClient({
     // Optimistic UI update
     const previous = [...notifications];
     setNotifications([]);
+    notifyCountChanged(0);
     try {
       const res = await clearAllCustomerNotificationsAction();
       if (!res.success) {
         setNotifications(previous);
+        notifyCountChanged(previous.filter((n) => !n.is_read).length);
         alert(res.error || "Failed to clear notifications.");
       }
     } catch {
       setNotifications(previous);
+      notifyCountChanged(previous.filter((n) => !n.is_read).length);
     } finally {
       setClearing(false);
     }
@@ -104,7 +141,11 @@ export default function CustomerNotificationsClient({
 
   async function handleDeleteNotification(id: string) {
     setDeletingId(id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      notifyCountChanged(updated.filter((n) => !n.is_read).length);
+      return updated;
+    });
     try {
       await deleteCustomerNotificationAction(id);
     } catch {

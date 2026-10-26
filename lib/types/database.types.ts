@@ -194,6 +194,7 @@ export type ConsultationMode = "Chat" | "Call" | "Video";
 export interface CustomerBooking {
   id: string;
   customer_id: string;
+  customer_name?: string;
   astrologer_id: string;
   astrologer_name?: string;
   service_type: string;

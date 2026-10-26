@@ -140,7 +140,7 @@ export default function AstrologerSupportInteractiveClient() {
   function handleEscalateFromAi() {
     const lastUserQuery = [...aiMessages].reverse().find((m) => m.role === "user")?.content || "";
     setSubject(lastUserQuery.slice(0, 80) || "Astrologer Platform Escalation");
-    setMessage(`Astrologer conversation with AI:\n${aiMessages.slice(-4).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n")}`);
+    setMessage(""); // Keep detailed description empty and available for astrologer to describe issue
     setCategory("profile");
     setPriority("high");
     setActiveTab("new_ticket");

@@ -76,7 +76,28 @@ export async function getAstrologerBookingsAction(): Promise<
       return { success: false, error: error.message };
     }
 
-    return { success: true, data: (bookings || []) as CustomerBooking[] };
+    const rawBookings = (bookings || []) as CustomerBooking[];
+    const customerIds = Array.from(new Set(rawBookings.map((b) => b.customer_id).filter(Boolean)));
+    let customerMap: Record<string, string> = {};
+
+    if (customerIds.length > 0) {
+      const { data: customers } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", customerIds);
+      if (customers) {
+        customerMap = Object.fromEntries(
+          customers.map((c) => [c.id, c.full_name || "Verified Customer"])
+        );
+      }
+    }
+
+    const enriched = rawBookings.map((b) => ({
+      ...b,
+      customer_name: customerMap[b.customer_id] || "Verified Customer",
+    }));
+
+    return { success: true, data: enriched };
   } catch (err) {
     return {
       success: false,
@@ -284,6 +305,7 @@ export async function markAstrologerNotificationReadAction(
     }
 
     revalidatePath("/astrologer/notifications", "page");
+    revalidatePath("/astrologer", "layout");
     return { success: true, data: { success: true } };
   } catch (err) {
     return {
@@ -313,7 +335,7 @@ export async function clearAllAstrologerNotificationsAction(): Promise<
     }
 
     revalidatePath("/astrologer/notifications", "page");
-    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/astrologer", "layout");
 
     return { success: true, data: { success: true } };
   } catch (err) {
@@ -345,6 +367,7 @@ export async function deleteAstrologerNotificationAction(
     }
 
     revalidatePath("/astrologer/notifications", "page");
+    revalidatePath("/astrologer", "layout");
 
     return { success: true, data: { success: true } };
   } catch (err) {
@@ -379,7 +402,7 @@ export async function markAllAstrologerNotificationsReadAction(): Promise<
     }
 
     revalidatePath("/astrologer/notifications", "page");
-    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/astrologer", "layout");
 
     return { success: true, data: { success: true } };
   } catch (err) {

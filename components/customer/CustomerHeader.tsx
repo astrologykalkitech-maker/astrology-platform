@@ -39,7 +39,7 @@ export function CustomerHeader({
   const pageTitle = pageTitleFor(pathname);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
-  // Fetch unread count and refresh when navigating
+  // Fetch unread count and refresh when navigating or upon notification actions
   useEffect(() => {
     let mounted = true;
     async function loadCount() {
@@ -54,11 +54,25 @@ export function CustomerHeader({
     }
 
     loadCount();
-    // Poll every 30 seconds for live notifications
-    const interval = setInterval(loadCount, 30_000);
+
+    // Listen for custom notification count update events across tabs / components
+    function onNotificationEvent(e: Event) {
+      const custom = e as CustomEvent<{ count?: number }>;
+      if (typeof custom.detail?.count === "number") {
+        setUnreadCount(custom.detail.count);
+      } else {
+        loadCount();
+      }
+    }
+
+    window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+    // Poll every 15 seconds for live notifications
+    const interval = setInterval(loadCount, 15_000);
+
     return () => {
       mounted = false;
       clearInterval(interval);
+      window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
     };
   }, [pathname]);
 

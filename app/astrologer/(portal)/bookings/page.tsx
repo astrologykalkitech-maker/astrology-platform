@@ -55,12 +55,19 @@ export default async function AstrologerBookingsPage() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
+                <div>
           <CardTitle>Consultation Bookings</CardTitle>
           <p className="text-xs text-muted">
             Manage scheduled consultations, client Muhurat appointments, and completed sessions.
           </p>
         </div>
+        {/* Create Booking button */}
+        <Link
+          href="/astrologer/bookings/new"
+          className="ml-auto inline-flex items-center gap-2 rounded-xl bg-gold/15 px-4 py-2 text-sm font-medium text-gold-deep hover:bg-gold/25"
+        >
+          Create Booking
+        </Link>
       </div>
 
       {bookings.length === 0 ? (
@@ -125,6 +132,9 @@ export default async function AstrologerBookingsPage() {
                         {booking.status}
                       </span>
                     </div>
+                    <p className="text-xs font-medium text-midnight mt-0.5">
+                      Client: <span className="text-gold-deep font-semibold">{booking.customer_name || "Verified Customer"}</span>
+                    </p>
                     <p className="text-xs text-muted mt-0.5 flex items-center gap-2">
                       <Clock className="h-3.5 w-3.5" />
                       Scheduled: {formatExactDateTime(booking.scheduled_at)}

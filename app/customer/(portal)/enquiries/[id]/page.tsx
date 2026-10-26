@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, User, Sparkles, Clock } from "lucide-react";
+import { ArrowLeft, User, Sparkles, Clock, Calendar } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { createClient } from "@/lib/supabase/server";
 import { getConsultationMessages } from "@/app/actions/customer";
@@ -9,6 +9,9 @@ import { ConsultationThreadClient } from "@/components/customer/ConsultationThre
 import { CustomerReviewForm } from "@/components/customer/CustomerReviewForm";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
+import { JoinRoomButton } from "@/components/consultation/JoinRoomButton";
+
+
 
 export const dynamic = "force-dynamic";
 
@@ -154,6 +157,32 @@ export default async function CustomerEnquiryDetailPage({
           <p className="font-semibold text-midnight mb-1">Your Question:</p>
           {lead.message}
         </div>
+
+        {/* Live Consultation Connect Section for Contacted/Assigned Consultations */}
+        {(lead.status === "contacted" || lead.status === "assigned") && (
+          <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+              <h3 className="text-sm font-semibold text-midnight">
+                Live Consultation Room Ready
+              </h3>
+            </div>
+            <p className="text-xs text-ink/80 leading-relaxed">
+              Your astrologer <strong>{astrologerName}</strong> has been connected. You can join your private video or voice consultation room directly below.
+            </p>
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+            <JoinRoomButton roomId={lead.id} role="customer" mode="both" />
+
+              <Link
+                href="/customer/bookings"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 bg-white px-3.5 py-2 text-xs font-semibold text-midnight shadow-sm hover:bg-parchment transition-colors ml-auto"
+              >
+                <Calendar className="h-3.5 w-3.5 text-gold-deep" />
+                My Bookings
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Discussion & Prediction Thread */}

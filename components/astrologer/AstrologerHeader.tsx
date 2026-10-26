@@ -48,10 +48,23 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
     }
 
     loadCount();
+
+    function onNotificationEvent(e: Event) {
+      const custom = e as CustomEvent<{ count?: number }>;
+      if (typeof custom.detail?.count === "number") {
+        setUnreadCount(custom.detail.count);
+      } else {
+        loadCount();
+      }
+    }
+
+    window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
     const interval = setInterval(loadCount, 15_000);
+
     return () => {
       mounted = false;
       clearInterval(interval);
+      window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
     };
   }, [pathname]);
 

@@ -36,6 +36,19 @@ export default function AstrologerNotificationsClient({
   const [markingAll, setMarkingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // On mount: immediately sync the header badge with the real unread count
+  useEffect(() => {
+    const unread = initialNotifications.filter((n) => !n.is_read).length;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: unread },
+        })
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Poll for live incoming notifications
   useEffect(() => {
     let mounted = true;
@@ -44,6 +57,15 @@ export default function AstrologerNotificationsClient({
         const res = await getAstrologerNotificationsAction();
         if (mounted && res.success && Array.isArray(res.data)) {
           setNotifications(res.data);
+          // Keep header badge in sync with live poll results
+          const unread = res.data.filter((n) => !n.is_read).length;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("jyotishsetu:notifications-updated", {
+                detail: { count: unread },
+              })
+            );
+          }
         }
       } catch {
         // Non-blocking poll
@@ -57,10 +79,24 @@ export default function AstrologerNotificationsClient({
     };
   }, []);
 
+  function notifyCountChanged(remainingCount?: number) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: remainingCount },
+        })
+      );
+    }
+  }
+
   async function handleMarkRead(id: string) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n))
-    );
+    setNotifications((prev) => {
+      const updated = prev.map((n) =>
+        n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
+      );
+      notifyCountChanged(updated.filter((n) => !n.is_read).length);
+      return updated;
+    });
     await markAstrologerNotificationReadAction(id);
   }
 
@@ -69,6 +105,7 @@ export default function AstrologerNotificationsClient({
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
     );
+    notifyCountChanged(0);
     try {
       await markAllAstrologerNotificationsReadAction();
     } catch {
@@ -83,14 +120,17 @@ export default function AstrologerNotificationsClient({
     setClearing(true);
     const previous = [...notifications];
     setNotifications([]);
+    notifyCountChanged(0);
     try {
       const res = await clearAllAstrologerNotificationsAction();
       if (!res.success) {
         setNotifications(previous);
+        notifyCountChanged(previous.filter((n) => !n.is_read).length);
         alert(res.error || "Failed to clear notifications.");
       }
     } catch {
       setNotifications(previous);
+      notifyCountChanged(previous.filter((n) => !n.is_read).length);
     } finally {
       setClearing(false);
     }
@@ -99,7 +139,11 @@ export default function AstrologerNotificationsClient({
   async function handleDeleteNotification(e: React.MouseEvent, id: string) {
     e.stopPropagation();
     setDeletingId(id);
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      notifyCountChanged(updated.filter((n) => !n.is_read).length);
+      return updated;
+    });
     try {
       await deleteAstrologerNotificationAction(id);
     } catch {
