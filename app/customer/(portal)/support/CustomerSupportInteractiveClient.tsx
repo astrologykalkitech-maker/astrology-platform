@@ -72,7 +72,7 @@ export default function CustomerSupportInteractiveClient() {
   const [category, setCategory] = useState("Consultation Issue");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [priority, setPriority] = useState<"normal" | "urgent">("normal");
+  const [priority, setPriority] = useState<"medium" | "urgent">("medium");
   const [submitting, setSubmitting] = useState(false);
   const [successTicketId, setSuccessTicketId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -96,7 +96,7 @@ export default function CustomerSupportInteractiveClient() {
       subject: fullSubject,
       message: message.trim(),
       priority,
-      source_type: "support_ticket",
+      source_type: "platform",
     });
 
     setSubmitting(false);
@@ -224,10 +224,10 @@ export default function CustomerSupportInteractiveClient() {
                     </label>
                     <select
                       value={priority}
-                      onChange={(e) => setPriority(e.target.value as "normal" | "urgent")}
+                      onChange={(e) => setPriority(e.target.value as "medium" | "urgent")}
                       className="w-full rounded-xl border border-line bg-parchment/30 px-3 py-2 text-xs text-midnight focus:border-gold focus:outline-none"
                     >
-                      <option value="normal">Normal (Standard Escalation)</option>
+                      <option value="medium">Normal (Standard Escalation)</option>
                       <option value="urgent">Urgent (Session Approaching)</option>
                     </select>
                   </div>

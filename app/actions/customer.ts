@@ -262,8 +262,25 @@ export async function submitCustomerEnquiryAction(payload: {
 
     const subject = (payload.subject || "").trim();
     const message = (payload.message || "").trim();
-    const priority = payload.priority || "medium";
+
+    // Normalize priority strictly to allowed database check constraint values ('low' | 'medium' | 'high' | 'urgent')
+    const rawPriority = (payload.priority || "medium").toLowerCase();
+    const priority =
+      rawPriority === "normal"
+        ? "medium"
+        : ["low", "medium", "high", "urgent"].includes(rawPriority)
+        ? rawPriority
+        : "medium";
+
+    // Normalize source_type strictly to allowed values ('platform' | 'direct' | 'campaign' | 'referral' | 'organic')
+    const allowedSourceTypes = ["platform", "direct", "campaign", "referral", "organic"];
+    const rawSourceType = (payload.source_type || "platform").toLowerCase();
     let resolvedAstrologerId = payload.astrologer_id || null;
+    const sourceType = resolvedAstrologerId
+      ? "direct"
+      : allowedSourceTypes.includes(rawSourceType)
+      ? rawSourceType
+      : "platform";
 
     if (!subject || subject.length > 200) {
       return { success: false, error: "Subject is required (max 200 characters)." };
@@ -333,6 +350,8 @@ export async function submitCustomerEnquiryAction(payload: {
       resolvedAstrologerId = validatedProfile.id;
     }
 
+    let createdLeadId: string | null = null;
+
     // Call canonical transactional RPC
     const { data: rpcLead, error: rpcErr } = await supabase.rpc(
       "submit_customer_enquiry",
@@ -340,7 +359,7 @@ export async function submitCustomerEnquiryAction(payload: {
         p_subject: subject,
         p_message: message,
         p_astrologer_id: resolvedAstrologerId,
-        p_source_type: resolvedAstrologerId ? "direct" : (payload.source_type || "platform"),
+        p_source_type: sourceType,
         p_source_url: payload.source_url || null,
         p_utm_source: null,
         p_utm_medium: null,
@@ -352,22 +371,71 @@ export async function submitCustomerEnquiryAction(payload: {
       }
     );
 
-    if (rpcErr || !rpcLead) {
-      // Safe error return without leaking internal database schemas or credentials
-      const safeMessage =
-        rpcErr?.message?.includes("wait a moment")
-          ? rpcErr.message
-          : rpcErr?.message?.includes("listing not found")
-          ? "The selected astrologer is not available."
-          : "Failed to submit enquiry. Please verify your input and try again.";
+    if (rpcLead && !rpcErr) {
+      createdLeadId = rpcLead.id;
+    } else {
+      // Fallback: direct insert with admin client if RPC is unavailable or encounters schema cache issues
+      console.warn("[Customer Enquiry RPC Fallback to Direct Insert]", rpcErr?.message || "No RPC data");
+      try {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const targetAdmin = await createAdminClient(target);
 
-      return {
-        success: false,
-        error: safeMessage,
-      };
+        const { data: directLead, error: directErr } = await targetAdmin
+          .from("leads")
+          .insert({
+            customer_id: user.id,
+            astrologer_id: resolvedAstrologerId,
+            subject,
+            message,
+            status: resolvedAstrologerId ? "assigned" : "new",
+            source_type: sourceType,
+            source_url: payload.source_url || null,
+            customer_name: profile.full_name || "Customer",
+            contact_email: user.email,
+            priority,
+            qualification_status: "unqualified",
+          })
+          .select("id")
+          .single();
+
+        if (directErr || !directLead) {
+          console.error("[Customer Enquiry Direct Fallback Failed]", directErr);
+          const safeMessage =
+            rpcErr?.message?.includes("wait a moment")
+              ? rpcErr.message
+              : rpcErr?.message?.includes("listing not found")
+              ? "The selected astrologer is not available."
+              : directErr?.message || "Failed to submit enquiry. Please verify your input and try again.";
+
+          return {
+            success: false,
+            error: safeMessage,
+          };
+        }
+
+        createdLeadId = directLead.id;
+
+        if (resolvedAstrologerId) {
+          try {
+            await targetAdmin
+              .from("lead_assignments")
+              .insert({
+                lead_id: createdLeadId,
+                astrologer_id: resolvedAstrologerId,
+                status: "assigned",
+              });
+          } catch {
+            // Non-blocking assignment
+          }
+        }
+      } catch (fallbackCatchErr) {
+        console.error("[Customer Enquiry Fallback Exception]", fallbackCatchErr);
+        return {
+          success: false,
+          error: "Failed to submit enquiry. Please verify your input and try again.",
+        };
+      }
     }
-
-    const createdLeadId = rpcLead.id;
 
     // Mirror lead to DB2 (Admin DB) if current target was DB1, so Super Admin dashboard reflects it immediately
     if (target === "main" && createdLeadId) {
@@ -413,10 +481,11 @@ export async function submitCustomerEnquiryAction(payload: {
           astrologer_id: db2AstrologerId,
           subject,
           message,
-          status: "new",
-          source_type: db2AstrologerId ? "direct" : "platform",
+          status: db2AstrologerId ? "assigned" : "new",
+          source_type: db2AstrologerId ? "direct" : sourceType,
           priority,
           customer_name: profile.full_name || "Direct Customer",
+          contact_email: user.email,
         });
 
         if (db2UpsertErr) {
@@ -513,6 +582,13 @@ export async function submitCustomerEnquiryAction(payload: {
     revalidatePath("/admin", "page");
     revalidatePath("/admin/leads", "page");
 
+
+    if (!createdLeadId) {
+      return {
+        success: false,
+        error: "Failed to create enquiry record. Please try again.",
+      };
+    }
 
     return {
       success: true,
