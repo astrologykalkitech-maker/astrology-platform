@@ -11,7 +11,8 @@ function getClient(): GoogleGenAI | null {
   return _client;
 }
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const FALLBACK_MODELS = Array.from(new Set([DEFAULT_MODEL, "gemini-2.5-flash"]));
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -204,18 +205,11 @@ export async function askGeminiSupport(params: {
     { role: "user", parts: [{ text: query.slice(0, 1500) }] },
   ];
 
-  // 4. Attempt with retry
-  let attempts = 0;
-  const maxAttempts = 2;
-
-  while (attempts < maxAttempts) {
-    attempts++;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15_000);
-
+  // 4. Attempt with candidate models and strict Promise.race timeout (max 10s per attempt)
+  for (const modelToTry of FALLBACK_MODELS) {
     try {
-      const result = await client.models.generateContent({
-        model: DEFAULT_MODEL,
+      const generatePromise = client.models.generateContent({
+        model: modelToTry,
         contents,
         config: {
           systemInstruction: systemPrompt,
@@ -224,11 +218,17 @@ export async function askGeminiSupport(params: {
         },
       });
 
-      clearTimeout(timeoutId);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const id = setTimeout(() => {
+          clearTimeout(id);
+          reject(new Error(`Timeout: Gemini ${modelToTry} did not respond within 10 seconds`));
+        }, 10_000);
+      });
 
-      const text = result.text;
+      const result = await Promise.race([generatePromise, timeoutPromise]);
+      const text = result?.text;
       if (!text || !text.trim()) {
-        throw new Error("Empty response from Gemini");
+        throw new Error(`Empty response from Gemini model ${modelToTry}`);
       }
 
       const inferred = getGroundedFallback(role, query);
@@ -240,26 +240,24 @@ export async function askGeminiSupport(params: {
         priority: inferred.priority,
         suggestedAction: "continue",
         isFallback: false,
-        modelUsed: DEFAULT_MODEL,
+        modelUsed: modelToTry,
       };
     } catch (err: unknown) {
-      clearTimeout(timeoutId);
       const errMsg = (err as Error)?.message || "";
-      const isAbort = (err as Error)?.name === "AbortError";
-      const isOverloaded = errMsg.toLowerCase().includes("overload") ||
+      const isOverloaded =
+        errMsg.toLowerCase().includes("overload") ||
         errMsg.toLowerCase().includes("unavailable") ||
         errMsg.toLowerCase().includes("503") ||
-        errMsg.toLowerCase().includes("high demand");
+        errMsg.toLowerCase().includes("high demand") ||
+        errMsg.toLowerCase().includes("timeout");
 
-      console.warn(`[Gemini Support ${isAbort ? "Timeout" : isOverloaded ? "Overloaded" : "Error"}] Attempt ${attempts}:`, errMsg.slice(0, 120));
+      console.warn(`[Gemini Support Error] Model ${modelToTry}:`, errMsg.slice(0, 140));
 
-      // Non-retryable auth errors
-      if (errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API_KEY")) {
+      // If invalid API key, don't keep trying
+      if (errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API_KEY_INVALID")) {
         break;
       }
-
-      if (attempts >= maxAttempts) break;
-      await new Promise((r) => setTimeout(r, 1500));
+      // Otherwise proceed to next candidate model or fallback
     }
   }
 

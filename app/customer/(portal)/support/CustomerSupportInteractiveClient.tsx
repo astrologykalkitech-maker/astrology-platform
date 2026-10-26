@@ -147,24 +147,36 @@ export default function CustomerSupportInteractiveClient() {
       content: m.content,
     }));
 
-    const res = await askSupportAiAction({ query: text, history: historyForAi });
-    setAiLoading(false);
+    try {
+      const res = await askSupportAiAction({ query: text, history: historyForAi });
+      setAiLoading(false);
 
-    if (res.success && res.data) {
+      if (res.success && res.data) {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.data!.message,
+            isFallback: res.data!.isFallback,
+          },
+        ]);
+      } else {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.error || "Support assistant is temporarily unavailable. Please escalate below for human assistance.",
+            isFallback: true,
+          },
+        ]);
+      }
+    } catch (err: unknown) {
+      setAiLoading(false);
       setAiMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: res.data!.message,
-          isFallback: res.data!.isFallback,
-        },
-      ]);
-    } else {
-      setAiMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: res.error || "Support assistant is temporarily unavailable. Please escalate below for human assistance.",
+          content: "Support assistant is temporarily unavailable. Please click 'Request Human Support' below for immediate assistance.",
           isFallback: true,
         },
       ]);
