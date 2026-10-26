@@ -21,6 +21,7 @@ import type {
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 import { createInAppNotification } from "@/lib/notifications";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface CustomerEnquiryItem {
   id: string;
@@ -787,10 +788,10 @@ export async function getCustomerNotifications(): Promise<
   AuthResult<CustomerNotification[]>
 > {
   try {
-    const { user, target } = await requireCustomerContext();
-    const supabase = await createClient(target);
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
 
-    const { data: notifications, error } = await supabase
+    const { data: notifications, error } = await admin
       .from("customer_notifications")
       .select("*")
       .eq("customer_id", user.id)
@@ -823,10 +824,10 @@ export async function markNotificationReadAction(
   notificationId: string
 ): Promise<AuthResult<{ success: boolean }>> {
   try {
-    const { user, target } = await requireCustomerContext();
-    const supabase = await createClient(target);
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
 
-    const { error } = await supabase
+    const { error } = await admin
       .from("customer_notifications")
       .update({
         is_read: true,
@@ -843,6 +844,7 @@ export async function markNotificationReadAction(
     }
 
     revalidatePath("/customer/notification", "page");
+
     return {
       success: true,
       data: { success: true },
@@ -867,11 +869,11 @@ export async function getConsultationMessages(
   leadId: string
 ): Promise<AuthResult<ConsultationMessage[]>> {
   try {
-    const { user, target } = await requireCustomerContext();
-    const supabase = await createClient(target);
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
 
     // Verify lead ownership
-    const { data: lead, error: leadErr } = await supabase
+    const { data: lead, error: leadErr } = await admin
       .from("leads")
       .select("id, customer_id")
       .eq("id", leadId)
@@ -882,7 +884,7 @@ export async function getConsultationMessages(
       return { success: false, error: "Consultation enquiry not found or access denied." };
     }
 
-    const { data: messages, error } = await supabase
+    const { data: messages, error } = await admin
       .from("consultation_messages")
       .select("*")
       .eq("lead_id", leadId)
@@ -897,7 +899,7 @@ export async function getConsultationMessages(
 
     let senderMap: Record<string, string> = {};
     if (senderIds.length > 0) {
-      const { data: profiles } = await supabase
+      const { data: profiles } = await admin
         .from("profiles")
         .select("id, full_name")
         .in("id", senderIds);
@@ -910,7 +912,7 @@ export async function getConsultationMessages(
       id: m.id,
       lead_id: m.lead_id,
       sender_id: m.sender_id,
-      sender_name: senderMap[m.sender_id] || "Astrologer",
+      sender_name: senderMap[m.sender_id] || (m.sender_role === "customer" ? "You" : "Astrologer"),
       sender_role: m.sender_role,
       message: m.message,
       prediction_title: m.prediction_title,
@@ -936,14 +938,15 @@ export async function sendCustomerConsultationMessageAction(
   message: string
 ): Promise<AuthResult<ConsultationMessage>> {
   try {
-    const { user, target } = await requireCustomerContext();
+    const { user } = await requireCustomerContext();
     const cleanMessage = (message || "").trim();
+    const cleanLeadId = (leadId || "").trim().toLowerCase();
 
     if (!cleanMessage) {
       return { success: false, error: "Message content cannot be empty." };
     }
 
-    const rateLimit = checkRateLimit(`msg:cust:${user.id}`, 15, 60_000);
+    const rateLimit = checkRateLimit(`msg:cust:${user.id}`, 25, 60_000);
     if (!rateLimit.allowed) {
       return {
         success: false,
@@ -951,13 +954,13 @@ export async function sendCustomerConsultationMessageAction(
       };
     }
 
-    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
 
     // Verify lead ownership
-    const { data: lead } = await supabase
+    const { data: lead } = await admin
       .from("leads")
       .select("id, customer_id, astrologer_id")
-      .eq("id", leadId)
+      .eq("id", cleanLeadId)
       .eq("customer_id", user.id)
       .maybeSingle();
 
@@ -965,10 +968,10 @@ export async function sendCustomerConsultationMessageAction(
       return { success: false, error: "Consultation enquiry not found." };
     }
 
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error } = await admin
       .from("consultation_messages")
       .insert({
-        lead_id: leadId,
+        lead_id: cleanLeadId,
         sender_id: user.id,
         sender_role: "customer",
         message: cleanMessage,
@@ -984,24 +987,30 @@ export async function sendCustomerConsultationMessageAction(
     // Notify the assigned astrologer via in-app notification
     try {
       let astrologerProfileId = lead.astrologer_id;
-      if (!astrologerProfileId) {
-        const { data: assignment } = await supabase
-          .from("lead_assignments")
-          .select("astrologer_id")
-          .eq("lead_id", leadId)
-          .maybeSingle();
-        astrologerProfileId = assignment?.astrologer_id;
+      let assignmentId: string | null = null;
+
+      const { data: assignment } = await admin
+        .from("lead_assignments")
+        .select("id, astrologer_id")
+        .eq("lead_id", cleanLeadId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (assignment) {
+        assignmentId = assignment.id;
+        if (!astrologerProfileId) astrologerProfileId = assignment.astrologer_id;
       }
 
       if (astrologerProfileId) {
-        const { data: astProfile } = await supabase
+        const { data: astProfile } = await admin
           .from("astrologer_profiles")
           .select("user_id")
           .eq("id", astrologerProfileId)
           .maybeSingle();
 
         if (astProfile?.user_id) {
-          const { data: custProfile } = await supabase
+          const { data: custProfile } = await admin
             .from("profiles")
             .select("full_name")
             .eq("id", user.id)
@@ -1013,9 +1022,9 @@ export async function sendCustomerConsultationMessageAction(
             recipientUserId: astProfile.user_id,
             title: "New Message from Client",
             message: `${senderName}: "${cleanMessage.slice(0, 60)}"`,
-            linkUrl: `/astrologer/leads/${leadId}`,
+            linkUrl: `/astrologer/leads/${assignmentId || cleanLeadId}`,
             eventType: "consultation_message",
-            metadata: { lead_id: leadId, customer_id: user.id },
+            metadata: { lead_id: cleanLeadId, customer_id: user.id },
           });
         }
       }
@@ -1023,14 +1032,13 @@ export async function sendCustomerConsultationMessageAction(
       console.error("[sendCustomerConsultationMessageAction Notification Warning]", notifErr);
     }
 
-    revalidatePath(`/customer/enquiries/${leadId}`, "page");
-    revalidatePath(`/astrologer/leads/${leadId}`, "page");
+    revalidatePath(`/customer/enquiries/${cleanLeadId}`, "page");
+    revalidatePath(`/astrologer/leads/${cleanLeadId}`, "page");
     revalidatePath("/astrologer/leads", "page");
     revalidatePath("/astrologer/notifications", "page");
     revalidatePath("/astrologer/dashboard", "page");
 
     return { success: true, data: inserted as ConsultationMessage };
-
   } catch (err) {
     return {
       success: false,
@@ -1038,6 +1046,7 @@ export async function sendCustomerConsultationMessageAction(
     };
   }
 }
+
 
 // =====================================================
 // CUSTOMER PROFILE & BIRTH DETAILS ACTIONS (Phase C)
@@ -1275,10 +1284,10 @@ export async function getCustomerUnreadNotificationCount(): Promise<
   AuthResult<number>
 > {
   try {
-    const { user, target } = await requireCustomerContext();
-    const supabase = await createClient(target);
+    const { user } = await requireCustomerContext();
+    const admin = await createAdminClient("main");
 
-    const { count, error } = await supabase
+    const { count, error } = await admin
       .from("customer_notifications")
       .select("*", { count: "exact", head: true })
       .eq("customer_id", user.id)
@@ -1293,6 +1302,7 @@ export async function getCustomerUnreadNotificationCount(): Promise<
     return { success: true, data: 0 };
   }
 }
+
 
 /**
  * Loads authentic billing / transaction history derived from completed or scheduled bookings.

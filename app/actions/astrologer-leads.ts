@@ -64,7 +64,7 @@ export async function getMyAssignedLeads(
 ): Promise<AstrologerLeadsResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user, target } = await requireAstrologer();
+    const { user } = await requireAstrologer();
 
     // 2. Validate filter options
     const filterValidation = validateAstrologerLeadsFilterOptions(rawOptions);
@@ -75,10 +75,10 @@ export async function getMyAssignedLeads(
       };
     }
 
-    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
 
     // 3. Resolve astrologer_profiles ID for current user
-    const { data: profile, error: profError } = await supabase
+    const { data: profile, error: profError } = await admin
       .from("astrologer_profiles")
       .select("id")
       .eq("user_id", user.id)
@@ -97,7 +97,7 @@ export async function getMyAssignedLeads(
 
     // 4. Query assigned leads
     const { leads, totalCount } = await getAstrologerAssignedLeads(
-      supabase,
+      admin,
       profile.id,
       filterValidation.data
     );
@@ -123,7 +123,7 @@ export async function getMyAssignedLeadById(
 ): Promise<AstrologerLeadDetailResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user, target } = await requireAstrologer();
+    const { user } = await requireAstrologer();
 
     // 2. Validate assignment ID
     if (!isValidUUID(rawAssignmentId)) {
@@ -134,10 +134,10 @@ export async function getMyAssignedLeadById(
     }
 
     const assignmentId = (rawAssignmentId as string).trim().toLowerCase();
-    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
 
     // 3. Resolve astrologer_profiles ID
-    const { data: profile, error: profError } = await supabase
+    const { data: profile, error: profError } = await admin
       .from("astrologer_profiles")
       .select("id")
       .eq("user_id", user.id)
@@ -156,10 +156,11 @@ export async function getMyAssignedLeadById(
 
     // 4. Query lead detail verifying ownership
     const leadItem = await getAstrologerAssignedLeadById(
-      supabase,
+      admin,
       profile.id,
       assignmentId
     );
+
 
     if (!leadItem) {
       return {
@@ -365,11 +366,12 @@ export async function updateAssignmentStatus(
  */
 export async function getAstrologerLeadMessages(leadId: string) {
   try {
-    const { user, target } = await requireAstrologer();
-    const supabase = await createClient(target);
+    const { user } = await requireAstrologer();
+    const cleanLeadId = (leadId || "").trim().toLowerCase();
+    const admin = await createAdminClient("main");
 
-    // Verify astrologer owns assignment for this lead
-    const { data: profile } = await supabase
+    // Verify astrologer profile exists
+    const { data: profile } = await admin
       .from("astrologer_profiles")
       .select("id")
       .eq("user_id", user.id)
@@ -380,33 +382,37 @@ export async function getAstrologerLeadMessages(leadId: string) {
     }
 
     // Verify access either by assignment or direct lead match
-    const { data: assignment } = await supabase
+    const { data: assignment } = await admin
       .from("lead_assignments")
-      .select("id")
-      .or(`lead_id.eq.${leadId},id.eq.${leadId}`)
+      .select("id, lead_id")
+      .or(`lead_id.eq.${cleanLeadId},id.eq.${cleanLeadId}`)
       .eq("astrologer_id", profile.id)
       .maybeSingle();
 
+    let resolvedActualLeadId = assignment?.lead_id || cleanLeadId;
     let hasAccess = Boolean(assignment);
 
     if (!hasAccess) {
-      const { data: directLead } = await supabase
+      const { data: directLead } = await admin
         .from("leads")
         .select("id")
-        .eq("id", leadId)
+        .eq("id", cleanLeadId)
         .eq("astrologer_id", profile.id)
         .maybeSingle();
-      if (directLead) hasAccess = true;
+      if (directLead) {
+        hasAccess = true;
+        resolvedActualLeadId = directLead.id;
+      }
     }
 
     if (!hasAccess) {
       return { success: false, error: "Access denied to this lead." };
     }
 
-    const { data: messages, error } = await supabase
+    const { data: messages, error } = await admin
       .from("consultation_messages")
       .select("*")
-      .eq("lead_id", leadId)
+      .eq("lead_id", resolvedActualLeadId)
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -432,10 +438,11 @@ export async function sendAstrologerPredictionAction(payload: {
   isOfficialPrediction?: boolean;
 }) {
   try {
-    const { user, target } = await requireAstrologer();
-    const supabase = await createClient(target);
+    const { user } = await requireAstrologer();
+    const cleanLeadId = (payload.leadId || "").trim().toLowerCase();
+    const admin = await createAdminClient("main");
 
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from("astrologer_profiles")
       .select("id, display_name")
       .eq("user_id", user.id)
@@ -446,33 +453,38 @@ export async function sendAstrologerPredictionAction(payload: {
     }
 
     // Verify assignment or direct lead
-    const { data: assignment } = await supabase
+    const { data: assignment } = await admin
       .from("lead_assignments")
-      .select("id")
-      .or(`lead_id.eq.${payload.leadId},id.eq.${payload.leadId}`)
+      .select("id, lead_id")
+      .or(`lead_id.eq.${cleanLeadId},id.eq.${cleanLeadId}`)
       .eq("astrologer_id", profile.id)
       .maybeSingle();
 
+    let resolvedActualLeadId = assignment?.lead_id || cleanLeadId;
     let hasAccess = Boolean(assignment);
+
     if (!hasAccess) {
-      const { data: directLead } = await supabase
+      const { data: directLead } = await admin
         .from("leads")
         .select("id")
-        .eq("id", payload.leadId)
+        .eq("id", cleanLeadId)
         .eq("astrologer_id", profile.id)
         .maybeSingle();
-      if (directLead) hasAccess = true;
+      if (directLead) {
+        hasAccess = true;
+        resolvedActualLeadId = directLead.id;
+      }
     }
 
     if (!hasAccess) {
       return { success: false, error: "You are not assigned to this consultation." };
     }
 
-    // Insert prediction / message
-    const { data: inserted, error } = await supabase
+    // Insert prediction / message into consultation_messages using privileged admin client
+    const { data: inserted, error } = await admin
       .from("consultation_messages")
       .insert({
-        lead_id: payload.leadId,
+        lead_id: resolvedActualLeadId,
         sender_id: user.id,
         sender_role: "astrologer",
         message: payload.message.trim(),
@@ -488,10 +500,10 @@ export async function sendAstrologerPredictionAction(payload: {
 
     // Notify the customer reliably using service role client
     try {
-      const { data: lead } = await supabase
+      const { data: lead } = await admin
         .from("leads")
         .select("customer_id, subject")
-        .eq("id", payload.leadId)
+        .eq("id", resolvedActualLeadId)
         .maybeSingle();
 
       if (lead?.customer_id) {
@@ -501,18 +513,20 @@ export async function sendAstrologerPredictionAction(payload: {
             ? "Astrological Prediction Received"
             : "New Message from Astrologer",
           message: `${profile.display_name} has provided written guidance: "${lead.subject.slice(0, 40)}"`,
-          linkUrl: `/customer/enquiries/${payload.leadId}`,
+          linkUrl: `/customer/enquiries/${resolvedActualLeadId}`,
           eventType: "consultation_message",
-          metadata: { lead_id: payload.leadId, astrologer_id: profile.id },
+          metadata: { lead_id: resolvedActualLeadId, astrologer_id: profile.id },
         });
       }
     } catch (notifErr) {
       console.error("[sendAstrologerPredictionAction Notification Warning]", notifErr);
     }
 
-    revalidatePath(`/astrologer/leads/${payload.leadId}`, "page");
+    revalidatePath(`/astrologer/leads/${cleanLeadId}`, "page");
+    revalidatePath(`/astrologer/leads/${resolvedActualLeadId}`, "page");
     revalidatePath("/astrologer/leads", "page");
-    revalidatePath(`/customer/enquiries/${payload.leadId}`, "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath(`/customer/enquiries/${resolvedActualLeadId}`, "page");
     revalidatePath("/customer/enquiries", "page");
     revalidatePath("/customer/notification", "page");
     revalidatePath("/customer", "page");
@@ -525,4 +539,5 @@ export async function sendAstrologerPredictionAction(payload: {
     };
   }
 }
+
 

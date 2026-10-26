@@ -11,6 +11,7 @@ import {
   CalendarCheck2,
   Receipt,
   Gift,
+  Bell,
   X,
   MessageSquare,
   HelpCircle,
@@ -35,9 +36,11 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
   { href: "/customer/billing", label: "Billing & Receipts", icon: Receipt },
+  { href: "/customer/notification", label: "Notifications", icon: Bell },
   { href: "/customer/offers", label: "Special Offers", icon: Gift },
   { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
 ];
+
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
   { label: "Live Chat", icon: MessageSquare, desc: "Instant one-on-one live messaging with verified Vedic pandits launching in Phase 2." },

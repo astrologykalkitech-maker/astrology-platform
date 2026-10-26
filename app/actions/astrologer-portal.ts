@@ -7,6 +7,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAstrologer } from "@/lib/auth/session";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type {
@@ -233,9 +234,10 @@ export async function getAstrologerNotificationsAction(): Promise<
   AuthResult<CustomerNotification[]>
 > {
   try {
-    const { user, supabase } = await getAuthenticatedAstrologerProfile();
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
 
-    const { data: notifications, error } = await supabase
+    const { data: notifications, error } = await admin
       .from("customer_notifications")
       .select("*")
       .eq("customer_id", user.id)
@@ -265,9 +267,10 @@ export async function markAstrologerNotificationReadAction(
   notificationId: string
 ): Promise<AuthResult<{ success: boolean }>> {
   try {
-    const { user, supabase } = await getAuthenticatedAstrologerProfile();
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
 
-    const { error } = await supabase
+    const { error } = await admin
       .from("customer_notifications")
       .update({
         is_read: true,
@@ -295,9 +298,10 @@ export async function markAstrologerNotificationReadAction(
  */
 export async function getAstrologerUnreadNotificationCount(): Promise<AuthResult<number>> {
   try {
-    const { user, supabase } = await getAuthenticatedAstrologerProfile();
+    const { user } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
 
-    const { count, error } = await supabase
+    const { count, error } = await admin
       .from("customer_notifications")
       .select("*", { count: "exact", head: true })
       .eq("customer_id", user.id)
@@ -312,4 +316,5 @@ export async function getAstrologerUnreadNotificationCount(): Promise<AuthResult
     return { success: true, data: 0 };
   }
 }
+
 
