@@ -57,12 +57,14 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
 
       // Route users to their appropriate dashboard based on their role
       if (result.data.role === "super_admin" || result.data.role === "admin") {
-        window.location.href = "/super-admin";
+        router.replace("/super-admin");
+        router.refresh();
         return;
       }
 
       if (result.data.role === "consultant_admin") {
-        window.location.href = "/admin";
+        router.replace("/admin");
+        router.refresh();
         return;
       }
 

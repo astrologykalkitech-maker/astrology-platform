@@ -26,6 +26,12 @@ export interface PlatformOverviewMetrics {
   suspendedListings: number;
   totalListings: number;
   activeConsultants: number;
+  totalCustomers: number;
+  totalBookings: number;
+  pendingBookings: number;
+  confirmedBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
 }
 
 /**
@@ -85,11 +91,47 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }),
     ]);
 
-    // 3. Active consultants
-    const { count: activeConsultants } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .in("role", ["consultant_admin", "super_admin", "admin"]);
+    // 3. Active consultants & registered customers
+    const [{ count: activeConsultants }, { count: totalCustomersCount }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .in("role", ["consultant_admin", "super_admin", "admin"]),
+      supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "customer"),
+    ]);
+
+    // 4. Bookings queries (graceful handling if table empty)
+    let totalBookings = 0;
+    let pendingBookings = 0;
+    let confirmedBookings = 0;
+    let completedBookings = 0;
+    let cancelledBookings = 0;
+
+    try {
+      const [
+        { count: tBookings },
+        { count: pBookings },
+        { count: cBookings },
+        { count: compBookings },
+        { count: cancBookings },
+      ] = await Promise.all([
+        supabase.from("customer_bookings").select("*", { count: "exact", head: true }),
+        supabase.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "confirmed"),
+        supabase.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "completed"),
+        supabase.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "cancelled"),
+      ]);
+      totalBookings = tBookings ?? 0;
+      pendingBookings = pBookings ?? 0;
+      confirmedBookings = cBookings ?? 0;
+      completedBookings = compBookings ?? 0;
+      cancelledBookings = cancBookings ?? 0;
+    } catch {
+      // Table may not have records or exist yet
+    }
 
     return {
       success: true,
@@ -111,6 +153,12 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
         suspendedListings: suspendedListings ?? 0,
         totalListings: totalListings ?? 0,
         activeConsultants: activeConsultants ?? 0,
+        totalCustomers: totalCustomersCount ?? 0,
+        totalBookings,
+        pendingBookings,
+        confirmedBookings,
+        completedBookings,
+        cancelledBookings,
       },
     };
   } catch (err) {

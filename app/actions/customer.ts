@@ -380,7 +380,7 @@ export async function submitCustomerEnquiryAction(payload: {
         const { createAdminClient } = await import("@/lib/supabase/admin");
         const targetAdmin = await createAdminClient(target);
 
-        const leadPayload: Record<string, any> = {
+        const leadPayload: Record<string, unknown> = {
           customer_id: user.id,
           astrologer_id: resolvedAstrologerId,
           subject,
