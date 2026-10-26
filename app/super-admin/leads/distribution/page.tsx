@@ -144,111 +144,118 @@ export default function LeadDistributionPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-            <GitBranch className="h-6 w-6 text-gold" />
-            Lead Distribution Management
-          </h1>
-          <p className="text-xs text-zinc-500">
-            Manual assignment controls, capacity constraints, and automated distribution rules.
-          </p>
+    <div className="space-y-6 rise-in">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-gold/30 bg-gradient-to-r from-midnight via-plum to-midnight p-6 text-white shadow-xl">
+        <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-gold/10 blur-2xl pointer-events-none" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/15 px-3 py-0.5 text-[11px] font-semibold text-champagne backdrop-blur-sm mb-2">
+              <GitBranch className="h-3.5 w-3.5 text-gold" />
+              <span>Pipeline & Orchestration</span>
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-ivory">
+              Lead Distribution Management
+            </h1>
+            <p className="text-xs text-parchment/80 mt-1 max-w-xl">
+              Manual assignment controls, capacity constraints, and automated round-robin routing rules for incoming seeker inquiries.
+            </p>
+          </div>
+          <button
+            onClick={loadData}
+            type="button"
+            disabled={loading}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-gold/30 bg-midnight/80 px-4 py-2 text-xs font-semibold text-champagne shadow-sm hover:bg-gold/20 hover:border-gold transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-gold" : "text-gold"}`} />
+            Refresh Pipeline
+          </button>
         </div>
-        <button
-          onClick={loadData}
-          type="button"
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 self-start rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh Pipeline
-        </button>
       </div>
 
       {message && (
         <div
-          className={`flex items-center gap-2 rounded-xl border p-3 text-xs ${
+          className={`flex items-center gap-3 rounded-2xl border p-4 text-xs font-medium backdrop-blur-sm shadow-md ${
             message.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-              : "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+              ? "border-emerald-300/60 bg-emerald-950/20 text-emerald-800 dark:text-emerald-200"
+              : "border-red-300/60 bg-red-950/20 text-red-800 dark:text-red-200"
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
           ) : (
-            <ShieldAlert className="h-4 w-4 shrink-0" />
+            <ShieldAlert className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
           )}
           <span>{message.text}</span>
         </div>
       )}
 
       {/* Rules & Policy Card */}
-      <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gold/15 pb-4 gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-midnight dark:text-ivory flex items-center gap-2">
               <Sliders className="h-4 w-4 text-gold" />
               Automated Routing Rule Status
             </h3>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Rule safety policy: Automatic distribution remains strictly disabled by default until verified.
             </p>
           </div>
           <button
             onClick={handleToggleAutoDistribution}
             type="button"
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${
+            className={`rounded-full px-4 py-2 text-xs font-semibold transition-all shadow-sm ${
               autoDistribution
-                ? "bg-emerald-600 text-white shadow hover:bg-emerald-700"
-                : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300 dark:bg-zinc-800 dark:text-zinc-300"
+                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/20 hover:from-emerald-500 hover:to-teal-500"
+                : "border border-gold/30 bg-parchment/60 text-midnight hover:bg-gold/10 dark:bg-plum/40 dark:text-champagne"
             }`}
           >
             {autoDistribution ? "Rule Active (ON)" : "Rule Disabled (OFF)"}
           </button>
         </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-zinc-600 dark:text-zinc-400">
-          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">Routing Strategy</span>
-            <span>Round Robin with verified capacity balancing</span>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="rounded-xl border border-gold/15 bg-parchment/30 p-3.5 dark:bg-plum/30">
+            <span className="font-semibold text-midnight dark:text-ivory block mb-0.5">Routing Strategy</span>
+            <span className="text-muted-foreground">Round Robin with verified capacity balancing</span>
           </div>
-          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">Fallback Policy</span>
-            <span>Retain unassigned in central inbox; never discard</span>
+          <div className="rounded-xl border border-gold/15 bg-parchment/30 p-3.5 dark:bg-plum/30">
+            <span className="font-semibold text-midnight dark:text-ivory block mb-0.5">Fallback Policy</span>
+            <span className="text-muted-foreground">Retain unassigned in central inbox; never discard</span>
           </div>
-          <div className="rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">Concurrency Lock</span>
-            <span>Durable idempotent assignment state</span>
+          <div className="rounded-xl border border-gold/15 bg-parchment/30 p-3.5 dark:bg-plum/30">
+            <span className="font-semibold text-midnight dark:text-ivory block mb-0.5">Concurrency Lock</span>
+            <span className="text-muted-foreground">Durable idempotent assignment state</span>
           </div>
         </div>
       </div>
 
       {/* Batch Assignment Workspace */}
-      <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-sm backdrop-blur-sm dark:bg-midnight/70 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gold/15 pb-4">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-teal-600" />
-              Batch Lead Assignment ({unassignedLeads.length} Unassigned Leads)
+            <h3 className="text-sm font-semibold text-midnight dark:text-ivory flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-gold" />
+              Batch Lead Assignment ({unassignedLeads.length} Unassigned Inquiries)
             </h3>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted-foreground">
               Select leads to manually distribute to an approved astrologer in one click.
             </p>
           </div>
           {selectedLeadIds.length > 0 && (
-            <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
-              {selectedLeadIds.length} leads selected
+            <span className="rounded-full border border-gold/40 bg-gold/15 px-3 py-1 text-xs font-semibold text-gold-deep dark:text-champagne">
+              {selectedLeadIds.length} inquiries selected
             </span>
           )}
         </div>
 
         {/* Batch Form */}
-        <form onSubmit={handleBatchAssign} className="flex flex-col sm:flex-row gap-3 pt-2">
+        <form onSubmit={handleBatchAssign} className="flex flex-col sm:flex-row gap-3">
           <select
             required
             value={targetAstrologerId}
             onChange={(e) => setTargetAstrologerId(e.target.value)}
-            className="flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            className="flex-1 rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-midnight/90 dark:text-ivory"
           >
             <option value="">-- Choose Approved Astrologer ({astrologers.length} available) --</option>
             {astrologers.map((astro) => (
@@ -264,23 +271,23 @@ export default function LeadDistributionPage() {
             onChange={(e) => setBatchReason(e.target.value)}
             autoComplete="off"
             suppressHydrationWarning
-            className="flex-1 rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+            className="flex-1 rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-midnight/90 dark:text-ivory"
           />
           <button
             type="submit"
             disabled={actionLoading || selectedLeadIds.length === 0 || !targetAstrologerId}
-            className="rounded-xl bg-zinc-900 px-5 py-2.5 text-xs font-medium text-white shadow-sm hover:bg-zinc-800 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+            className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2.5 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
           >
             {actionLoading ? "Distributing..." : `Assign Selected (${selectedLeadIds.length})`}
           </button>
         </form>
 
         {/* Unassigned Leads Table */}
-        <div className="overflow-x-auto rounded-xl border border-zinc-100 dark:border-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-gold/20">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-zinc-100 bg-zinc-50/75 text-[11px] font-semibold uppercase text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
+            <thead className="border-b border-gold/20 bg-parchment/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-midnight/90">
               <tr>
-                <th className="px-4 py-2.5 w-10">
+                <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
                     checked={
@@ -288,19 +295,19 @@ export default function LeadDistributionPage() {
                       selectedLeadIds.length === unassignedLeads.length
                     }
                     onChange={handleToggleSelectAll}
-                    className="h-3.5 w-3.5 rounded border-zinc-300"
+                    className="h-3.5 w-3.5 rounded border-gold/40 text-gold focus:ring-gold"
                   />
                 </th>
-                <th className="px-4 py-2.5">Enquiry Subject</th>
-                <th className="px-4 py-2.5">Customer / Contact</th>
-                <th className="px-4 py-2.5">Source Channel</th>
-                <th className="px-4 py-2.5">Received Date</th>
+                <th className="px-4 py-3">Enquiry Subject</th>
+                <th className="px-4 py-3">Customer / Contact</th>
+                <th className="px-4 py-3">Source Channel</th>
+                <th className="px-4 py-3">Received Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className="divide-y divide-gold/10">
               {unassignedLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-zinc-400">
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground font-medium">
                     No unassigned leads in the queue. All inquiries have been distributed!
                   </td>
                 </tr>
@@ -314,30 +321,30 @@ export default function LeadDistributionPage() {
                       onClick={() => handleToggleSelectLead(lead.id)}
                       className={`cursor-pointer transition-colors ${
                         isChecked
-                          ? "bg-zinc-100/70 dark:bg-zinc-800/60"
-                          : "hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30"
+                          ? "bg-gold/15 dark:bg-gold/20"
+                          : "hover:bg-gold/5 dark:hover:bg-plum/30"
                       }`}
                     >
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => {}}
-                          className="h-3.5 w-3.5 rounded border-zinc-300 pointer-events-none"
+                          className="h-3.5 w-3.5 rounded border-gold/40 text-gold pointer-events-none"
                         />
                       </td>
-                      <td className="px-4 py-2.5 font-medium text-zinc-900 dark:text-zinc-100">
+                      <td className="px-4 py-3 font-semibold text-midnight dark:text-ivory">
                         {lead.subject}
                       </td>
-                      <td className="px-4 py-2.5 text-zinc-600 dark:text-zinc-400">
+                      <td className="px-4 py-3 text-muted-foreground">
                         {lead.customer_name ?? "Platform Customer"}
                       </td>
-                      <td className="px-4 py-2.5">
-                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 capitalize dark:bg-zinc-800 dark:text-zinc-300">
+                      <td className="px-4 py-3">
+                        <span className="rounded-full border border-gold/30 bg-gold/10 px-2.5 py-0.5 text-[10px] font-semibold text-gold-deep dark:text-champagne capitalize">
                           {lead.source_type ?? "platform"}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-zinc-400 font-mono text-[11px] whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                         {formatExactDateTime(lead.created_at)}
                       </td>
                     </tr>

@@ -64,37 +64,37 @@ export function RankingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white/95 p-6 shadow-2xl backdrop-blur-xl dark:bg-midnight/95">
+        <div className="flex items-center justify-between border-b border-gold/15 pb-4">
           <div>
-            <h3 className="font-display text-lg font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+            <h3 className="font-serif text-lg font-bold text-midnight dark:text-ivory flex items-center gap-2">
               <Award className="h-5 w-5 text-gold" />
               Ranking & Placement
             </h3>
-            <p className="text-xs text-zinc-500">
-              Listing: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{listing.display_name}</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Listing: <span className="font-semibold text-midnight dark:text-champagne">{listing.display_name}</span>
             </p>
           </div>
           <button
             onClick={onClose}
             type="button"
-            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-gold/10 hover:text-midnight dark:hover:text-ivory transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-950/20 p-3 text-xs text-red-800 dark:text-red-200">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+            <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
               Manual Ranking Priority (-100 to 1000)
             </label>
             <input
@@ -103,49 +103,49 @@ export function RankingModal({
               max={1000}
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value))}
-              className="w-full rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+              className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
             />
-            <p className="text-[11px] text-zinc-400 mt-1">
+            <p className="text-[11px] text-muted-foreground mt-1">
               Higher values appear earlier in search and directory placement. Default is 0.
             </p>
           </div>
 
-          <div className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="rounded-xl border border-gold/25 bg-parchment/30 p-3.5 dark:bg-plum/20">
+            <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isFeatured}
                 onChange={(e) => setIsFeatured(e.target.checked)}
-                className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700"
+                className="h-4 w-4 rounded border-gold/40 text-gold focus:ring-gold"
               />
-              <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+              <span className="text-xs font-semibold text-midnight dark:text-ivory">
                 Pin as Featured Listing
               </span>
             </label>
-            <p className="text-[11px] text-zinc-500 mt-1 pl-6">
+            <p className="text-[11px] text-muted-foreground mt-1 pl-6.5">
               Featured listings are pinned prominently at the top of the directory with a gold badge.
             </p>
           </div>
 
           {isFeatured && (
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+              <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
                 Featured Expiry Date (Optional)
               </label>
               <input
                 type="date"
                 value={featuredUntil}
                 onChange={(e) => setFeaturedUntil(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
               />
-              <p className="text-[11px] text-zinc-400 mt-1">
+              <p className="text-[11px] text-muted-foreground mt-1">
                 Leave blank for continuous featured placement until manually removed.
               </p>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+            <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
               Reason / Justification
             </label>
             <input
@@ -153,23 +153,23 @@ export function RankingModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Featured partner promotion for Q4"
-              className="w-full rounded-xl border border-zinc-200 bg-white p-2.5 text-xs text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+              className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-gold/15">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300"
+              className="rounded-xl border border-gold/30 bg-parchment/50 px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 dark:bg-plum/40 dark:text-champagne transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
             >
               {loading ? "Saving..." : "Save Ranking"}
             </button>
