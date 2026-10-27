@@ -31,6 +31,35 @@ function NewEnquiryContent() {
   const [priority, setPriority] = useState("medium");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasProfileBirthData, setHasProfileBirthData] = useState(false);
+  const [savedBirthString, setSavedBirthString] = useState("");
+
+  // Check saved profile for birth details
+  React.useEffect(() => {
+    async function loadSavedBirth() {
+      try {
+        const { getCustomerFullProfile } = await import("@/app/actions/customer");
+        const res = await getCustomerFullProfile();
+        if (res.success && res.data) {
+          const p = res.data;
+          if (p.date_of_birth || p.birthplace) {
+            setHasProfileBirthData(true);
+            const summary = `[Saved Birth Details - DOB: ${p.date_of_birth || "N/A"}, TOB: ${p.time_of_birth || "N/A"}, Birthplace: ${p.birthplace || "N/A"}]`;
+            setSavedBirthString(summary);
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+    loadSavedBirth();
+  }, []);
+
+  function handleAttachBirthDetails() {
+    if (savedBirthString && !message.includes(savedBirthString)) {
+      setMessage((prev) => (prev ? `${prev}\n\n${savedBirthString}` : savedBirthString));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -171,9 +200,20 @@ function NewEnquiryContent() {
           </div>
 
           <div>
-            <label htmlFor="message" className="block text-xs font-semibold uppercase tracking-wide text-ink/80 mb-1.5">
-              Your Details & Context
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="message" className="block text-xs font-semibold uppercase tracking-wide text-ink/80">
+                Your Details & Context
+              </label>
+              {hasProfileBirthData && (
+                <button
+                  type="button"
+                  onClick={handleAttachBirthDetails}
+                  className="text-[11px] font-semibold text-gold-deep hover:text-gold flex items-center gap-1 transition-colors"
+                >
+                  <Sparkles className="h-3 w-3" /> Auto-attach Saved Kundli Details
+                </button>
+              )}
+            </div>
             <textarea
               id="message"
               required

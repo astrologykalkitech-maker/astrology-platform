@@ -3,11 +3,7 @@ import Link from "next/link";
 import {
   Plus,
   ClipboardList,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
   ArrowRight,
-  MessageSquare,
 } from "lucide-react";
 import { getCustomerEnquiries } from "@/app/actions/customer";
 import { formatExactDateTime } from "@/lib/astrologer/format";
@@ -18,6 +14,11 @@ export const dynamic = "force-dynamic";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
+
+// For the data table card we need overflow-x-auto at the card level, not overflow-hidden,
+// otherwise the inner scroll container gets clipped and the Actions column disappears.
+const CARD_TABLE =
+  "relative overflow-x-auto rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function EnquiriesPage() {
   const result = await getCustomerEnquiries();
@@ -73,7 +74,7 @@ export default async function EnquiriesPage() {
           </Link>
         </div>
       ) : (
-        <div className={`${CARD} overflow-hidden p-0`}>
+        <div className={`${CARD_TABLE} p-0`}>
           {/* Mobile Card Reflow (screens < md) */}
           <div className="divide-y divide-gold/10 md:hidden">
             {enquiries.map((item) => {
@@ -116,11 +117,19 @@ export default async function EnquiriesPage() {
                   <p className="text-xs text-ink/75 line-clamp-2">
                     {item.message}
                   </p>
-                  <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-gold/10">
+                  <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-gold/10">
                     <span className="truncate max-w-[60%]">
                       <strong className="text-midnight/80">With:</strong> {item.astrologer_name || "Platform Pool"}
                     </span>
                     <span>{displayDate}</span>
+                  </div>
+                  <div className="pt-1 flex justify-end">
+                    <Link
+                      href={`/customer/enquiries/${item.id}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-gold-deep hover:text-gold"
+                    >
+                      View Guidance & Predictions <ArrowRight className="h-3 w-3" />
+                    </Link>
                   </div>
                 </div>
               );
@@ -128,15 +137,16 @@ export default async function EnquiriesPage() {
           </div>
 
           {/* Desktop Table View (screens >= md) */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="hidden md:block">
+            <table className="w-full min-w-0 text-left text-sm">
               <thead>
                 <tr className="border-b border-gold/20 bg-parchment/40 text-xs font-semibold uppercase tracking-wider text-muted">
-                  <th className="py-3.5 px-4">Subject</th>
-                  <th className="py-3.5 px-4">Message Preview</th>
-                  <th className="py-3.5 px-4">Assigned Astrologer</th>
-                  <th className="py-3.5 px-4">Submitted Date</th>
-                  <th className="py-3.5 px-4 text-right">Status</th>
+                  <th className="py-3.5 px-4 min-w-0">Subject</th>
+                  <th className="py-3.5 px-4 min-w-0">Message Preview</th>
+                  <th className="py-3.5 px-4 min-w-0">Assigned Astrologer</th>
+                  <th className="py-3.5 px-4 min-w-0">Submitted Date</th>
+                  <th className="py-3.5 px-4 text-center min-w-0">Status</th>
+                  <th className="py-3.5 px-4 text-right min-w-0">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gold/10">
@@ -167,10 +177,10 @@ export default async function EnquiriesPage() {
 
                   return (
                     <tr key={item.id} className="hover:bg-parchment/30 transition-colors">
-                      <td className="py-4 px-4 font-semibold text-midnight max-w-[220px]">
+                      <td className="py-4 px-4 font-semibold text-midnight">
                         {item.subject}
                       </td>
-                      <td className="py-4 px-4 text-ink/75 max-w-[320px] truncate">
+                      <td className="py-4 px-4 text-ink/75 max-w-[280px] truncate">
                         {item.message}
                       </td>
                       <td className="py-4 px-4 text-ink font-medium">
@@ -179,12 +189,20 @@ export default async function EnquiriesPage() {
                       <td className="py-4 px-4 text-xs text-muted whitespace-nowrap">
                         {displayDate}
                       </td>
-                      <td className="py-4 px-4 text-right">
+                      <td className="py-4 px-4 text-center">
                         <span
                           className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${statusBadge}`}
                         >
                           {displayStatus}
                         </span>
+                      </td>
+                      <td className="py-4 px-4 text-right whitespace-nowrap">
+                        <Link
+                          href={`/customer/enquiries/${item.id}`}
+                          className={buttonStyles({ variant: "outline", size: "sm" })}
+                        >
+                          View Guidance <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        </Link>
                       </td>
                     </tr>
                   );

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerBottomNav } from "@/components/customer/CustomerBottomNav";
+import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologerSync";
 
 interface CustomerShellProps {
   customerName: string;
@@ -38,6 +39,8 @@ export function CustomerShell({
         Skip to content
       </a>
 
+      <RealtimeAstrologerSync />
+
       <CustomerBottomNav menuOpen={menuOpen} onMore={() => setMenuOpen(true)} />
 
       {menuOpen && (
@@ -67,7 +70,7 @@ export function CustomerShell({
           tabIndex={-1}
           className="flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
         >
-          <div className="rise-in mx-auto w-full max-w-[1200px]">{children}</div>
+          <div className="rise-in mx-auto w-full max-w-[1200px] min-w-0">{children}</div>
         </main>
       </div>
     </div>

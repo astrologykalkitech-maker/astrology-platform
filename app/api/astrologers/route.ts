@@ -96,26 +96,16 @@ export async function GET(request: Request) {
 
     const supabase = await createClient();
 
+    const {
+      AUTHORITATIVE_SAFE_PUBLIC_FIELDS,
+      PUBLIC_VISIBLE_APPROVAL_STATUS,
+      isAstrologerPubliclyVisible,
+    } = await import("@/lib/astrologer/visibility");
+
     let query = supabase
       .from("astrologer_profiles")
-      .select(
-        `
-          id,
-          slug,
-          display_name,
-          bio,
-          experience_years,
-          specializations,
-          languages,
-          city,
-          state,
-          consultation_fee,
-          profile_photo_url,
-          created_at
-        `,
-        { count: "exact" }
-      )
-      .eq("approval_status", "approved");
+      .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS, { count: "exact" })
+      .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS);
 
     if (city) {
       query = query.ilike("city", `%${city}%`);
@@ -155,8 +145,12 @@ export async function GET(request: Request) {
       );
     }
 
+    const filteredData = (data ?? []).filter((item) =>
+      isAstrologerPubliclyVisible(item as unknown as Parameters<typeof isAstrologerPubliclyVisible>[0])
+    );
+
     return Response.json({
-      data: data ?? [],
+      data: filteredData,
       pagination: {
         page,
         limit,

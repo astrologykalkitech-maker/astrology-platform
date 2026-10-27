@@ -192,23 +192,51 @@ export async function getAstrologerAssignedLeadById(
   assignmentId: string
 ): Promise<AstrologerLeadItem | null> {
   try {
+    // 1. Try resolving by assignment id or lead_id
     const { data, error } = await supabase
       .from("lead_assignments")
       .select(NESTED_ASSIGNMENT_SELECT)
-      .eq("id", assignmentId)
       .eq("astrologer_id", astrologerProfileId)
+      .or(`id.eq.${assignmentId},lead_id.eq.${assignmentId}`)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to fetch assigned lead: ${error.message}`);
     }
 
-    if (!data) {
-      return null;
+    if (data) {
+      return mapRawAssignmentToLeadItem(data as unknown as RawAssignmentRow);
     }
 
-    return mapRawAssignmentToLeadItem(data as unknown as RawAssignmentRow);
+    // 2. Self-healing fallback: Check if a direct lead exists with id = assignmentId
+    const { data: directLead } = await supabase
+      .from("leads")
+      .select("id, status, created_at")
+      .eq("id", assignmentId)
+      .eq("astrologer_id", astrologerProfileId)
+      .maybeSingle();
+
+    if (directLead) {
+      const { data: newAssignment } = await supabase
+        .from("lead_assignments")
+        .insert({
+          lead_id: directLead.id,
+          astrologer_id: astrologerProfileId,
+          status: directLead.status === "closed" ? "closed" : directLead.status === "contacted" ? "contacted" : "assigned",
+        })
+        .select(NESTED_ASSIGNMENT_SELECT)
+        .single();
+
+      if (newAssignment) {
+        return mapRawAssignmentToLeadItem(newAssignment as unknown as RawAssignmentRow);
+      }
+    }
+
+    return null;
   } catch (err) {
     throw err;
   }
 }
+

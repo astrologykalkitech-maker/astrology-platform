@@ -26,6 +26,12 @@ export interface PlatformOverviewMetrics {
   suspendedListings: number;
   totalListings: number;
   activeConsultants: number;
+  totalCustomers: number;
+  totalBookings: number;
+  pendingBookings: number;
+  confirmedBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
 }
 
 /**
@@ -36,14 +42,15 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
   try {
     await requireAdminPermission("analytics.read");
 
-    const supabase = await createAdminClient();
+    const dbAdmin = await createAdminClient("admin");
+    const dbMain = await createAdminClient("main");
 
     // Today's start in UTC
     const startOfToday = new Date();
     startOfToday.setUTCHours(0, 0, 0, 0);
     const todayIso = startOfToday.toISOString();
 
-    // 1. Leads queries
+    // 1. Leads queries (query primary customer database)
     const [
       { count: totalLeads },
       { count: leadsToday },
@@ -57,17 +64,17 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       { count: platformLeads },
       { count: directLeads },
     ] = await Promise.all([
-      supabase.from("leads").select("*", { count: "exact", head: true }),
-      supabase.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
-      supabase.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null).not("status", "in", '("closed","converted","invalid")'),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "assigned"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "closed"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "invalid"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("status", "duplicate"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "platform"),
-      supabase.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "direct"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null).not("status", "in", '("closed","converted","invalid")'),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "assigned"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "closed"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "invalid"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "duplicate"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "platform"),
+      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "direct"),
     ]);
 
     // 2. Listings queries
@@ -78,18 +85,54 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       { count: suspendedListings },
       { count: totalListings },
     ] = await Promise.all([
-      supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "pending"),
-      supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "approved"),
-      supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "changes_requested"),
-      supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "suspended"),
-      supabase.from("astrologer_profiles").select("*", { count: "exact", head: true }),
+      dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "pending"),
+      dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "approved"),
+      dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "changes_requested"),
+      dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "suspended"),
+      dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }),
     ]);
 
-    // 3. Active consultants
-    const { count: activeConsultants } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .in("role", ["consultant_admin", "super_admin", "admin"]);
+    // 3. Active consultants (from Admin DB) & registered customers (from Main DB)
+    const [{ count: activeConsultants }, { count: totalCustomersCount }] = await Promise.all([
+      dbAdmin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .in("role", ["consultant_admin", "super_admin", "admin"]),
+      dbMain
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("role", "customer"),
+    ]);
+
+    // 4. Bookings queries (from Main DB customer_bookings)
+    let totalBookings = 0;
+    let pendingBookings = 0;
+    let confirmedBookings = 0;
+    let completedBookings = 0;
+    let cancelledBookings = 0;
+
+    try {
+      const [
+        { count: tBookings },
+        { count: pBookings },
+        { count: cBookings },
+        { count: compBookings },
+        { count: cancBookings },
+      ] = await Promise.all([
+        dbMain.from("customer_bookings").select("*", { count: "exact", head: true }),
+        dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "confirmed"),
+        dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "completed"),
+        dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "cancelled"),
+      ]);
+      totalBookings = tBookings ?? 0;
+      pendingBookings = pBookings ?? 0;
+      confirmedBookings = cBookings ?? 0;
+      completedBookings = compBookings ?? 0;
+      cancelledBookings = cancBookings ?? 0;
+    } catch {
+      // Table may not have records or exist yet
+    }
 
     return {
       success: true,
@@ -111,6 +154,12 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
         suspendedListings: suspendedListings ?? 0,
         totalListings: totalListings ?? 0,
         activeConsultants: activeConsultants ?? 0,
+        totalCustomers: totalCustomersCount ?? 0,
+        totalBookings,
+        pendingBookings,
+        confirmedBookings,
+        completedBookings,
+        cancelledBookings,
       },
     };
   } catch (err) {

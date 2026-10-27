@@ -6,7 +6,6 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentProfile, getCurrentUser, requireAuth } from "@/lib/auth/session";
 import { checkPermission } from "@/lib/auth/permissions";
-import { createClient } from "@/lib/supabase/server";
 import type { AdminPermissionKey, Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
 
@@ -130,12 +129,41 @@ export const ADMIN_LOGIN_PATH = "/astrologer/login";
  * Page-level guard for Owner Super Admin (/super-admin) routes.
  */
 export const requireSuperAdminPage = cache(async (): Promise<AdminAuthContext> => {
-  const user = await getCurrentUser();
+  // Check admin client (DB2) first for admin routes
+  let user: User | null = null;
+  let profile: Profile | null = null;
+
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const adminClient = await createClient("admin");
+    const { data: adminAuthData } = await adminClient.auth.getUser();
+    if (adminAuthData?.user) {
+      user = adminAuthData.user;
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const privileged = await createAdminClient();
+      const { data: adminProf } = await privileged
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (adminProf) {
+        profile = adminProf as Profile;
+      }
+    }
+  } catch {
+    // Continue to standard fallback
+  }
+
+  if (!user || !profile) {
+    user = await getCurrentUser();
+    profile = await getCurrentProfile();
+  }
+
   if (!user) {
     redirect(ADMIN_LOGIN_PATH);
   }
 
-  const profile = await getCurrentProfile();
   if (!profile) {
     redirect(ADMIN_LOGIN_PATH);
   }
@@ -158,12 +186,40 @@ export const requireSuperAdminPage = cache(async (): Promise<AdminAuthContext> =
  * Page-level guard for Consultant Admin (/admin) routes.
  */
 export const requireConsultantAdminPage = cache(async (): Promise<AdminAuthContext> => {
-  const user = await getCurrentUser();
+  let user: User | null = null;
+  let profile: Profile | null = null;
+
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const adminClient = await createClient("admin");
+    const { data: adminAuthData } = await adminClient.auth.getUser();
+    if (adminAuthData?.user) {
+      user = adminAuthData.user;
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const privileged = await createAdminClient();
+      const { data: adminProf } = await privileged
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (adminProf) {
+        profile = adminProf as Profile;
+      }
+    }
+  } catch {
+    // Continue to standard fallback
+  }
+
+  if (!user || !profile) {
+    user = await getCurrentUser();
+    profile = await getCurrentProfile();
+  }
+
   if (!user) {
     redirect(ADMIN_LOGIN_PATH);
   }
 
-  const profile = await getCurrentProfile();
   if (!profile) {
     redirect(ADMIN_LOGIN_PATH);
   }

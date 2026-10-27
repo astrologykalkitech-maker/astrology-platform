@@ -1,0 +1,320 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import {
+  Bell,
+  BellOff,
+  ArrowRight,
+  CheckCheck,
+  Calendar,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+import type { CustomerNotification } from "@/lib/types/database.types";
+import {
+  markNotificationReadAction,
+  getCustomerNotifications,
+  clearAllCustomerNotificationsAction,
+  deleteCustomerNotificationAction,
+  markAllCustomerNotificationsReadAction,
+} from "@/app/actions/customer";
+import { formatExactDateTime } from "@/lib/astrologer/format";
+import { buttonStyles } from "@/components/astrologer/ui/Button";
+
+const CARD =
+  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
+
+interface Props {
+  initialNotifications?: CustomerNotification[];
+}
+
+export default function CustomerNotificationsClient({
+  initialNotifications = [],
+}: Props) {
+  const [notifications, setNotifications] =
+    useState<CustomerNotification[]>(initialNotifications);
+  const [clearing, setClearing] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // On mount: immediately sync the header badge with the real unread count
+  useEffect(() => {
+    const unread = initialNotifications.filter((n) => !n.is_read).length;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: unread },
+        })
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Poll for live incoming customer notifications
+  useEffect(() => {
+    let mounted = true;
+    async function refresh() {
+      try {
+        const res = await getCustomerNotifications();
+        if (mounted && res.success && Array.isArray(res.data)) {
+          setNotifications(res.data);
+          // Keep header badge in sync with live poll results
+          const unread = res.data.filter((n) => !n.is_read).length;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("jyotishsetu:notifications-updated", {
+                detail: { count: unread },
+              })
+            );
+          }
+        }
+      } catch {
+        // Non-blocking poll
+      }
+    }
+
+    const interval = setInterval(refresh, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  function notifyCountChanged(remainingCount?: number) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("jyotishsetu:notifications-updated", {
+          detail: { count: remainingCount },
+        })
+      );
+    }
+  }
+
+  async function handleMarkRead(id: string) {
+    setNotifications((prev) => {
+      const updated = prev.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+      const unread = updated.filter((n) => !n.is_read).length;
+      notifyCountChanged(unread);
+      return updated;
+    });
+    await markNotificationReadAction(id);
+  }
+
+  async function handleMarkAllRead() {
+    setMarkingAll(true);
+    // Optimistic UI update
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
+    );
+    notifyCountChanged(0);
+    try {
+      await markAllCustomerNotificationsReadAction();
+    } catch {
+      // Non-blocking
+    } finally {
+      setMarkingAll(false);
+    }
+  }
+
+  async function handleClearAll() {
+    if (!confirm("Are you sure you want to clear all notifications?")) return;
+    setClearing(true);
+    // Optimistic UI update
+    const previous = [...notifications];
+    setNotifications([]);
+    notifyCountChanged(0);
+    try {
+      const res = await clearAllCustomerNotificationsAction();
+      if (!res.success) {
+        setNotifications(previous);
+        notifyCountChanged(previous.filter((n) => !n.is_read).length);
+        alert(res.error || "Failed to clear notifications.");
+      }
+    } catch {
+      setNotifications(previous);
+      notifyCountChanged(previous.filter((n) => !n.is_read).length);
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  async function handleDeleteNotification(id: string) {
+    setDeletingId(id);
+    setNotifications((prev) => {
+      const updated = prev.filter((n) => n.id !== id);
+      notifyCountChanged(updated.filter((n) => !n.is_read).length);
+      return updated;
+    });
+    try {
+      await deleteCustomerNotificationAction(id);
+    } catch {
+      // Non-blocking
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+
+  if (notifications.length === 0) {
+    return (
+      <div className={`${CARD} py-16 px-6 text-center`}>
+        <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gold/15 text-gold-deep mb-4">
+          <BellOff className="h-8 w-8" />
+        </span>
+        <h2 className="text-lg font-semibold text-midnight">All Caught Up</h2>
+        <p className="text-xs text-muted max-w-md mx-auto mt-1 mb-6">
+          You have no notifications at this time. Updates regarding consultation enquiries, scheduled bookings, and astrologer responses will appear here.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/customer/enquiries"
+            className={buttonStyles({ variant: "gold", size: "sm" })}
+          >
+            View My Enquiries
+          </Link>
+          <Link
+            href="/customer/bookings"
+            className={buttonStyles({ variant: "outline", size: "sm" })}
+          >
+            View My Bookings
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${CARD} p-0 overflow-hidden`}>
+      <div className="p-4 sm:p-5 border-b border-gold/20 bg-parchment/30 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-sm font-semibold text-midnight">
+            Recent Notifications & Activity
+          </h3>
+          {unreadCount > 0 && (
+            <span className="inline-flex items-center rounded-full bg-gold/20 px-2.5 py-0.5 text-xs font-semibold text-gold-deep">
+              {unreadCount} Unread
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              disabled={markingAll}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-midnight/80 hover:text-midnight bg-white/80 hover:bg-white rounded-lg border border-gold/25 transition-colors shadow-sm disabled:opacity-50"
+              title="Mark all notifications as read"
+            >
+              <CheckCheck className="h-3.5 w-3.5 text-gold-deep" />
+              <span>Mark all read</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleClearAll}
+            disabled={clearing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 hover:text-rose-800 bg-rose-50/70 hover:bg-rose-100/70 rounded-lg border border-rose-200 transition-colors shadow-sm disabled:opacity-50"
+            title="Clear all notifications"
+          >
+            {clearing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            <span>Clear all</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="divide-y divide-gold/10">
+        {notifications.map((item) => {
+          const displayDate = formatExactDateTime(item.created_at);
+          const isBooking = item.event_type?.includes("booking");
+
+          return (
+            <div
+              key={item.id}
+              className={`p-4 sm:p-5 flex items-start gap-4 transition-colors ${
+                item.is_read ? "bg-white hover:bg-parchment/20" : "bg-amber-50/40 hover:bg-amber-50/60"
+              }`}
+            >
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  isBooking
+                    ? "bg-emerald/15 text-emerald-800"
+                    : "bg-gold/15 text-gold-deep"
+                }`}
+              >
+                {isBooking ? (
+                  <Calendar className="h-5 w-5" />
+                ) : (
+                  <Bell className="h-5 w-5" />
+                )}
+              </span>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-midnight truncate flex items-center gap-1.5">
+                    {!item.is_read && (
+                      <span className="h-2 w-2 rounded-full bg-gold-deep shrink-0" />
+                    )}
+                    <span>{item.title}</span>
+                  </p>
+                  <span className="text-[11px] text-muted whitespace-nowrap">
+                    {displayDate}
+                  </span>
+                </div>
+                <p className="text-xs text-ink/80 mt-1 leading-relaxed">
+                  {item.message}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {!item.is_read && (
+                  <button
+                    type="button"
+                    onClick={() => handleMarkRead(item.id)}
+                    className="p-1.5 text-muted hover:text-gold-deep rounded-lg hover:bg-gold/10 transition-colors"
+                    title="Mark as read"
+                    aria-label="Mark notification as read"
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                  </button>
+                )}
+                {item.link_url && (
+                  <Link
+                    href={item.link_url}
+                    className="p-1.5 text-muted hover:text-gold-deep rounded-lg hover:bg-gold/10 transition-colors"
+                    title="View details"
+                    aria-label="Navigate to related details"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteNotification(item.id)}
+                  disabled={deletingId === item.id}
+                  className="p-1.5 text-muted hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                  title="Delete notification"
+                  aria-label="Delete notification"
+                >
+                  {deletingId === item.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

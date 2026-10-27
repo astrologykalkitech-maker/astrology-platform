@@ -8,7 +8,7 @@ import { type NextRequest, NextResponse } from "next/server";
 export async function updateSession(
   request: NextRequest
 ): Promise<NextResponse> {
-  let supabaseResponse = NextResponse.next({
+  const supabaseResponse = NextResponse.next({
     request,
   });
 
@@ -27,9 +27,6 @@ export async function updateSession(
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -76,9 +73,6 @@ export async function updateSession(
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );

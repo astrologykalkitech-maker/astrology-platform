@@ -7,7 +7,6 @@ import {
   Sparkles,
   CheckCircle2,
   CalendarCheck2,
-  UserRound,
   ShieldCheck,
   Compass,
   MessageSquarePlus,
@@ -48,12 +47,12 @@ export default async function CustomerDashboard() {
 
   const { profile, stats, recentEnquiries } = result.data;
 
-  // Calculate profile completion dynamically
+  // Calculate profile completion dynamically from authoritative identity and database records
   const profileItems = [
     { label: "Account created", done: true },
     { label: "Display name", done: Boolean(profile.fullName && profile.fullName !== "Customer") },
-    { label: "Email verified", done: Boolean(profile.email) },
-    { label: "First enquiry or booking", done: stats.totalEnquiries > 0 },
+    { label: "Email verified", done: Boolean(profile.emailVerified) },
+    { label: "First enquiry or booking", done: (stats.totalEnquiries + stats.totalBookings) > 0 },
   ];
   const completedCount = profileItems.filter((i) => i.done).length;
   const completionPercent = Math.round((completedCount / profileItems.length) * 100);
@@ -179,25 +178,47 @@ export default async function CustomerDashboard() {
             aria-hidden="true"
             className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-gradient-to-b from-emerald to-teal"
           />
-          <CardTitle id="completion-title">Profile Readiness</CardTitle>
-          <div className="mt-4 flex items-center gap-5 sm:gap-8">
+          <div className="flex items-center justify-between">
+            <CardTitle id="completion-title">Profile & Kundli Readiness</CardTitle>
+            <Link
+              href="/customer/profile"
+              className="text-xs font-semibold text-gold-deep hover:text-gold transition-colors inline-flex items-center gap-1"
+            >
+              Edit Details <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8">
             <CompletionRing percent={completionPercent} />
-            <ul className="space-y-2 text-sm">
-              {profileItems.map((item) => (
-                <li key={item.label} className="flex items-center gap-2.5">
-                  {item.done ? (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald text-white">
-                      <Check className="h-3 w-3" aria-label="Done" />
+            <div className="space-y-3 flex-1">
+              <ul className="space-y-2 text-sm">
+                {profileItems.map((item) => (
+                  <li key={item.label} className="flex items-center gap-2.5">
+                    {item.done ? (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald text-white">
+                        <Check className="h-3 w-3" aria-label="Done" />
+                      </span>
+                    ) : (
+                      <Circle className="h-5 w-5 text-gold/60" aria-label="Missing" />
+                    )}
+                    <span className={item.done ? "text-ink font-medium" : "text-muted"}>
+                      {item.label}
                     </span>
-                  ) : (
-                    <Circle className="h-5 w-5 text-gold/60" aria-label="Missing" />
-                  )}
-                  <span className={item.done ? "text-ink font-medium" : "text-muted"}>
-                    {item.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+              <div>
+                <Link
+                  href="/customer/profile"
+                  className={buttonStyles({
+                    variant: "outline",
+                    size: "sm",
+                    className: "text-xs",
+                  })}
+                >
+                  Complete Kundli Details
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
       </div>

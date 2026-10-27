@@ -25,6 +25,7 @@ import {
   getAstrologerAssignedLeads,
   getAstrologerAssignedLeadById,
 } from "@/lib/astrologer/lead-queries";
+import { createInAppNotification } from "@/lib/notifications";
 
 /**
  * Formats PostgreSQL trigger and RLS errors into clean, friendly error messages.
@@ -63,7 +64,7 @@ export async function getMyAssignedLeads(
 ): Promise<AstrologerLeadsResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user, target } = await requireAstrologer();
+    const { user } = await requireAstrologer();
 
     // 2. Validate filter options
     const filterValidation = validateAstrologerLeadsFilterOptions(rawOptions);
@@ -74,10 +75,10 @@ export async function getMyAssignedLeads(
       };
     }
 
-    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
 
     // 3. Resolve astrologer_profiles ID for current user
-    const { data: profile, error: profError } = await supabase
+    const { data: profile, error: profError } = await admin
       .from("astrologer_profiles")
       .select("id")
       .eq("user_id", user.id)
@@ -96,7 +97,7 @@ export async function getMyAssignedLeads(
 
     // 4. Query assigned leads
     const { leads, totalCount } = await getAstrologerAssignedLeads(
-      supabase,
+      admin,
       profile.id,
       filterValidation.data
     );
@@ -122,7 +123,7 @@ export async function getMyAssignedLeadById(
 ): Promise<AstrologerLeadDetailResult> {
   try {
     // 1. Enforce authentication and astrologer role
-    const { user, target } = await requireAstrologer();
+    const { user } = await requireAstrologer();
 
     // 2. Validate assignment ID
     if (!isValidUUID(rawAssignmentId)) {
@@ -133,10 +134,10 @@ export async function getMyAssignedLeadById(
     }
 
     const assignmentId = (rawAssignmentId as string).trim().toLowerCase();
-    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
 
     // 3. Resolve astrologer_profiles ID
-    const { data: profile, error: profError } = await supabase
+    const { data: profile, error: profError } = await admin
       .from("astrologer_profiles")
       .select("id")
       .eq("user_id", user.id)
@@ -155,10 +156,11 @@ export async function getMyAssignedLeadById(
 
     // 4. Query lead detail verifying ownership
     const leadItem = await getAstrologerAssignedLeadById(
-      supabase,
+      admin,
       profile.id,
       assignmentId
     );
+
 
     if (!leadItem) {
       return {
@@ -280,6 +282,29 @@ export async function updateAssignmentStatus(
             .from("leads")
             .update({ status: targetLeadStatus })
             .eq("id", leadId);
+
+          if (targetStatus === "closed") {
+            try {
+              const { data: leadCustomer } = await db1Client
+                .from("leads")
+                .select("customer_id, subject")
+                .eq("id", leadId)
+                .maybeSingle();
+
+              if (leadCustomer?.customer_id) {
+                await createInAppNotification({
+                  recipientUserId: leadCustomer.customer_id,
+                  title: "Consultation Query Concluded",
+                  message: `Your consultation "${leadCustomer.subject.slice(0, 40)}" has been completed and closed by the astrologer.`,
+                  linkUrl: `/customer/enquiries/${leadId}`,
+                  eventType: "lead_closed",
+                  metadata: { lead_id: leadId },
+                });
+              }
+            } catch {
+              // Non-blocking notification
+            }
+          }
         } catch (db1Err) {
           console.error("[updateAssignmentStatus] DB1 lead sync error:", db1Err);
         }
@@ -332,8 +357,11 @@ export async function updateAssignmentStatus(
     }
 
     // 8. Revalidate customer, astrologer, and admin paths so all dashboards update immediately
+    revalidatePath(`/customer/enquiries/${existing.lead.id}`, "page");
+    revalidatePath(`/astrologer/leads/${existing.lead.id}`, "page");
     revalidatePath("/customer", "page");
     revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/customer/notification", "page");
     revalidatePath("/astrologer/leads", "page");
     revalidatePath("/astrologer/dashboard", "page");
     revalidatePath("/super-admin", "page");
@@ -358,3 +386,184 @@ export async function updateAssignmentStatus(
     };
   }
 }
+
+/**
+ * Loads messages for an assigned lead in the astrologer workspace.
+ */
+export async function getAstrologerLeadMessages(leadId: string) {
+  try {
+    const { user } = await requireAstrologer();
+    const cleanLeadId = (leadId || "").trim().toLowerCase();
+    const admin = await createAdminClient("main");
+
+    // Verify astrologer profile exists
+    const { data: profile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!profile) {
+      return { success: false, error: "Astrologer profile not found." };
+    }
+
+    // Verify access either by assignment or direct lead match
+    const { data: assignment } = await admin
+      .from("lead_assignments")
+      .select("id, lead_id")
+      .or(`lead_id.eq.${cleanLeadId},id.eq.${cleanLeadId}`)
+      .eq("astrologer_id", profile.id)
+      .maybeSingle();
+
+    let resolvedActualLeadId = assignment?.lead_id || cleanLeadId;
+    let hasAccess = Boolean(assignment);
+
+    if (!hasAccess) {
+      const { data: directLead } = await admin
+        .from("leads")
+        .select("id")
+        .eq("id", cleanLeadId)
+        .eq("astrologer_id", profile.id)
+        .maybeSingle();
+      if (directLead) {
+        hasAccess = true;
+        resolvedActualLeadId = directLead.id;
+      }
+    }
+
+    if (!hasAccess) {
+      return { success: false, error: "Access denied to this lead." };
+    }
+
+    const { data: messages, error } = await admin
+      .from("consultation_messages")
+      .select("*")
+      .eq("lead_id", resolvedActualLeadId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data: messages || [] };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load messages.",
+    };
+  }
+}
+
+/**
+ * Sends a written reply or official prediction from the assigned astrologer.
+ */
+export async function sendAstrologerPredictionAction(payload: {
+  leadId: string;
+  message: string;
+  predictionTitle?: string;
+  isOfficialPrediction?: boolean;
+}) {
+  try {
+    const { user } = await requireAstrologer();
+    const cleanLeadId = (payload.leadId || "").trim().toLowerCase();
+    const admin = await createAdminClient("main");
+
+    const { data: profile } = await admin
+      .from("astrologer_profiles")
+      .select("id, display_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!profile) {
+      return { success: false, error: "Astrologer profile not found." };
+    }
+
+    // Verify assignment or direct lead
+    const { data: assignment } = await admin
+      .from("lead_assignments")
+      .select("id, lead_id")
+      .or(`lead_id.eq.${cleanLeadId},id.eq.${cleanLeadId}`)
+      .eq("astrologer_id", profile.id)
+      .maybeSingle();
+
+    let resolvedActualLeadId = assignment?.lead_id || cleanLeadId;
+    let hasAccess = Boolean(assignment);
+
+    if (!hasAccess) {
+      const { data: directLead } = await admin
+        .from("leads")
+        .select("id")
+        .eq("id", cleanLeadId)
+        .eq("astrologer_id", profile.id)
+        .maybeSingle();
+      if (directLead) {
+        hasAccess = true;
+        resolvedActualLeadId = directLead.id;
+      }
+    }
+
+    if (!hasAccess) {
+      return { success: false, error: "You are not assigned to this consultation." };
+    }
+
+    // Insert prediction / message into consultation_messages using privileged admin client
+    const { data: inserted, error } = await admin
+      .from("consultation_messages")
+      .insert({
+        lead_id: resolvedActualLeadId,
+        sender_id: user.id,
+        sender_role: "astrologer",
+        message: payload.message.trim(),
+        prediction_title: payload.predictionTitle?.trim() || null,
+        is_official_prediction: Boolean(payload.isOfficialPrediction),
+      })
+      .select("*")
+      .single();
+
+    if (error || !inserted) {
+      return { success: false, error: error?.message || "Failed to post prediction." };
+    }
+
+    // Notify the customer reliably using service role client
+    try {
+      const { data: lead } = await admin
+        .from("leads")
+        .select("customer_id, subject")
+        .eq("id", resolvedActualLeadId)
+        .maybeSingle();
+
+      if (lead?.customer_id) {
+        await createInAppNotification({
+          recipientUserId: lead.customer_id,
+          title: payload.isOfficialPrediction
+            ? "Astrological Prediction Received"
+            : "New Message from Astrologer",
+          message: `${profile.display_name} has provided written guidance: "${lead.subject.slice(0, 40)}"`,
+          linkUrl: `/customer/enquiries/${resolvedActualLeadId}`,
+          eventType: "consultation_message",
+          metadata: { lead_id: resolvedActualLeadId, astrologer_id: profile.id },
+        });
+      }
+    } catch (notifErr) {
+      console.error("[sendAstrologerPredictionAction Notification Warning]", notifErr);
+    }
+
+    revalidatePath(`/astrologer/leads/${cleanLeadId}`, "page");
+    revalidatePath(`/astrologer/leads/${resolvedActualLeadId}`, "page");
+    revalidatePath("/astrologer/leads", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath(`/customer/enquiries/${resolvedActualLeadId}`, "page");
+    revalidatePath("/customer/enquiries", "page");
+    revalidatePath("/customer/notification", "page");
+    revalidatePath("/customer", "page");
+
+    return { success: true, data: inserted };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to send prediction.",
+    };
+  }
+}
+
+

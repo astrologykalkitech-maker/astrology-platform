@@ -40,32 +40,39 @@ export default function ConsultantListingsReviewPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-            <Users2 className="h-6 w-6 text-gold" />
-            Applicant Listing Reviews
-          </h1>
-          <p className="text-xs text-zinc-500">
-            Authorized listing review workspace. Review profile completeness and request corrections.
-          </p>
+    <div className="space-y-6 rise-in">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-gold/30 bg-gradient-to-r from-midnight via-plum to-midnight p-6 text-white shadow-xl">
+        <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-gold/10 blur-2xl pointer-events-none" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/15 px-3 py-0.5 text-[11px] font-semibold text-champagne backdrop-blur-sm mb-2">
+              <Users2 className="h-3.5 w-3.5 text-gold" />
+              <span>Listing Verification Queue</span>
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-ivory">
+              Applicant Listing Reviews
+            </h1>
+            <p className="text-xs text-parchment/80 mt-1 max-w-xl">
+              Authorized listing review workspace. Review profile completeness, credentials, and request applicant revisions.
+            </p>
+          </div>
+          <button
+            onClick={loadListings}
+            type="button"
+            disabled={loading}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-gold/30 bg-midnight/80 px-4 py-2 text-xs font-semibold text-champagne shadow-sm hover:bg-gold/20 hover:border-gold transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-gold" : "text-gold"}`} />
+            Refresh Applications
+          </button>
         </div>
-        <button
-          onClick={loadListings}
-          type="button"
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 self-start rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh Applications
-        </button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="overflow-hidden rounded-2xl border border-gold/25 bg-white/95 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-zinc-100 bg-zinc-50/75 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">
+            <thead className="border-b border-gold/20 bg-parchment/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-midnight/90">
               <tr>
                 <th className="px-4 py-3">Applicant Name</th>
                 <th className="px-4 py-3">Experience & Location</th>
@@ -74,17 +81,17 @@ export default function ConsultantListingsReviewPage() {
                 <th className="px-4 py-3 text-right">Review Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className="divide-y divide-gold/10">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-zinc-400">
-                    <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                    <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-gold" />
                     Loading applications...
                   </td>
                 </tr>
               ) : listings.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-zinc-400">
+                  <td colSpan={5} className="py-12 text-center text-muted-foreground font-medium">
                     No pending listing applications awaiting review.
                   </td>
                 </tr>
@@ -92,25 +99,25 @@ export default function ConsultantListingsReviewPage() {
                 listings.map((item) => (
                   <tr
                     key={item.id}
-                    className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors"
+                    className="hover:bg-gold/5 dark:hover:bg-plum/30 transition-colors"
                   >
-                    <td className="px-4 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                    <td className="px-4 py-3 font-semibold text-midnight dark:text-ivory">
                       {item.display_name}
-                      <span className="block text-[11px] font-normal text-zinc-400">
+                      <span className="block text-[11px] font-normal text-muted-foreground font-mono">
                         slug: /{item.slug ?? "none"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div>{item.experience_years ?? 0} yrs exp</div>
-                      <div className="text-[11px] text-zinc-400">
+                      <div className="font-medium text-midnight dark:text-ivory">{item.experience_years ?? 0} yrs exp</div>
+                      <div className="text-[11px] text-muted-foreground">
                         {item.city ? `${item.city}, ${item.state ?? ""}` : "Unlisted"}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400 max-w-xs truncate">
+                    <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">
                       {(item.specializations ?? []).join(", ") || "General Astrology"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase">
                         {item.approval_status}
                       </span>
                     </td>
@@ -121,7 +128,7 @@ export default function ConsultantListingsReviewPage() {
                           setSelectedListing(item);
                           setIsModalOpen(true);
                         }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                        className="inline-flex items-center gap-1 rounded-xl border border-gold/30 bg-parchment/40 px-3 py-1 text-[11px] font-semibold text-midnight hover:bg-gold/15 dark:bg-plum/40 dark:text-champagne transition-all"
                       >
                         Review Application
                       </button>

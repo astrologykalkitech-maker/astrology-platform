@@ -18,7 +18,7 @@ import { Logo } from "@/components/astrologer/Logo";
 import { Ornament } from "@/components/astrologer/ui/Ornament";
 
 export type AuthRole = "astrologer" | "customer";
-type Mode = "login" | "signup";
+type Mode = "login" | "signup" | "forgot-password" | "reset-password";
 type Feature = { label: string; icon: LucideIcon };
 type Content = { eyebrow?: string; heading: string[]; description: string; features: Feature[] };
 
@@ -45,6 +45,26 @@ const CONTENT: Record<AuthRole, Record<Mode, Content>> = {
         { label: "Showcase Your Expertise", icon: Sparkles },
       ],
     },
+    "forgot-password": {
+      eyebrow: "Account Recovery",
+      heading: ["Reset Your", "Astrologer Access"],
+      description: "Recover access to your astrologer dashboard securely with an email verification link.",
+      features: [
+        { label: "Secure Recovery Link", icon: Sparkles },
+        { label: "Instant Access Restoration", icon: Award },
+        { label: "Protected Consultation Data", icon: BadgeCheck },
+      ],
+    },
+    "reset-password": {
+      eyebrow: "Security Update",
+      heading: ["Set Your New", "Secret Password"],
+      description: "Choose a fresh password to secure your astrologer profile and consultations.",
+      features: [
+        { label: "Enhanced Account Security", icon: Sparkles },
+        { label: "End-to-End Encryption", icon: Award },
+        { label: "Single Sign-on Integrity", icon: BadgeCheck },
+      ],
+    },
   },
   customer: {
     login: {
@@ -65,6 +85,26 @@ const CONTENT: Record<AuthRole, Record<Mode, Content>> = {
         { label: "Approved Astrologers", icon: BadgeCheck },
         { label: "Simple Enquiries", icon: Send },
         { label: "Choose by Specialty and Language", icon: Languages },
+      ],
+    },
+    "forgot-password": {
+      eyebrow: "Account Recovery",
+      heading: ["Recover Your", "Seeker Account"],
+      description: "Recover your customer account and access to your astrological consultations.",
+      features: [
+        { label: "Instant Password Reset", icon: Sparkles },
+        { label: "Safe Booking Records", icon: BadgeCheck },
+        { label: "Private Horoscope Consultations", icon: Send },
+      ],
+    },
+    "reset-password": {
+      eyebrow: "Security Update",
+      heading: ["Set Your New", "Secret Password"],
+      description: "Update your password to keep your bookings and consultations protected.",
+      features: [
+        { label: "Enhanced Account Security", icon: Sparkles },
+        { label: "Protected Booking History", icon: BadgeCheck },
+        { label: "Confidential Birth Data", icon: Send },
       ],
     },
   },
@@ -175,8 +215,8 @@ export function AuthShell({
 
           <div className="rise-in relative overflow-hidden rounded-2xl bg-ivory p-5 text-ink shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)] ring-1 ring-gold/40 sm:p-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-gold to-transparent" />
-            <RoleSwitch role={role} mode={mode} />
-            <ModeTabs role={role} mode={mode} />
+            <RoleSwitch role={role} mode={mode === "signup" ? "signup" : "login"} />
+            {(mode === "login" || mode === "signup") && <ModeTabs role={role} mode={mode} />}
             <div className="mt-4">{children}</div>
           </div>
         </section>

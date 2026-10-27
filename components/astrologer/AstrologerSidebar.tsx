@@ -7,12 +7,16 @@ import {
   CalendarClock,
   LayoutDashboard,
   MessageSquareText,
-  Settings,
   SquarePen,
   Star,
   UserRound,
   Wallet,
+  Bell,
+  LifeBuoy,
   X,
+  MessageSquare,
+  HelpCircle,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
@@ -29,15 +33,30 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
   { href: "/astrologer/leads", label: "My Leads", icon: MessageSquareText },
+  { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
+  { href: "/astrologer/reviews", label: "Reviews", icon: Star },
+  { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
+  { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
+  { href: "/astrologer/support", label: "Support", icon: LifeBuoy },
   { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
 ];
 
-// Shown in the reference design but not supported by the backend yet.
-const COMING_SOON: { label: string; icon: LucideIcon }[] = [
-  { label: "Availability", icon: CalendarClock },
-  { label: "Reviews", icon: Star },
-  { label: "Earnings", icon: Wallet },
-  { label: "Settings", icon: Settings },
+const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
+  {
+    label: "Live Chat",
+    icon: MessageSquare,
+    desc: "Instant one-on-one live messaging with clients launching soon.",
+  },
+  {
+    label: "Kundli Matching",
+    icon: HelpCircle,
+    desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon.",
+  },
+  {
+    label: "Protection Rituals",
+    icon: ShieldCheck,
+    desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon.",
+  },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -62,24 +81,24 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
     >
       <Image
         src="/images/jyotishsetu/sidebar-palace-art.webp"
-        alt=""
+        alt="JyotishSetu Palace Art"
         fill
         priority
         sizes="288px"
         aria-hidden="true"
         className="pointer-events-none object-cover object-top"
       />
-      {/* Darken the middle so navigation text stays readable; keep the sage and wheel visible at the bottom. */}
+      {/* Dark gradient mask for clear readability matching CustomerSidebar */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(21,16,39,0) 22%, rgba(21,16,39,0.8) 33%, rgba(21,16,39,0.8) 80%, rgba(21,16,39,0.2) 90%, rgba(21,16,39,0) 100%)",
+            "linear-gradient(to bottom, rgba(21,16,39,0.1) 18%, rgba(21,16,39,0.85) 30%, rgba(21,16,39,0.92) 80%, rgba(21,16,39,0.4) 92%, rgba(21,16,39,0.1) 100%)",
         }}
       />
 
-      {/* The logo is painted into the artwork, so this link sits invisibly over it. */}
+      {/* Brand logo click overlay */}
       <Link
         href="/astrologer/dashboard"
         onClick={onNavigate}
@@ -87,6 +106,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
       >
         <span className="sr-only">JyotishSetu Astrologer Portal, go to dashboard</span>
       </Link>
+
       <button
         type="button"
         onClick={onClose}
@@ -97,7 +117,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
       </button>
 
       <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5">
-        <nav aria-label="Astrologer portal" className="flex flex-col gap-1">
+        <nav aria-label="Astrologer portal navigation" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item);
             const Icon = item.icon;
@@ -114,7 +134,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
                     : "text-ivory/75 hover:translate-x-0.5 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                 {item.label}
               </Link>
             );

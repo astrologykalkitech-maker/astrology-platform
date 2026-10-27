@@ -57,12 +57,14 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
 
       // Route users to their appropriate dashboard based on their role
       if (result.data.role === "super_admin" || result.data.role === "admin") {
-        window.location.href = "/super-admin";
+        router.replace("/super-admin");
+        router.refresh();
         return;
       }
 
       if (result.data.role === "consultant_admin") {
-        window.location.href = "/admin";
+        router.replace("/admin");
+        router.refresh();
         return;
       }
 
@@ -113,6 +115,15 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
           error={errors.password}
           disabled={isPending}
         />
+
+        <div className="flex justify-end">
+          <Link
+            href={`/${role}/forgot-password`}
+            className="text-xs font-semibold text-gold-deep hover:text-midnight hover:underline focus-visible:outline-2 focus-visible:outline-gold"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <Button type="submit" size="lg" fullWidth loading={isPending}>
           {isPending ? "Logging in…" : "Log in"}

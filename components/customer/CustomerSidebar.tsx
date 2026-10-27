@@ -5,15 +5,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  User,
   Sparkles,
   ClipboardList,
   CalendarCheck2,
+  Receipt,
   Gift,
   Bell,
   X,
   MessageSquare,
   HelpCircle,
   ShieldCheck,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
@@ -28,16 +31,21 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/customer", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/customer/profile", label: "My Kundli Profile", icon: User },
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
+  { href: "/customer/billing", label: "Billing & Receipts", icon: Receipt },
+  { href: "/customer/notification", label: "Notifications", icon: Bell },
+  { href: "/customer/offers", label: "Special Offers", icon: Gift },
+  { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
 ];
 
-const COMING_SOON: { label: string; icon: LucideIcon }[] = [
-  { label: "Offers & Rewards", icon: Gift },
-  { label: "Live Chat", icon: MessageSquare },
-  { label: "Kundli Matching", icon: HelpCircle },
-  { label: "Protection Rituals", icon: ShieldCheck },
+
+const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
+  { label: "Live Chat", icon: MessageSquare, desc: "Instant one-on-one live messaging with verified Vedic pandits launching in Phase 2." },
+  { label: "Kundli Matching", icon: HelpCircle, desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon." },
+  { label: "Protection Rituals", icon: ShieldCheck, desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon." },
 ];
 
 function isActive(pathname: string, item: NavItem) {

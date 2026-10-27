@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
+import { getCustomerBookings } from "@/app/actions/customer";
 import CustomerBookingsClient from "./CustomerBookingsClient";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 export default async function BookingsPage() {
   await requireCustomerPage();
+  const res = await getCustomerBookings();
+  const initialBookings = res.success && res.data ? res.data : [];
 
   return (
     <div className="space-y-5">
@@ -28,7 +31,7 @@ export default async function BookingsPage() {
         </div>
       </div>
 
-      <CustomerBookingsClient />
+      <CustomerBookingsClient initialBookings={initialBookings} />
     </div>
   );
 }

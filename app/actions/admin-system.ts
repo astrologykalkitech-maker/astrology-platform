@@ -157,3 +157,6 @@ export async function updatePlatformSetting(
     };
   }
 }
+
+export const getPlatformSystemSettings = getPlatformSettings;
+export const updatePlatformSystemSetting = updatePlatformSetting;

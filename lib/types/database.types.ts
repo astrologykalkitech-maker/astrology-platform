@@ -181,3 +181,170 @@ export interface PlatformSetting {
   updated_by: string | null;
   updated_at: string;
 }
+
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "cancelled"
+  | "completed"
+  | "no_show";
+
+export type ConsultationMode = "Chat" | "Call" | "Video";
+
+export interface CustomerBooking {
+  id: string;
+  customer_id: string;
+  customer_name?: string;
+  astrologer_id: string;
+  astrologer_name?: string;
+  service_type: string;
+  consultation_mode: ConsultationMode;
+  scheduled_at: string;
+  duration_minutes: number;
+  status: BookingStatus;
+  price: number;
+  notes: string | null;
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerNotification {
+  id: string;
+  customer_id: string;
+  title: string;
+  message: string;
+  link_url: string | null;
+  event_type: string;
+  is_read: boolean;
+  read_at: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ConsultationMessage {
+  id: string;
+  lead_id: string;
+  sender_id: string;
+  sender_name?: string;
+  sender_role: "customer" | "astrologer" | "admin";
+  message: string;
+  prediction_title?: string | null;
+  is_official_prediction: boolean;
+  attachments?: unknown[];
+  created_at: string;
+}
+
+export interface CustomerFullProfile {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  date_of_birth: string | null;
+  time_of_birth: string | null;
+  birthplace: string | null;
+  gender: "male" | "female" | "other" | "prefer_not_to_say" | null;
+  avatar_url: string | null;
+  emailVerified: boolean;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsultationReview {
+  id: string;
+  lead_id: string;
+  customer_id: string;
+  astrologer_id: string;
+  rating: number;
+  review_text: string | null;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerBillingRecord {
+  id: string;
+  booking_id: string;
+  service_type: string;
+  consultation_mode: ConsultationMode;
+  astrologer_name: string;
+  amount: number;
+  currency: string;
+  payment_status: "paid" | "pending" | "complimentary";
+  transaction_ref: string;
+  created_at: string;
+}
+
+// =====================================================
+// SUPPORT & AI CUSTOMER CARE TYPES
+// =====================================================
+
+export type SupportTicketCategory =
+  | "account"
+  | "profile"
+  | "booking"
+  | "consultation"
+  | "leads"
+  | "billing"
+  | "technical"
+  | "general";
+
+export type SupportTicketStatus =
+  | "new"
+  | "open"
+  | "waiting_for_user"
+  | "waiting_for_support"
+  | "escalated"
+  | "resolved"
+  | "closed";
+
+export type SupportTicketPriority = "low" | "medium" | "high" | "urgent";
+
+export interface SupportTicket {
+  id: string;
+  ticket_number: string;
+  user_id: string;
+  user_role: "customer" | "astrologer";
+  user_name: string;
+  user_email: string | null;
+  subject: string;
+  category: SupportTicketCategory;
+  status: SupportTicketStatus;
+  priority: SupportTicketPriority;
+  assigned_to: string | null;
+  assigned_to_name?: string | null;
+  escalation_reason: string | null;
+  ai_summary: string | null;
+  resolution_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  messages_count?: number;
+  last_message?: string | null;
+  last_message_at?: string | null;
+  last_message_by?: "customer" | "astrologer" | "ai" | "admin" | "system" | null;
+}
+
+export interface SupportMessage {
+  id: string;
+  ticket_id: string;
+  sender_id: string | null;
+  sender_role: "customer" | "astrologer" | "ai" | "admin" | "system";
+  sender_name: string;
+  message: string;
+  is_internal: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SupportTicketEvent {
+  id: string;
+  ticket_id: string;
+  actor_id: string | null;
+  actor_role: string;
+  action: string;
+  details?: Record<string, unknown>;
+  created_at: string;
+}

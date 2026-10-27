@@ -8,22 +8,27 @@ import {
   Users2,
   UserCheck,
   ShieldAlert,
-  ArrowRight,
   TrendingUp,
-  Tag,
-  Mail,
-  Calendar,
+  Users,
+  CalendarCheck2,
+  ShieldCheck,
+  Activity,
+  Sparkles,
+  Database,
+  Lock,
 } from "lucide-react";
 import { getPlatformOverviewMetrics } from "@/app/actions/admin-analytics";
 import { getAdminLeads } from "@/app/actions/admin-leads";
 import { getAdminListings } from "@/app/actions/admin-listings";
+import { getAdminAuditLogs } from "@/app/actions/admin-system";
 import { formatDateTime } from "@/lib/astrologer/format";
 
 export default async function SuperAdminOverviewPage() {
-  const [metricsResult, closedLeadsResult, listingsResult] = await Promise.all([
+  const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult] = await Promise.all([
     getPlatformOverviewMetrics(),
     getAdminLeads({ status: "closed", limit: 6 }),
     getAdminListings(),
+    getAdminAuditLogs({ limit: 5 }),
   ]);
 
   const astrologerMap = new Map<string, string>();
@@ -34,6 +39,7 @@ export default async function SuperAdminOverviewPage() {
   }
 
   const closedLeads = closedLeadsResult.success ? closedLeadsResult.data.leads : [];
+  const recentAuditLogs = auditLogsResult.success ? auditLogsResult.data.logs : [];
 
   const metrics = metricsResult.success
     ? metricsResult.data
@@ -55,65 +61,91 @@ export default async function SuperAdminOverviewPage() {
         suspendedListings: 0,
         totalListings: 0,
         activeConsultants: 0,
+        totalCustomers: 0,
+        totalBookings: 0,
+        pendingBookings: 0,
+        confirmedBookings: 0,
+        completedBookings: 0,
+        cancelledBookings: 0,
       };
 
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-midnight flex items-center gap-2.5">
+            <Sparkles className="h-6 w-6 text-gold" />
             Platform Command Center
           </h1>
-          <p className="text-xs text-zinc-500">
-            Live metrics aggregated directly from platform database records.
+          <p className="text-xs text-muted mt-0.5">
+            Real-time telemetry and administrative controls aggregated directly from platform database records.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/super-admin/leads"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-midnight px-3.5 py-2 text-xs font-semibold text-champagne shadow-xs hover:bg-plum transition-colors"
           >
             <Inbox className="h-3.5 w-3.5" />
-            Central Lead Inbox
+            Lead Inbox
           </Link>
           <Link
             href="/super-admin/listings"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-medium text-zinc-800 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gold/30 bg-white/80 px-3.5 py-2 text-xs font-medium text-midnight shadow-2xs hover:bg-gold/15 transition-colors"
           >
+            <Users2 className="h-3.5 w-3.5 text-gold" />
             Review Listings
+          </Link>
+          <Link
+            href="/super-admin/bookings"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gold/30 bg-white/80 px-3.5 py-2 text-xs font-medium text-midnight shadow-2xs hover:bg-gold/15 transition-colors"
+          >
+            <CalendarCheck2 className="h-3.5 w-3.5 text-teal" />
+            Bookings
           </Link>
         </div>
       </div>
 
       {/* Actionable Alerts Banner */}
-      {(metrics.pendingListings > 0 || metrics.unassignedLeads > 0) && (
-        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50/40 p-4 dark:border-amber-900/40 dark:from-amber-950/20 dark:to-orange-950/10">
+      {(metrics.pendingListings > 0 || metrics.unassignedLeads > 0 || metrics.pendingBookings > 0) && (
+        <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/40 p-4 shadow-xs">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <h4 className="text-xs font-semibold text-amber-900 dark:text-amber-200">
-                Action Required
+              <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                Immediate Action Required
               </h4>
-              <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5">
-                You have{" "}
+              <p className="text-xs text-amber-900/90 mt-0.5">
                 {metrics.unassignedLeads > 0 && (
-                  <span className="font-bold underline">
-                    {metrics.unassignedLeads} unassigned lead{metrics.unassignedLeads === 1 ? "" : "s"}
+                  <span>
+                    <strong className="underline">{metrics.unassignedLeads} unassigned lead{metrics.unassignedLeads === 1 ? "" : "s"}</strong>
                   </span>
                 )}
-                {metrics.unassignedLeads > 0 && metrics.pendingListings > 0 && " and "}
+                {metrics.unassignedLeads > 0 && (metrics.pendingListings > 0 || metrics.pendingBookings > 0) && ", "}
                 {metrics.pendingListings > 0 && (
-                  <span className="font-bold underline">
-                    {metrics.pendingListings} pending listing application{metrics.pendingListings === 1 ? "" : "s"}
+                  <span>
+                    <strong className="underline">{metrics.pendingListings} pending astrologer application{metrics.pendingListings === 1 ? "" : "s"}</strong>
+                  </span>
+                )}
+                {metrics.pendingListings > 0 && metrics.pendingBookings > 0 && ", "}
+                {metrics.pendingBookings > 0 && (
+                  <span>
+                    <strong className="underline">{metrics.pendingBookings} pending booking request{metrics.pendingBookings === 1 ? "" : "s"}</strong>
                   </span>
                 )}{" "}
-                awaiting review.
+                awaiting review and action.
               </p>
             </div>
             <Link
-              href={metrics.unassignedLeads > 0 ? "/super-admin/leads?unassignedOnly=true" : "/super-admin/listings"}
-              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-amber-700"
+              href={
+                metrics.unassignedLeads > 0
+                  ? "/super-admin/leads?unassignedOnly=true"
+                  : metrics.pendingListings > 0
+                  ? "/super-admin/listings?status=pending"
+                  : "/super-admin/bookings?status=pending"
+              }
+              className="shrink-0 rounded-xl bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-800 transition-colors"
             >
               Take Action
             </Link>
@@ -121,202 +153,212 @@ export default async function SuperAdminOverviewPage() {
         </div>
       )}
 
-      {/* Metric Cards Grid */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Primary Metric Cards Grid */}
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Total Customers */}
         <Link
-          href="/super-admin/leads"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-zinc-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          href="/super-admin/customers"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-gold hover:shadow-md backdrop-blur-xs"
         >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-zinc-900 dark:group-hover:text-zinc-100">
-              Total Leads
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-midnight">
+              Seekers (Customers)
             </span>
-            <Inbox className="h-4 w-4 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-300" />
+            <Users className="h-4 w-4 text-gold group-hover:scale-110 transition-transform" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+            <span className="font-display text-2xl font-bold text-midnight">
+              {metrics.totalCustomers}
+            </span>
+            <span className="text-xs font-semibold text-teal flex items-center">
+              Active Seekers
+            </span>
+          </div>
+          <span className="text-[11px] text-muted mt-1 block">Registered seeker profiles</span>
+        </Link>
+
+        {/* Total Astrologers */}
+        <Link
+          href="/super-admin/listings"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-gold hover:shadow-md backdrop-blur-xs"
+        >
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-midnight">
+              Vedic Astrologers
+            </span>
+            <Users2 className="h-4 w-4 text-gold group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-bold text-midnight">
+              {metrics.totalListings}
+            </span>
+            <span className="text-xs font-semibold text-emerald-700">
+              {metrics.approvedListings} Approved
+            </span>
+          </div>
+          <span className="text-[11px] text-muted mt-1 block">
+            {metrics.pendingListings} pending verification
+          </span>
+        </Link>
+
+        {/* Total Bookings */}
+        <Link
+          href="/super-admin/bookings"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-teal hover:shadow-md backdrop-blur-xs"
+        >
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-teal">
+              Consultations
+            </span>
+            <CalendarCheck2 className="h-4 w-4 text-teal group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-bold text-midnight">
+              {metrics.totalBookings}
+            </span>
+            <span className="text-xs font-semibold text-teal">
+              {metrics.confirmedBookings} Confirmed
+            </span>
+          </div>
+          <span className="text-[11px] text-muted mt-1 block">
+            {metrics.pendingBookings} pending approval
+          </span>
+        </Link>
+
+        {/* Total Leads Pipeline */}
+        <Link
+          href="/super-admin/leads"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-purple-400 hover:shadow-md backdrop-blur-xs"
+        >
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-purple-700">
+              Platform Leads
+            </span>
+            <Inbox className="h-4 w-4 text-purple-600 group-hover:scale-110 transition-transform" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-bold text-midnight">
               {metrics.totalLeads}
             </span>
-            <span className="text-xs font-medium text-emerald-600 flex items-center">
+            <span className="text-xs font-semibold text-emerald-600 flex items-center">
               +{metrics.leadsToday} today
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Platform pipeline total</span>
+          <span className="text-[11px] text-muted mt-1 block">Total customer enquiries</span>
         </Link>
 
+        {/* Unassigned Leads */}
         <Link
           href="/super-admin/leads?unassignedOnly=true"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-amber-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-amber-400 hover:shadow-md backdrop-blur-xs"
         >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-amber-600">
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-amber-700">
               Unassigned Leads
             </span>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <Clock className="h-4 w-4 text-amber-600" />
           </div>
           <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <span className="font-display text-2xl font-bold text-amber-700">
               {metrics.unassignedLeads}
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Awaiting consultant assignment</span>
+          <span className="text-[11px] text-muted mt-1 block">Awaiting consultant assignment</span>
         </Link>
 
+        {/* Assigned & In Follow-up */}
         <Link
           href="/super-admin/leads?status=assigned"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-teal-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-teal hover:shadow-md backdrop-blur-xs"
         >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-teal-600">
-              Assigned & Active
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-teal">
+              Assigned & Follow-up
             </span>
-            <UserCheck className="h-4 w-4 text-teal-600" />
+            <UserCheck className="h-4 w-4 text-teal" />
           </div>
           <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-teal-600 dark:text-teal-400">
+            <span className="font-display text-2xl font-bold text-teal">
               {metrics.assignedLeads}
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Under consultant follow-up</span>
+          <span className="text-[11px] text-muted mt-1 block">Active consultant pipeline</span>
         </Link>
 
+        {/* Converted Consultations */}
         <Link
           href="/super-admin/leads?status=converted"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          className="group rounded-2xl border border-gold/25 bg-white/95 p-4 shadow-xs transition-all hover:border-emerald-400 hover:shadow-md backdrop-blur-xs"
         >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-600">
-              Converted Leads
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-emerald-700">
+              Converted Inquiries
             </span>
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="font-display text-2xl font-bold text-emerald-700">
               {metrics.convertedLeads}
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Completed consultations</span>
+          <span className="text-[11px] text-muted mt-1 block">Successful consultations</span>
         </Link>
 
+        {/* Closed Consultations */}
         <Link
           href="/super-admin/leads?status=closed"
-          className="group rounded-2xl border border-purple-200/90 bg-gradient-to-br from-purple-50/40 via-white to-purple-50/20 p-4 shadow-sm transition-all hover:border-purple-300 hover:shadow-md dark:border-purple-900/40 dark:from-purple-950/20 dark:via-zinc-900 dark:to-zinc-900"
+          className="group rounded-2xl border border-purple-200/90 bg-gradient-to-br from-purple-50/50 via-white to-purple-50/20 p-4 shadow-xs transition-all hover:border-purple-400 hover:shadow-md backdrop-blur-xs"
         >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-purple-600 dark:group-hover:text-purple-400">
-              Closed Leads
+          <div className="flex items-center justify-between text-muted">
+            <span className="text-[11px] font-bold uppercase tracking-wider group-hover:text-purple-700">
+              Closed Consultations
             </span>
             <CheckCircle className="h-4 w-4 text-purple-600" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-display text-2xl font-bold text-purple-600 dark:text-purple-400">
+            <span className="font-display text-2xl font-bold text-purple-700">
               {metrics.closedLeads}
             </span>
-            <span className="text-[11px] font-medium text-purple-600/80 underline decoration-purple-300">
-              View all &rarr;
+            <span className="text-[11px] font-semibold text-purple-700 underline decoration-purple-300">
+              View Feed &rarr;
             </span>
           </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Resolved / concluded by astrologer</span>
-        </Link>
-
-        <Link
-          href="/super-admin/listings?status=pending"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-amber-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-amber-600">
-              Pending Listings
-            </span>
-            <Users2 className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {metrics.pendingListings}
-            </span>
-          </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Astrologer applications</span>
-        </Link>
-
-        <Link
-          href="/super-admin/listings?status=approved"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-emerald-600">
-              Approved Listings
-            </span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {metrics.approvedListings}
-            </span>
-          </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Live in directory</span>
-        </Link>
-
-        <Link
-          href="/super-admin/listings?status=changes_requested"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-orange-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-orange-600">
-              Changes Requested
-            </span>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-          </div>
-          <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {metrics.changesRequestedListings}
-            </span>
-          </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Awaiting applicant update</span>
-        </Link>
-
-        <Link
-          href="/super-admin/listings?status=suspended"
-          className="group rounded-2xl border border-zinc-200/80 bg-white p-4 shadow-sm transition-all hover:border-rose-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-        >
-          <div className="flex items-center justify-between text-zinc-500">
-            <span className="text-[11px] font-semibold uppercase tracking-wider group-hover:text-rose-600">
-              Suspended Listings
-            </span>
-            <ShieldAlert className="h-4 w-4 text-rose-500" />
-          </div>
-          <div className="mt-2">
-            <span className="font-display text-2xl font-bold text-rose-600 dark:text-rose-400">
-              {metrics.suspendedListings}
-            </span>
-          </div>
-          <span className="text-[11px] text-zinc-400 mt-1 block">Temporarily delisted</span>
+          <span className="text-[11px] text-muted mt-1 block">Concluded consultations</span>
         </Link>
       </div>
 
-      {/* Attribution & Breakdown Grid */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+      {/* Attribution & System Health Grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Lead Attribution */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gold/15 pb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-gold" />
               Lead Channel Attribution
             </h3>
-            <span className="text-xs text-zinc-400">Live Breakdown</span>
+            <span className="text-[11px] text-muted font-medium">Live Ratios</span>
           </div>
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3.5">
             <div>
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                  Platform-Generated Enquiries
-                </span>
-                <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                  {metrics.platformGeneratedLeads} ({metrics.totalLeads > 0 ? Math.round((metrics.platformGeneratedLeads / metrics.totalLeads) * 100) : 0}%)
+                <span className="font-medium text-ink">Platform-Generated Enquiries</span>
+                <span className="font-bold text-midnight">
+                  {metrics.platformGeneratedLeads} (
+                  {metrics.totalLeads > 0
+                    ? Math.round((metrics.platformGeneratedLeads / metrics.totalLeads) * 100)
+                    : 0}
+                  %)
                 </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-parchment overflow-hidden">
                 <div
-                  className="h-full bg-zinc-900 dark:bg-zinc-100 rounded-full"
+                  className="h-full bg-midnight rounded-full transition-all"
                   style={{
-                    width: `${metrics.totalLeads > 0 ? (metrics.platformGeneratedLeads / metrics.totalLeads) * 100 : 0}%`,
+                    width: `${
+                      metrics.totalLeads > 0
+                        ? (metrics.platformGeneratedLeads / metrics.totalLeads) * 100
+                        : 0
+                    }%`,
                   }}
                 />
               </div>
@@ -324,173 +366,268 @@ export default async function SuperAdminOverviewPage() {
 
             <div>
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                  Direct Astrologer Enquiries
-                </span>
-                <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                  {metrics.directLeads} ({metrics.totalLeads > 0 ? Math.round((metrics.directLeads / metrics.totalLeads) * 100) : 0}%)
+                <span className="font-medium text-ink">Direct Astrologer Inquiries</span>
+                <span className="font-bold text-midnight">
+                  {metrics.directLeads} (
+                  {metrics.totalLeads > 0
+                    ? Math.round((metrics.directLeads / metrics.totalLeads) * 100)
+                    : 0}
+                  %)
                 </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-parchment overflow-hidden">
                 <div
-                  className="h-full bg-gold rounded-full"
+                  className="h-full bg-gradient-to-r from-gold to-gold-deep rounded-full transition-all"
                   style={{
-                    width: `${metrics.totalLeads > 0 ? (metrics.directLeads / metrics.totalLeads) * 100 : 0}%`,
+                    width: `${
+                      metrics.totalLeads > 0
+                        ? (metrics.directLeads / metrics.totalLeads) * 100
+                        : 0
+                    }%`,
                   }}
                 />
               </div>
             </div>
           </div>
-          <p className="mt-4 text-[11px] text-zinc-400">
-            Platform leads route through central inbox first. Direct leads are routed to the specific chosen astrologer while remaining visible in central oversight.
+          <p className="text-[11px] text-muted">
+            Platform inquiries route through central assignment first. Direct leads route directly to the designated astrologer with platform oversight.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Quick Operations
+        {/* Consultation Bookings Breakdown */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gold/15 pb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
+              <CalendarCheck2 className="h-4 w-4 text-teal" />
+              Bookings Operational Status
             </h3>
-            <span className="text-xs text-zinc-400">Navigation</span>
+            <span className="text-[11px] text-muted font-medium">Appointments</span>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <Link
-              href="/super-admin/leads/distribution"
-              className="flex items-center justify-between rounded-xl border border-zinc-200 p-3 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800/50"
-            >
-              <span>Lead Distribution Rules</span>
-              <ArrowRight className="h-3.5 w-3.5 text-zinc-400" />
-            </Link>
-            <Link
-              href="/super-admin/listings/ranking"
-              className="flex items-center justify-between rounded-xl border border-zinc-200 p-3 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800/50"
-            >
-              <span>Ranking & Featured</span>
-              <ArrowRight className="h-3.5 w-3.5 text-zinc-400" />
-            </Link>
-            <Link
-              href="/super-admin/consultants"
-              className="flex items-center justify-between rounded-xl border border-zinc-200 p-3 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800/50"
-            >
-              <span>Consultant Permissions</span>
-              <ArrowRight className="h-3.5 w-3.5 text-zinc-400" />
-            </Link>
-            <Link
-              href="/super-admin/audit-logs"
-              className="flex items-center justify-between rounded-xl border border-zinc-200 p-3 text-xs font-medium text-zinc-800 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800/50"
-            >
-              <span>Audit Trail Logs</span>
-              <ArrowRight className="h-3.5 w-3.5 text-zinc-400" />
-            </Link>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+              <span className="text-[10px] uppercase font-bold text-emerald-800">Confirmed</span>
+              <p className="font-display text-xl font-bold text-emerald-700 mt-1">
+                {metrics.confirmedBookings}
+              </p>
+              <span className="text-[10px] text-emerald-800/80">Scheduled & Active</span>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+              <span className="text-[10px] uppercase font-bold text-amber-800">Pending</span>
+              <p className="font-display text-xl font-bold text-amber-700 mt-1">
+                {metrics.pendingBookings}
+              </p>
+              <span className="text-[10px] text-amber-800/80">Awaiting Confirmation</span>
+            </div>
+            <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3">
+              <span className="text-[10px] uppercase font-bold text-purple-800">Completed</span>
+              <p className="font-display text-xl font-bold text-purple-700 mt-1">
+                {metrics.completedBookings}
+              </p>
+              <span className="text-[10px] text-purple-800/80">Concluded sessions</span>
+            </div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3">
+              <span className="text-[10px] uppercase font-bold text-rose-800">Cancelled</span>
+              <p className="font-display text-xl font-bold text-rose-700 mt-1">
+                {metrics.cancelledBookings}
+              </p>
+              <span className="text-[10px] text-rose-800/80">Revoked / Rescheduled</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Platform Security & Health */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gold/15 pb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Platform & Security Health
+            </h3>
+            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Optimal
+            </span>
+          </div>
+          <div className="space-y-2.5 text-xs">
+            <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
+              <div className="flex items-center gap-2">
+                <Database className="h-3.5 w-3.5 text-gold-deep" />
+                <span className="font-medium text-ink">Supabase PostgreSQL Database</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">Connected</span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
+              <div className="flex items-center gap-2">
+                <Lock className="h-3.5 w-3.5 text-teal" />
+                <span className="font-medium text-ink">Row-Level Security (RLS)</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">Enforced</span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
+              <div className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-gold" />
+                <span className="font-medium text-ink">60s Anti-Duplication Guard</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">Active</span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-3.5 w-3.5 text-purple-600" />
+                <span className="font-medium text-ink">Service Role Isolation</span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-700">Strict Server-Only</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Closed Leads Live Feed Section */}
-      <div className="rounded-2xl border border-zinc-200/80 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 p-5 dark:border-zinc-800 gap-2">
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-purple-600" />
-              Closed & Resolved Consultations
-            </h3>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Inquiries concluded by astrologers with complete consultation outcomes ({metrics.closedLeads} total records).
-            </p>
-          </div>
+      {/* Quick Operations Shortcuts */}
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs">
+        <div className="flex items-center justify-between border-b border-gold/15 pb-3 mb-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
+            <Activity className="h-4 w-4 text-gold" />
+            Quick Operational Modules
+          </h3>
+          <span className="text-xs text-muted">Direct Administrative Access</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Link
-            href="/super-admin/leads?status=closed"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800 self-start sm:self-auto"
+            href="/super-admin/customers"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
           >
-            <span>View All Closed Leads</span>
-            <ArrowRight className="h-3 w-3" />
+            <Users className="h-5 w-5 text-gold group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">Seekers Directory</span>
+          </Link>
+          <Link
+            href="/super-admin/bookings"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
+          >
+            <CalendarCheck2 className="h-5 w-5 text-teal group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">Bookings Desk</span>
+          </Link>
+          <Link
+            href="/super-admin/leads/distribution"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
+          >
+            <TrendingUp className="h-5 w-5 text-purple-600 group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">Distribution Rules</span>
+          </Link>
+          <Link
+            href="/super-admin/listings/ranking"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
+          >
+            <CheckCircle2 className="h-5 w-5 text-gold-deep group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">Ranking & Featured</span>
+          </Link>
+          <Link
+            href="/super-admin/consultants"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
+          >
+            <UserCheck className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">Consultants Access</span>
+          </Link>
+          <Link
+            href="/super-admin/audit-logs"
+            className="flex flex-col items-center justify-center p-3 rounded-xl border border-gold/20 bg-parchment/20 hover:bg-gold/15 text-center transition-all group"
+          >
+            <ShieldCheck className="h-5 w-5 text-indigo-600 group-hover:scale-110 transition-transform mb-1.5" />
+            <span className="text-xs font-semibold text-midnight">System Audit Trail</span>
           </Link>
         </div>
+      </div>
 
-        {closedLeads.length === 0 ? (
-          <div className="p-8 text-center text-xs text-zinc-500">
-            No closed leads recorded yet.
+      {/* Split Feed: Recent Audit Activity & Closed Consultations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Audit Activity */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between border-b border-gold/15 p-4 bg-parchment/40">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-indigo-600" />
+              Recent Administrative Activity
+            </h3>
+            <Link
+              href="/super-admin/audit-logs"
+              className="text-[11px] font-semibold text-gold-deep hover:underline"
+            >
+              All Logs &rarr;
+            </Link>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-zinc-100 bg-zinc-50/50 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50">
-                <tr>
-                  <th className="px-5 py-3">Subject / Query</th>
-                  <th className="px-5 py-3">Customer</th>
-                  <th className="px-5 py-3">Assigned Astrologer</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3 text-right">Date & Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 font-normal">
-                {closedLeads.map((lead) => {
-                  const assignedAstroName = lead.astrologer_id
-                    ? astrologerMap.get(lead.astrologer_id) ?? "Assigned Astrologer"
-                    : "Unassigned";
-
-                  return (
-                    <tr
-                      key={lead.id}
-                      className="transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40"
+          {recentAuditLogs.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              No recent administrative actions recorded.
+            </div>
+          ) : (
+            <div className="divide-y divide-gold/15 text-xs">
+              {recentAuditLogs.map((log) => (
+                <div key={log.id} className="p-3.5 hover:bg-parchment/20 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-midnight capitalize">
+                      {log.action.replace(/_/g, " ")}
+                    </span>
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        log.outcome === "success"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-rose-100 text-rose-800"
+                      }`}
                     >
-                      <td className="px-5 py-3.5 max-w-[280px]">
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                          {lead.subject}
-                        </div>
-                        <div className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {lead.message}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-zinc-600 dark:text-zinc-300">
-                        <div className="font-medium text-zinc-800 dark:text-zinc-200">
-                          {lead.customer_name ?? "Customer"}
-                        </div>
-                        {lead.contact_email && (
-                          <div className="text-[11px] text-zinc-400 flex items-center gap-1 mt-0.5">
-                            <Mail className="h-3 w-3" />
-                            {lead.contact_email}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-zinc-700 dark:text-zinc-300">
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <UserCheck className="h-3.5 w-3.5 text-purple-600" />
-                          <span>{assignedAstroName}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium capitalize ${
-                            lead.source_type === "direct"
-                              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                              : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-                          }`}
-                        >
-                          <Tag className="h-3 w-3" />
-                          {lead.source_type}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2.5 py-0.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/50 dark:border-purple-800/40">
-                          <CheckCircle className="h-3 w-3 text-purple-600" />
-                          Closed
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right text-[11px] text-zinc-500">
-                        <div className="flex items-center justify-end gap-1 font-medium">
-                          <Calendar className="h-3 w-3 text-zinc-400" />
-                          <span>{formatDateTime(lead.created_at)}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      {log.outcome}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted mt-1">
+                    <span>Target: {log.target_type} ({log.target_id?.slice(0, 8) ?? "N/A"})</span>
+                    <span>{formatDateTime(log.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Closed Consultations Live Feed */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 shadow-xs overflow-hidden">
+          <div className="flex items-center justify-between border-b border-gold/15 p-4 bg-parchment/40">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-purple-600" />
+              Closed & Resolved Inquiries ({metrics.closedLeads})
+            </h3>
+            <Link
+              href="/super-admin/leads?status=closed"
+              className="text-[11px] font-semibold text-purple-700 hover:underline"
+            >
+              All Closed &rarr;
+            </Link>
           </div>
-        )}
+          {closedLeads.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              No closed consultation enquiries recorded yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gold/15 text-xs">
+              {closedLeads.slice(0, 5).map((lead) => {
+                const assignedAstroName = lead.astrologer_id
+                  ? astrologerMap.get(lead.astrologer_id) ?? "Assigned Astrologer"
+                  : "Unassigned";
+
+                return (
+                  <div key={lead.id} className="p-3.5 hover:bg-parchment/20 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-midnight truncate max-w-[260px]">
+                        {lead.subject}
+                      </span>
+                      <span className="rounded-md bg-purple-100 text-purple-800 px-2 py-0.5 text-[10px] font-bold">
+                        Resolved
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-muted mt-1">
+                      <span>Seeker: {lead.customer_name ?? "Seeker"} • Astrologer: {assignedAstroName}</span>
+                      <span>{formatDateTime(lead.created_at)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

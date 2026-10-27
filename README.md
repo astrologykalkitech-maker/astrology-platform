@@ -32,8 +32,10 @@ astrologer-platform/
 │   ├── supabase/                        # Browser, Server, and Fail-Closed Admin clients
 │   ├── types/                           # TypeScript & Supabase database schemas
 │   └── validations/                     # Zod runtime schemas
-├── supabase/migrations/                 # Additive PostgreSQL Migrations (001 to 008)
-├── tests/                               # Node.js native test runner test suites
+├── supabase/
+│   ├── CONSOLIDATED_SETUP.sql           # Complete unified schema (Migrations 001–016)
+│   └── migrations/                      # Sequential PostgreSQL Migrations (001 to 016)
+├── tests/                               # Node.js native test runner test suites (91 tests)
 └── docs/audits/                         # Comprehensive engineering audit reports
 ```
 
@@ -51,18 +53,9 @@ npm install
 ```
 
 ### 3. Environment Configuration
-Create a `.env.local` file in the root directory:
+Copy `.env.example` to `.env.local` and configure your credentials:
 ```bash
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="your-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" # Required for server actions
-
-# Transactional Mail (Optional in Dev, Required for Production Consultant Invites)
-SMTP_HOST="smtp.example.com"
-SMTP_PORT=587
-SMTP_USER="smtp-username"
-SMTP_PASS="smtp-password"
+cp .env.example .env.local
 ```
 
 ### 4. Running the Development Server
@@ -75,15 +68,15 @@ Open [http://localhost:3000](http://localhost:3000) to access the landing page a
 
 ## Testing & Quality Assurance
 
-Run the automated test suite (33 unit & integration tests):
+Run the automated test suite (91 unit, security & regression tests):
 ```bash
 npm test
 ```
 
-Run static analysis and linter:
+Run static analysis, linter, and typecheck:
 ```bash
 npm run lint
-npx tsc --noEmit
+npm run typecheck
 ```
 
 Build for production:
@@ -91,17 +84,35 @@ Build for production:
 npm run build
 ```
 
+Run the complete CI verification pipeline:
+```bash
+npm run ci
+```
+
 ---
 
-## Database Migrations
+## Database Provisioning & Migrations
 
-Apply database migrations to Supabase in numerical order:
+### Option A: Fresh Database Installation (Recommended)
+Execute [`supabase/CONSOLIDATED_SETUP.sql`](supabase/CONSOLIDATED_SETUP.sql) directly in your Supabase project's **SQL Editor**. This sets up the entire platform schema in a single execution.
+
+### Option B: Incremental Migrations
+Apply migrations sequentially using the Supabase CLI:
 ```bash
 npx supabase db push
 ```
-Migrations `001` through `008` establish:
+
+The migration sequence (`001` through `016`) establishes:
 - User roles, astrologer profiles, and profile security (`001`–`004`)
 - Admin permissions, audit logs, and system settings (`005`)
 - Super Admin role isolation and anti-tamper triggers (`006`)
 - 60s deduplication hash index and central lead capture (`007`)
 - Atomic lead assignment procedure (`008`)
+- Security and RLS hardening (`009`)
+- Lead lifecycle and assignment synchronization (`010`)
+- Trigger type-casting defense (`011`)
+- Realtime astrologer discovery and visibility (`012`)
+- Customer bookings and persistent notifications (`013`)
+- Direct consultation messaging and predictions (`014`)
+- Customer profile expansion and consultation reviews (`015`)
+- Booking integrity hardening, authoritative pricing, and cancellation guard (`016`)

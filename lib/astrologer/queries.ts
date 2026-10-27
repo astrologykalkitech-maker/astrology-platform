@@ -7,10 +7,13 @@ import type {
   PublicAstrologerProfile,
   PublicAstrologersQueryOptions,
 } from "@/lib/types/astrologer.types";
-
-// Explicit list of safe public fields to select (strictly omits address, user_id, internal timestamps)
-const SAFE_PUBLIC_FIELDS =
-  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url, approval_status, created_at";
+import {
+  AUTHORITATIVE_SAFE_PUBLIC_FIELDS,
+  CORE_SAFE_PUBLIC_FIELDS,
+  PUBLIC_VISIBLE_APPROVAL_STATUS,
+  isAstrologerPubliclyVisible,
+  isCurrentlyFeaturedAstrologer,
+} from "./visibility";
 
 /**
  * Retrieves a list of approved astrologer profiles for the public directory.
@@ -24,8 +27,8 @@ export async function getPublicApprovedAstrologers(
 
     let query = supabase
       .from("astrologer_profiles")
-      .select(SAFE_PUBLIC_FIELDS)
-      .eq("approval_status", "approved")
+      .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS)
+      .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
       .order("created_at", { ascending: false });
 
     // Filter by specialization if requested
@@ -49,26 +52,36 @@ export async function getPublicApprovedAstrologers(
 
     query = query.range(offset, offset + limit - 1);
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    // Resilient fallback: if database 1 does not have extended ranking columns, select core safe fields
+    if (error && error.message.includes("does not exist")) {
+      const fallbackQuery = supabase
+        .from("astrologer_profiles")
+        .select(CORE_SAFE_PUBLIC_FIELDS)
+        .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      const fallbackRes = await fallbackQuery;
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
 
     if (error || !data) {
       console.error("[Public Query Error: getPublicApprovedAstrologers]", error?.message);
       return [];
     }
 
-    const rawItems = (data as unknown as PublicAstrologerProfile[]) ?? [];
+    // Enforce authoritative visibility check across returned items
+    const rawItems = (data as unknown as PublicAstrologerProfile[]).filter((item) =>
+      isAstrologerPubliclyVisible(item)
+    );
     const now = Date.now();
 
-    const isCurrentlyFeatured = (item: PublicAstrologerProfile): boolean => {
-      if (!item.is_featured) return false;
-      if (!item.featured_until) return true; // Permanent placement if null
-      return new Date(item.featured_until).getTime() > now;
-    };
-
-    // Sort by: 1. Active featured (desc), 2. Priority score (desc)
+    // Sort by: 1. Active featured (desc), 2. Priority score (desc), 3. created_at (desc)
     rawItems.sort((a, b) => {
-      const aFeatured = isCurrentlyFeatured(a);
-      const bFeatured = isCurrentlyFeatured(b);
+      const aFeatured = isCurrentlyFeaturedAstrologer(a, now);
+      const bFeatured = isCurrentlyFeaturedAstrologer(b, now);
       if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
       const aPriority = a.ranking_priority ?? 0;
       const bPriority = b.ranking_priority ?? 0;
@@ -99,18 +112,24 @@ export async function getPublicApprovedAstrologerBySlug(
 
     const { data, error } = await supabase
       .from("astrologer_profiles")
-      .select(SAFE_PUBLIC_FIELDS)
+      .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS)
       .eq("slug", slug.trim().toLowerCase())
-      .eq("approval_status", "approved")
+      .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
       .maybeSingle();
 
     if (error || !data) {
       return null;
     }
 
-    return data as unknown as PublicAstrologerProfile;
+    const profile = data as unknown as PublicAstrologerProfile;
+    if (!isAstrologerPubliclyVisible(profile)) {
+      return null;
+    }
+
+    return profile;
   } catch (err) {
     console.error("[Public Query Exception: getPublicApprovedAstrologerBySlug]", err);
     return null;
   }
 }
+

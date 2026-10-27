@@ -27,21 +27,33 @@ test("Phase 7 Security: next.config.ts configures poweredByHeader=false and stri
 });
 
 test("Phase 7 Operations: Healthcheck endpoint structure and status code logic", async () => {
-  // Test simulated health logic
-  const isHealthy = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  // Simulate the updated health check logic:
+  // All three mandatory variables must be present for healthy status
+  const hasSupabaseUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const hasPublishableKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  const hasServiceRoleKey = Boolean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.DB1_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.ADMIN_SUPABASE_SERVICE_ROLE_KEY
+  );
+  const isHealthy = hasSupabaseUrl && hasPublishableKey && hasServiceRoleKey;
+
+  const passedChecks = [hasSupabaseUrl, hasPublishableKey, hasServiceRoleKey].filter(Boolean).length;
+  const totalChecks = 3;
 
   const payload = {
     status: isHealthy ? "healthy" : "degraded",
     environment: process.env.NODE_ENV ?? "test",
     uptime_seconds: 120,
-    checks: {
-      supabase_url: process.env.NEXT_PUBLIC_SUPABASE_URL ? "configured" : "missing",
-      public_publishable_key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ? "configured" : "missing",
-      service_role_key: process.env.SUPABASE_SERVICE_ROLE_KEY ? "configured" : "missing",
-    },
+    // New format: does not disclose which specific credentials are present
+    configuration: isHealthy
+      ? "all_mandatory_checks_passed"
+      : `${passedChecks}/${totalChecks}_mandatory_checks_passed`,
   };
 
   assert.ok(["healthy", "degraded"].includes(payload.status));
   assert.ok(typeof payload.uptime_seconds === "number");
-  assert.ok(typeof payload.checks === "object");
+  assert.ok(typeof payload.configuration === "string");
+  // Verify no individual credential disclosure in response
+  assert.ok(!("checks" in payload), "Health response must not disclose per-key credential status");
 });

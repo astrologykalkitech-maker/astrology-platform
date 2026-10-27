@@ -233,24 +233,20 @@ export async function signIn(
       });
 
       const lower = diag.message.toLowerCase();
-      if (lower.includes("invalid login credentials")) {
-        // If not found in DB1, check if this is an Admin user in DB2
-        try {
-          const adminSupabaseUrl =
-            process.env.ADMIN_SUPABASE_URL ||
-            "https://gvvaukpcsqmgmlitrodd.supabase.co";
-          const adminSupabaseAnon =
-            process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
-            process.env.ADMIN_SUPABASE_ANON_KEY ||
-            "sb_publishable_jrMqe0JoQjEDGdNJ4jmo2A_B1JKxFa6";
+      // If authentication fails in DB1, check if this is an Admin/Super Admin user in DB2
+      try {
+        const adminSupabaseUrl = process.env.ADMIN_SUPABASE_URL;
+        const adminSupabaseAnon =
+          process.env.ADMIN_SUPABASE_PUBLISHABLE_KEY ||
+          process.env.ADMIN_SUPABASE_ANON_KEY;
 
-          if (adminSupabaseUrl && adminSupabaseAnon) {
-            const adminClient = await createClient("admin");
-            const { data: adminAuthData, error: adminAuthError } =
-              await adminClient.auth.signInWithPassword({
-                email,
-                password,
-              });
+        if (adminSupabaseUrl && adminSupabaseAnon) {
+          const adminClient = await createClient("admin");
+          const { data: adminAuthData, error: adminAuthError } =
+            await adminClient.auth.signInWithPassword({
+              email,
+              password,
+            });
 
             if (adminAuthError) {
               console.warn("[DB2 Admin Auth Attempt Error]", {
@@ -286,10 +282,11 @@ export async function signIn(
               }
             }
           }
-        } catch (adminErr) {
-          console.error("[DB2 Admin Login Catch Error]", adminErr);
-        }
+      } catch (adminErr) {
+        console.error("[DB2 Admin Login Catch Error]", adminErr);
+      }
 
+      if (lower.includes("invalid login credentials")) {
         return {
           success: false,
           error: "Invalid email or password.",
@@ -500,6 +497,68 @@ export async function getCurrentProfileAction(): Promise<
       error:
         err instanceof Error ? err.message : "An unexpected error occurred.",
     };
+  }
+}
+
+/**
+ * Send password reset link to user email address.
+ */
+export async function requestPasswordReset(
+  email: string,
+  redirectTo?: string
+): Promise<AuthResult<void>> {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return { success: false, error: "Please enter a valid email address." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: redirectTo || `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=/auth/reset-password`,
+    });
+
+    if (error) {
+      const diag = extractAuthErrorDetails(error);
+      console.error("[Supabase Auth Error: requestPasswordReset]", diag);
+      return {
+        success: false,
+        error: diag.message,
+      };
+    }
+
+    return { success: true, data: undefined };
+  } catch (err) {
+    const diag = extractAuthErrorDetails(err);
+    return {
+      success: false,
+      error: diag.message,
+    };
+  }
+}
+
+/**
+ * Update password for authenticated user (e.g. from recovery flow).
+ */
+export async function updatePassword(password: string): Promise<AuthResult<void>> {
+  if (!password || password.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters long." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) {
+      const diag = extractAuthErrorDetails(error);
+      return { success: false, error: diag.message };
+    }
+
+    return { success: true, data: undefined };
+  } catch (err) {
+    const diag = extractAuthErrorDetails(err);
+    return { success: false, error: diag.message };
   }
 }
 

@@ -64,6 +64,8 @@ export async function getConsultantAdmins(): Promise<AuthResult<ConsultantWithPe
   }
 }
 
+export const getAdminConsultants = getConsultantAdmins;
+
 /**
  * Assign or update granular permissions for a consultant admin (Super Admin only).
  */

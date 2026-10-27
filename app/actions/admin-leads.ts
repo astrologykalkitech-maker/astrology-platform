@@ -383,12 +383,16 @@ export async function assignLead(
  * Returns detailed per-lead success and failure reports with atomic per-item execution.
  */
 export async function batchAssignLeads(
-  leadIds: string[],
-  astrologerId: string,
-  reason?: string
+  leadIdsOrParams: string[] | { leadIds: string[]; astrologerId: string; reason?: string },
+  astrologerIdArg?: string,
+  reasonArg?: string
 ): Promise<AuthResult<BatchAssignSummary>> {
   try {
     const { user, profile } = await requireAdminPermission("lead.assign");
+
+    const leadIds = Array.isArray(leadIdsOrParams) ? leadIdsOrParams : leadIdsOrParams?.leadIds;
+    const astrologerId = Array.isArray(leadIdsOrParams) ? (astrologerIdArg || "") : (leadIdsOrParams?.astrologerId || "");
+    const reason = Array.isArray(leadIdsOrParams) ? reasonArg : leadIdsOrParams?.reason;
 
     if (!Array.isArray(leadIds) || leadIds.length === 0) {
       return { success: false, error: "Please select at least one lead to assign." };
@@ -503,13 +507,23 @@ export async function updateLeadQualification(
       };
     }
 
+    const newStatus =
+      qualificationStatus === "qualified"
+        ? "qualified"
+        : qualificationStatus === "invalid" || qualificationStatus === "duplicate"
+        ? qualificationStatus
+        : undefined;
+
+    const updatePayload: Record<string, unknown> = {
+      qualification_status: qualificationStatus,
+    };
+    if (newStatus) {
+      updatePayload.status = newStatus;
+    }
+
     const { error } = await supabase
       .from("leads")
-      .update({
-        qualification_status: qualificationStatus,
-        status: qualificationStatus === "invalid" || qualificationStatus === "duplicate" ? qualificationStatus : undefined,
-        override_reason: reason ?? null,
-      })
+      .update(updatePayload)
       .eq("id", leadId);
 
     if (error) {

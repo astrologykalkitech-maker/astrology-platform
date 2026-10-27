@@ -66,40 +66,47 @@ export default function SuperAdminSettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-            <Sliders className="h-6 w-6 text-gold" />
-            Platform Configuration & Settings
-          </h1>
-          <p className="text-xs text-zinc-500">
-            Backed by live database settings. No arbitrary SQL or secret keys are exposed here.
-          </p>
+    <div className="space-y-6 rise-in">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl border border-gold/30 bg-gradient-to-r from-midnight via-plum to-midnight p-6 text-white shadow-xl">
+        <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-gold/10 blur-2xl pointer-events-none" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/15 px-3 py-0.5 text-[11px] font-semibold text-champagne backdrop-blur-sm mb-2">
+              <Sliders className="h-3.5 w-3.5 text-gold" />
+              <span>Global Configurations</span>
+            </div>
+            <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-ivory">
+              Platform Configuration & Settings
+            </h1>
+            <p className="text-xs text-parchment/80 mt-1 max-w-xl">
+              Backed by live database settings. Fine-tune lead assignment policies, concurrency throttles, and operational safeguards.
+            </p>
+          </div>
+          <button
+            onClick={loadSettings}
+            type="button"
+            disabled={loading}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-gold/30 bg-midnight/80 px-4 py-2 text-xs font-semibold text-champagne shadow-sm hover:bg-gold/20 hover:border-gold transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-gold" : "text-gold"}`} />
+            Reload Settings
+          </button>
         </div>
-        <button
-          onClick={loadSettings}
-          type="button"
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 self-start rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          Reload Settings
-        </button>
       </div>
 
       {message && (
         <div
-          className={`flex items-center gap-2 rounded-xl border p-3 text-xs ${
+          className={`flex items-center gap-3 rounded-2xl border p-4 text-xs font-medium backdrop-blur-sm shadow-md ${
             message.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
-              : "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+              ? "border-emerald-300/60 bg-emerald-950/20 text-emerald-800 dark:text-emerald-200"
+              : "border-red-300/60 bg-red-950/20 text-red-800 dark:text-red-200"
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
           ) : (
-            <AlertCircle className="h-4 w-4 shrink-0" />
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
           )}
           <span>{message.text}</span>
         </div>
@@ -108,13 +115,13 @@ export default function SuperAdminSettingsPage() {
       {/* Settings Grid */}
       <div className="space-y-4">
         {/* 1. Automated Lead Distribution */}
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <h3 className="text-sm font-semibold text-midnight">
                 Automated Lead Distribution Engine
               </h3>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 When enabled, platform-generated leads are automatically routed to eligible astrologers using the configured routing strategy.
               </p>
             </div>
@@ -128,13 +135,13 @@ export default function SuperAdminSettingsPage() {
                     lead_auto_distribution_enabled: e.target.checked,
                   }))
                 }
-                className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700"
+                className="h-4 w-4 rounded border-gold/40 text-gold focus:ring-gold"
               />
               <button
                 type="button"
                 disabled={savingKey === "lead_auto_distribution_enabled"}
                 onClick={() => handleSaveSetting("lead_auto_distribution_enabled")}
-                className="rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "lead_auto_distribution_enabled" ? "Saving..." : "Save"}
               </button>
@@ -143,13 +150,13 @@ export default function SuperAdminSettingsPage() {
         </div>
 
         {/* 2. Maximum Open Leads Per Consultant */}
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <h3 className="text-sm font-semibold text-midnight">
                 Maximum Open Leads Per Consultant
               </h3>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Cap on concurrent open leads an astrologer/consultant may hold before being skipped in automated distribution.
               </p>
             </div>
@@ -165,13 +172,13 @@ export default function SuperAdminSettingsPage() {
                     max_open_leads_per_consultant: Number(e.target.value),
                   }))
                 }
-                className="w-24 rounded-xl border border-zinc-200 bg-zinc-50/50 p-2 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                className="w-24 rounded-xl border border-gold/30 bg-parchment/30 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
               />
               <button
                 type="button"
                 disabled={savingKey === "max_open_leads_per_consultant"}
                 onClick={() => handleSaveSetting("max_open_leads_per_consultant")}
-                className="rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "max_open_leads_per_consultant" ? "Saving..." : "Save"}
               </button>
@@ -180,13 +187,13 @@ export default function SuperAdminSettingsPage() {
         </div>
 
         {/* 3. Direct Lead Routing Policy */}
-        <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <h3 className="text-sm font-semibold text-midnight">
                 Direct Lead Routing Policy
               </h3>
-              <p className="text-xs text-zinc-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Determine whether direct customer inquiries to a specific listing route immediately or require manual owner clearance.
               </p>
             </div>
@@ -199,7 +206,7 @@ export default function SuperAdminSettingsPage() {
                     direct_lead_routing_policy: e.target.value,
                   }))
                 }
-                className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-2 text-xs text-zinc-900 outline-none focus:border-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                className="rounded-xl border border-gold/30 bg-parchment/30 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
               >
                 <option value="immediate_route">Immediate Route (Prompt customer contact)</option>
                 <option value="require_moderation">Central Moderation First (Hold in queue)</option>
@@ -208,7 +215,7 @@ export default function SuperAdminSettingsPage() {
                 type="button"
                 disabled={savingKey === "direct_lead_routing_policy"}
                 onClick={() => handleSaveSetting("direct_lead_routing_policy")}
-                className="rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "direct_lead_routing_policy" ? "Saving..." : "Save"}
               </button>
