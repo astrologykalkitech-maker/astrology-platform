@@ -9,6 +9,7 @@ import { Button } from "@/components/astrologer/ui/Button";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
 import { FormField } from "@/components/astrologer/ui/FormField";
 import { PasswordField } from "@/components/astrologer/ui/PasswordField";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { validateEmail, validateLoginPassword } from "@/lib/astrologer/form-validation";
 
 type FieldErrors = { email?: string | null; password?: string | null };
@@ -23,7 +24,7 @@ const COPY: Record<Role, { subtitle: string; wrongRole: string; redirect: string
   customer: {
     subtitle: "Log in to find and contact astrologers.",
     wrongRole: "This login is for customer accounts only. Astrologers, please choose the Astrologer option above.",
-    redirect: "/customer",
+    redirect: "/customer/astrologers",
   },
 };
 
@@ -85,7 +86,20 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
       <h1 className="font-display text-2xl font-semibold text-midnight">Welcome back</h1>
       <p className="mt-0.5 text-sm text-muted">{copy.subtitle}</p>
 
-      <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-3">
+      <div className="mt-4">
+        <GoogleAuthButton role={role} mode="login" />
+
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-gold/30" />
+          </div>
+          <span className="relative bg-ivory px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            or continue with email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} noValidate className="space-y-3">
         {showRoleNotice && !formError && (
           <FormAlert tone="info">
             This area is for astrologer accounts only. Please log in with an astrologer account.

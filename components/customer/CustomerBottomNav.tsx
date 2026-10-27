@@ -16,7 +16,6 @@ type BottomNavProps = {
 };
 
 const ITEMS = [
-  { href: "/customer", label: "Home", icon: LayoutDashboard, exact: true },
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
   { href: "/customer/enquiries", label: "Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
@@ -31,9 +30,7 @@ export function CustomerBottomNav({ menuOpen, onMore }: BottomNavProps) {
       className="fixed inset-x-0 bottom-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-gold/30 bg-midnight/95 px-2 pb-[env(safe-area-inset-bottom)] text-ivory/80 backdrop-blur lg:hidden"
     >
       {ITEMS.map((item) => {
-        const active = item.exact
-          ? pathname === item.href
-          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
 
         return (

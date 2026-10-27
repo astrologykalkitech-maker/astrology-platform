@@ -30,9 +30,8 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/customer", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { href: "/customer/profile", label: "My Kundli Profile", icon: User },
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
+  { href: "/customer/profile", label: "My Kundli Profile", icon: User },
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
   { href: "/customer/billing", label: "Billing & Receipts", icon: Receipt },
@@ -89,11 +88,11 @@ export function CustomerSidebar({ open, onNavigate, onClose }: SidebarProps) {
 
       {/* Brand logo click overlay */}
       <Link
-        href="/customer"
+        href="/customer/astrologers"
         onClick={onNavigate}
         className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-end pb-1"
       >
-        <span className="sr-only">JyotishSetu Customer Portal, go to dashboard</span>
+        <span className="sr-only">JyotishSetu Customer Portal, explore astrologers</span>
         <span className="rounded-full bg-midnight/90 px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest text-champagne border border-gold/40 shadow-sm backdrop-blur-xs">
           Customer Portal
         </span>

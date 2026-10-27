@@ -17,7 +17,7 @@ interface CustomerSignOutButtonProps {
 export function CustomerSignOutButton({
   iconOnlyOnMobile = false,
   className = "",
-  redirectTo = "/customer/login",
+  redirectTo = "/",
   variant = "ghost",
 }: CustomerSignOutButtonProps) {
   const router = useRouter();
