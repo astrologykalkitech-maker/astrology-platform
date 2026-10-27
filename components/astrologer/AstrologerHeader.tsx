@@ -73,7 +73,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
   return (
     <>
       {/* Mobile header */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-gold/30 bg-midnight px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] lg:hidden">
+      <header className="shrink-0 sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-gold/30 bg-midnight px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] lg:hidden">
         <button
           type="button"
           onClick={onMenuClick}
@@ -110,7 +110,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
       </header>
 
       {/* Desktop header */}
-      <header className="sticky top-0 z-20 hidden h-[76px] items-center justify-between gap-4 border-b border-gold/30 bg-ivory/90 px-8 backdrop-blur lg:flex">
+      <header className="shrink-0 sticky top-0 z-20 hidden h-[76px] items-center justify-between gap-4 border-b border-gold/30 bg-ivory/90 px-8 backdrop-blur lg:flex">
         <div className="leading-tight">
           <p className="font-display text-xl font-semibold text-midnight">Astrologer Portal</p>
           <p className="text-xs text-muted">{pageTitle}</p>
