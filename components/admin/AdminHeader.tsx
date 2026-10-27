@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
@@ -18,7 +19,12 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSignOut = () => {
     setError(null);
@@ -37,7 +43,7 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
   const roleLabel = isSuperAdmin ? "Owner Super Admin" : "Consultant Admin";
 
   return (
-    <header className="shrink-0 z-30 flex h-16 w-full items-center justify-between border-b border-gold/20 bg-midnight/95 px-4 backdrop-blur-md sm:px-8 text-ivory">
+    <header className="shrink-0 z-30 flex h-16 w-full items-center justify-between border-b border-gold/20 bg-midnight px-4 shadow-xs sm:px-8 text-ivory">
       {/* Left: Hamburger + Title */}
       <div className="flex items-center gap-3">
         {onMenuClick && (
@@ -108,7 +114,7 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
       </div>
 
       {/* Sign Out Modal */}
-      {showConfirm && (
+      {showConfirm && mounted && typeof document !== "undefined" && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -146,7 +152,8 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
             </div>
             {error && <p role="alert" className="text-xs text-red-400 mt-1">{error}</p>}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );

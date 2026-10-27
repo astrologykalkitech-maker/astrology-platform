@@ -91,9 +91,12 @@ export function CustomerSidebar({ open, onNavigate, onClose }: SidebarProps) {
       <Link
         href="/customer"
         onClick={onNavigate}
-        className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
+        className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-end pb-1"
       >
         <span className="sr-only">JyotishSetu Customer Portal, go to dashboard</span>
+        <span className="rounded-full bg-midnight/90 px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest text-champagne border border-gold/40 shadow-sm backdrop-blur-xs">
+          Customer Portal
+        </span>
       </Link>
 
       <button
@@ -105,7 +108,7 @@ export function CustomerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         <X className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5">
+      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5 sidebar-scrollbar">
         <nav aria-label="Customer portal navigation" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item);

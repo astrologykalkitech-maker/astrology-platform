@@ -116,7 +116,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         <X className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5">
+      <div className="absolute inset-x-0 bottom-3 top-[28%] z-10 flex flex-col overflow-y-auto px-5 sidebar-scrollbar">
         <nav aria-label="Astrologer portal navigation" className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item);

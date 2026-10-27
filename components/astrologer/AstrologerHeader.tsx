@@ -110,7 +110,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
       </header>
 
       {/* Desktop header */}
-      <header className="shrink-0 sticky top-0 z-20 hidden h-[76px] items-center justify-between gap-4 border-b border-gold/30 bg-ivory/90 px-8 backdrop-blur lg:flex">
+      <header className="shrink-0 sticky top-0 z-20 hidden h-[76px] items-center justify-between gap-4 border-b border-gold/30 bg-ivory px-8 shadow-xs lg:flex">
         <div className="leading-tight">
           <p className="font-display text-xl font-semibold text-midnight">Astrologer Portal</p>
           <p className="text-xs text-muted">{pageTitle}</p>

@@ -521,12 +521,20 @@ export async function adminReplySupportTicketAction(payload: {
     const isInternal = !!payload.isInternal;
     const senderName = profile?.full_name || "Super Admin Support";
 
+    // Ensure user.id exists in public.profiles before referencing foreign key
+    const { data: existingProfile } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const senderId = existingProfile ? user.id : null;
+
     // 1. Insert message
     const { data: newMsg, error: msgErr } = await adminSupabase
       .from("support_messages")
       .insert({
         ticket_id: ticket.id,
-        sender_id: user.id,
+        sender_id: senderId,
         sender_role: "admin",
         sender_name: senderName,
         message,
@@ -537,7 +545,7 @@ export async function adminReplySupportTicketAction(payload: {
 
     if (msgErr || !newMsg) {
       console.error("[Admin Support Message Error]", msgErr);
-      return { success: false, error: "Failed to post administrator message." };
+      return { success: false, error: msgErr?.message || "Failed to post administrator message." };
     }
 
     // 2. If public response, update ticket status to waiting_for_user and dispatch notification
@@ -562,7 +570,7 @@ export async function adminReplySupportTicketAction(payload: {
       // Record audit event
       await adminSupabase.from("support_ticket_events").insert({
         ticket_id: ticket.id,
-        actor_id: user.id,
+        actor_id: senderId,
         actor_role: "admin",
         action: "admin_reply",
         details: { messageSnippet: message.slice(0, 150) },
@@ -571,7 +579,7 @@ export async function adminReplySupportTicketAction(payload: {
       // Record internal note event
       await adminSupabase.from("support_ticket_events").insert({
         ticket_id: ticket.id,
-        actor_id: user.id,
+        actor_id: senderId,
         actor_role: "admin",
         action: "internal_note",
         details: { noteSnippet: message.slice(0, 150) },

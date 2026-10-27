@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
@@ -23,6 +24,11 @@ export function CustomerSignOutButton({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function handleSignOut() {
     setError(null);
@@ -52,7 +58,7 @@ export function CustomerSignOutButton({
         <span className={iconOnlyOnMobile ? "max-sm:sr-only" : undefined}>Sign out</span>
       </Button>
 
-      {showConfirm && (
+      {showConfirm && mounted && typeof document !== "undefined" && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -88,7 +94,8 @@ export function CustomerSignOutButton({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {error && <p role="alert" className="text-xs text-red-500 mt-1">{error}</p>}
