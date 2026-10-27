@@ -521,12 +521,20 @@ export async function adminReplySupportTicketAction(payload: {
     const isInternal = !!payload.isInternal;
     const senderName = profile?.full_name || "Super Admin Support";
 
+    // Ensure user.id exists in public.profiles before referencing foreign key
+    const { data: existingProfile } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const senderId = existingProfile ? user.id : null;
+
     // 1. Insert message
     const { data: newMsg, error: msgErr } = await adminSupabase
       .from("support_messages")
       .insert({
         ticket_id: ticket.id,
-        sender_id: user.id,
+        sender_id: senderId,
         sender_role: "admin",
         sender_name: senderName,
         message,
@@ -537,7 +545,7 @@ export async function adminReplySupportTicketAction(payload: {
 
     if (msgErr || !newMsg) {
       console.error("[Admin Support Message Error]", msgErr);
-      return { success: false, error: "Failed to post administrator message." };
+      return { success: false, error: msgErr?.message || "Failed to post administrator message." };
     }
 
     // 2. If public response, update ticket status to waiting_for_user and dispatch notification
@@ -551,31 +559,43 @@ export async function adminReplySupportTicketAction(payload: {
         .eq("id", ticket.id);
 
       // Dispatch customer/astrologer notification
-      await adminSupabase.from("customer_notifications").insert({
-        customer_id: ticket.user_id,
-        title: `Reply on Support Ticket [${ticket.ticket_number}]`,
-        message: `Our administrative support team has responded to your ticket: "${message.slice(0, 100)}..."`,
-        event_type: "support_reply",
-        link_url: `/customer/support`,
-      });
+      try {
+        await adminSupabase.from("customer_notifications").insert({
+          customer_id: ticket.user_id,
+          title: `Reply on Support Ticket [${ticket.ticket_number}]`,
+          message: `Our administrative support team has responded to your ticket: "${message.slice(0, 100)}..."`,
+          event_type: "support_reply",
+          link_url: `/customer/support`,
+        });
+      } catch (notifErr) {
+        console.warn("[Customer Notification Warning]", notifErr);
+      }
 
       // Record audit event
-      await adminSupabase.from("support_ticket_events").insert({
-        ticket_id: ticket.id,
-        actor_id: user.id,
-        actor_role: "admin",
-        action: "admin_reply",
-        details: { messageSnippet: message.slice(0, 150) },
-      });
+      try {
+        await adminSupabase.from("support_ticket_events").insert({
+          ticket_id: ticket.id,
+          actor_id: senderId,
+          actor_role: "admin",
+          action: "admin_reply",
+          details: { messageSnippet: message.slice(0, 150) },
+        });
+      } catch (eventErr) {
+        console.warn("[Support Event Warning]", eventErr);
+      }
     } else {
       // Record internal note event
-      await adminSupabase.from("support_ticket_events").insert({
-        ticket_id: ticket.id,
-        actor_id: user.id,
-        actor_role: "admin",
-        action: "internal_note",
-        details: { noteSnippet: message.slice(0, 150) },
-      });
+      try {
+        await adminSupabase.from("support_ticket_events").insert({
+          ticket_id: ticket.id,
+          actor_id: senderId,
+          actor_role: "admin",
+          action: "internal_note",
+          details: { noteSnippet: message.slice(0, 150) },
+        });
+      } catch (eventErr) {
+        console.warn("[Support Event Warning]", eventErr);
+      }
     }
 
     return { success: true, data: newMsg as SupportMessage };
@@ -626,31 +646,47 @@ export async function adminUpdateTicketStatusAction(payload: {
 
     if (updateErr || !updatedTicket) {
       console.error("[Admin Ticket Update Error]", updateErr);
-      return { success: false, error: "Failed to update ticket status." };
+      return { success: false, error: updateErr?.message || "Failed to update ticket status." };
     }
 
+    // Resolve actorId safely for DB1 foreign key
+    const { data: existingProfile } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const actorId = existingProfile ? user.id : null;
+
     // Record audit event
-    await adminSupabase.from("support_ticket_events").insert({
-      ticket_id: payload.ticketId,
-      actor_id: user.id,
-      actor_role: "admin",
-      action: "status_changed",
-      details: {
-        newStatus: payload.status,
-        priority: payload.priority,
-        assignedTo: payload.assignedTo,
-      },
-    });
+    try {
+      await adminSupabase.from("support_ticket_events").insert({
+        ticket_id: payload.ticketId,
+        actor_id: actorId,
+        actor_role: "admin",
+        action: "status_changed",
+        details: {
+          newStatus: payload.status,
+          priority: payload.priority,
+          assignedTo: payload.assignedTo,
+        },
+      });
+    } catch (eventErr) {
+      console.warn("[Status Change Audit Event Warning]", eventErr);
+    }
 
     // Notify user if resolved
     if (payload.status === "resolved") {
-      await adminSupabase.from("customer_notifications").insert({
-        customer_id: updatedTicket.user_id,
-        title: `Support Ticket [${updatedTicket.ticket_number}] Resolved`,
-        message: `Your ticket "${updatedTicket.subject}" has been marked as resolved by our support team.`,
-        event_type: "support_resolved",
-        link_url: `/customer/support`,
-      });
+      try {
+        await adminSupabase.from("customer_notifications").insert({
+          customer_id: updatedTicket.user_id,
+          title: `Support Ticket [${updatedTicket.ticket_number}] Resolved`,
+          message: `Your ticket "${updatedTicket.subject}" has been marked as resolved by our support team.`,
+          event_type: "support_resolved",
+          link_url: `/customer/support`,
+        });
+      } catch (notifErr) {
+        console.warn("[Resolution Notification Warning]", notifErr);
+      }
     }
 
     return { success: true, data: updatedTicket as SupportTicket };
