@@ -35,7 +35,7 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
         setError("Could not sign out. Please try again.");
         return;
       }
-      router.push("/astrologer/login");
+      router.push("/");
       router.refresh();
     });
   };

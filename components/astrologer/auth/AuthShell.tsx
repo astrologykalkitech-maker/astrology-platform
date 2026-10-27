@@ -181,7 +181,13 @@ export function AuthShell({
 
       <div className="relative z-10 mx-auto grid min-h-dvh w-full max-w-6xl items-center gap-8 px-4 py-5 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14">
         <section className="hidden text-ivory lg:block">
-          <Logo />
+          <Link
+            href="/"
+            className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-gold transition-opacity hover:opacity-90"
+            aria-label="JyotishSetu Home"
+          >
+            <Logo />
+          </Link>
 
           <div className="mt-8">
             {content.eyebrow && <p className="font-display text-xl text-champagne">{content.eyebrow}</p>}
@@ -210,7 +216,13 @@ export function AuthShell({
 
         <section className="mx-auto w-full max-w-md">
           <div className="mb-4 flex justify-center lg:hidden">
-            <Logo />
+            <Link
+              href="/"
+              className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-gold transition-opacity hover:opacity-90"
+              aria-label="JyotishSetu Home"
+            >
+              <Logo />
+            </Link>
           </div>
 
           <div className="rise-in relative overflow-hidden rounded-2xl bg-ivory p-5 text-ink shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)] ring-1 ring-gold/40 sm:p-6">

@@ -9,6 +9,7 @@ import { Button, buttonStyles } from "@/components/astrologer/ui/Button";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
 import { FormField } from "@/components/astrologer/ui/FormField";
 import { PasswordField } from "@/components/astrologer/ui/PasswordField";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { validateEmail, validateFullName, validateNewPassword } from "@/lib/astrologer/form-validation";
 
 type FieldErrors = { fullName?: string | null; email?: string | null; password?: string | null };
@@ -96,7 +97,20 @@ export function SignupForm({ role = "astrologer" }: { role?: Role }) {
       <h1 className="font-display text-2xl font-semibold text-midnight">{copy.title}</h1>
       <p className="mt-0.5 text-sm text-muted">{copy.subtitle}</p>
 
-      <form onSubmit={handleSubmit} noValidate className="mt-4 space-y-3">
+      <div className="mt-4">
+        <GoogleAuthButton role={role} mode="signup" />
+
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-gold/30" />
+          </div>
+          <span className="relative bg-ivory px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            or register with email
+          </span>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} noValidate className="space-y-3">
         {formError && <FormAlert>{formError}</FormAlert>}
 
         <FormField

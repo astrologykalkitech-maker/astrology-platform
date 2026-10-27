@@ -10,7 +10,7 @@ export default async function CustomerLoginPage() {
   // Already signed in: redirect to appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect("/customer");
+    redirect("/customer/astrologers");
   }
   if (profile?.role === "super_admin" || profile?.role === "admin") {
     redirect("/super-admin");

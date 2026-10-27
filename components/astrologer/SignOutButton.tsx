@@ -10,7 +10,7 @@ import { Button } from "@/components/astrologer/ui/Button";
 export function SignOutButton({
   iconOnlyOnMobile = false,
   className = "",
-  redirectTo = "/astrologer/login",
+  redirectTo = "/",
   variant = "ghost",
 }: {
   iconOnlyOnMobile?: boolean;
