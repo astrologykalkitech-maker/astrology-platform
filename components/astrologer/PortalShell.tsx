@@ -26,7 +26,7 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
   }, [menuOpen]);
 
   return (
-    <div className="flex min-h-screen flex-col portal-bg text-ink">
+    <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-midnight"
@@ -51,7 +51,7 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
         onClose={() => setMenuOpen(false)}
       />
 
-      <div className="flex flex-1 flex-col lg:pl-64">
+      <div className="flex flex-1 flex-col lg:pl-64 h-full overflow-hidden min-w-0">
         <AstrologerHeader
           displayName={displayName}
           photoUrl={photoUrl}
@@ -61,7 +61,7 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
+          className="flex-1 overflow-y-auto px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
         >
           <div className="rise-in mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
