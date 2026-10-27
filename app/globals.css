@@ -37,52 +37,54 @@
   }
 }
 
-/* Cross-browser layout and box-sizing normalization */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+@layer base {
+  /* Cross-browser layout and box-sizing normalization */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-html {
-  scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
-  -moz-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
-  overflow-x: hidden;
-  min-width: 320px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-}
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+    overflow-x: hidden;
+    min-width: 320px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
 
-/* Ensure consistent form control styling across Chrome, Safari, Firefox, and Edge */
-input,
-button,
-textarea,
-select {
-  font: inherit;
-  color: inherit;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-}
+  /* Ensure consistent form control styling across Chrome, Safari, Firefox, and Edge */
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
 
-/* Maintain native arrow appearance for select while standardizing geometry */
-select {
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 1em 1em;
+  /* Maintain native arrow appearance for select while standardizing geometry */
+  select {
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1em 1em;
+  }
 }
 
 @layer components {
@@ -153,3 +155,40 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Contained table scrollbar styling */
+.table-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 154, 74, 0.4) transparent;
+}
+
+.table-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(196, 154, 74, 0.4);
+  border-radius: 9999px;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(196, 154, 74, 0.7);
+}
+
+/* Sleek dark sidebar scrollbar without native OS arrows */
+.sidebar-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+

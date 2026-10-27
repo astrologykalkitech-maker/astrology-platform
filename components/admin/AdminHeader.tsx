@@ -37,7 +37,7 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
   const roleLabel = isSuperAdmin ? "Owner Super Admin" : "Consultant Admin";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-gold/20 bg-midnight/95 px-4 backdrop-blur-md sm:px-8 text-ivory">
+    <header className="shrink-0 z-30 flex h-16 w-full items-center justify-between border-b border-gold/20 bg-midnight/95 px-4 backdrop-blur-md sm:px-8 text-ivory">
       {/* Left: Hamburger + Title */}
       <div className="flex items-center gap-3">
         {onMenuClick && (
@@ -131,7 +131,7 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
                 variant="outline"
                 size="sm"
                 onClick={() => setShowConfirm(false)}
-                className="border-gold/30 text-ivory hover:bg-white/10"
+                className="border-gold/40 !bg-transparent !text-champagne hover:!bg-white/10"
               >
                 Stay Logged In
               </Button>

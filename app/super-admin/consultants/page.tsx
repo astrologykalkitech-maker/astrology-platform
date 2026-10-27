@@ -1,23 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserCog, Shield, KeyRound, RefreshCw, UserPlus, X, AlertCircle, CheckCircle2 } from "lucide-react";
-import {
-  getConsultantAdmins,
-  inviteConsultantAdmin,
-  type ConsultantWithPermissions,
-} from "@/app/actions/admin-consultants";
+import { UserCog, UserPlus, KeyRound, Shield, RefreshCw, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { getConsultantAdmins, inviteConsultantAdmin } from "@/app/actions/admin-consultants";
 import { ConsultantPermissionsModal } from "@/components/admin/ConsultantPermissionsModal";
+import type { ConsultantWithPermissions } from "@/app/actions/admin-consultants";
 
 export default function SuperAdminConsultantsPage() {
   const [consultants, setConsultants] = useState<ConsultantWithPermissions[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedConsultant, setSelectedConsultant] =
-    useState<ConsultantWithPermissions | null>(null);
+  const [selectedConsultant, setSelectedConsultant] = useState<ConsultantWithPermissions | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFullName, setInviteFullName] = useState("");
@@ -70,7 +65,7 @@ export default function SuperAdminConsultantsPage() {
 
     setInviteMessage({
       type: "success",
-      text: `Consultant invitation sent to ${inviteEmail} successfully!`,
+      text: `Invitation successfully dispatched to ${inviteEmail}.`,
     });
     setInviteEmail("");
     setInviteFullName("");
@@ -89,20 +84,17 @@ export default function SuperAdminConsultantsPage() {
               <span>Role-Based Access Control</span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-ivory">
-              Consultant Accounts & Permissions
+              Consultant Accounts &amp; Permissions
             </h1>
             <p className="text-xs text-parchment/80 mt-1 max-w-xl">
               Enforce granular operational access, least-privilege boundaries, and active permission policies for consultant admins.
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 self-start">
             <button
-              onClick={() => {
-                setInviteMessage(null);
-                setIsInviteModalOpen(true);
-              }}
+              onClick={() => setIsInviteModalOpen(true)}
               type="button"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 transition-all cursor-pointer"
             >
               <UserPlus className="h-3.5 w-3.5" />
               Invite Consultant
@@ -111,7 +103,7 @@ export default function SuperAdminConsultantsPage() {
               onClick={loadConsultants}
               type="button"
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-gold/30 bg-midnight/80 px-4 py-2 text-xs font-semibold text-champagne shadow-sm hover:bg-gold/20 hover:border-gold transition-all"
+              className="inline-flex items-center gap-2 rounded-xl border border-gold/30 bg-midnight/80 px-4 py-2 text-xs font-semibold text-champagne shadow-sm hover:bg-gold/20 hover:border-gold transition-all cursor-pointer"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-gold" : "text-gold"}`} />
               Refresh
@@ -120,39 +112,39 @@ export default function SuperAdminConsultantsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
-        <h4 className="text-xs font-serif font-bold uppercase tracking-wider text-gold-deep dark:text-champagne mb-1.5">
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-sm">
+        <h4 className="text-xs font-serif font-bold uppercase tracking-wider text-gold-deep mb-1.5">
           Least Privilege Security Policy:
         </h4>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted leading-relaxed">
           Consultant Admins hold no default platform-wide permissions upon account creation. Every operational capability (such as listing reviews or reassignment requests) must be explicitly granted by the platform owner.
         </p>
       </div>
 
       {/* Consultants Table */}
-      <div className="overflow-hidden rounded-2xl border border-gold/25 bg-white/95 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
+      <div className="overflow-hidden rounded-2xl border border-gold/25 bg-white/95 shadow-xs backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-gold/20 bg-parchment/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:bg-midnight/90">
+            <thead className="border-b border-gold/20 bg-parchment/60 text-[11px] font-semibold uppercase tracking-wider text-gold-deep">
               <tr>
-                <th className="px-4 py-3">Account Name & ID</th>
-                <th className="px-4 py-3">System Role</th>
-                <th className="px-4 py-3">Explicitly Granted Permissions</th>
-                <th className="px-4 py-3">Created Date</th>
-                <th className="px-4 py-3 text-right">Access Controls</th>
+                <th className="px-5 py-3">Account Name &amp; ID</th>
+                <th className="px-5 py-3">System Role</th>
+                <th className="px-5 py-3">Explicitly Granted Permissions</th>
+                <th className="px-5 py-3">Created Date</th>
+                <th className="px-5 py-3 text-right">Access Controls</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gold/10">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={5} className="py-12 text-center text-muted">
                     <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-gold" />
                     Loading administrator accounts...
                   </td>
                 </tr>
               ) : consultants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-muted-foreground font-medium">
+                  <td colSpan={5} className="py-12 text-center text-muted font-medium">
                     No administrator accounts found.
                   </td>
                 </tr>
@@ -163,23 +155,23 @@ export default function SuperAdminConsultantsPage() {
                   return (
                     <tr
                       key={c.id}
-                      className="hover:bg-gold/5 dark:hover:bg-plum/30 transition-colors"
+                      className="hover:bg-gold/5 transition-colors"
                     >
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-midnight dark:text-ivory">
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-midnight text-sm">
                           {c.full_name ?? "Unnamed Administrator"}
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
+                        <div className="text-[10px] text-muted font-mono mt-0.5">
                           {c.id}
                         </div>
                       </td>
 
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-3.5">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                             isSuper
-                              ? "border border-gold/50 bg-gold/15 text-gold-deep dark:text-champagne"
-                              : "border border-teal-500/30 bg-teal-500/10 text-teal-800 dark:text-teal-300"
+                              ? "border border-gold/50 bg-gold/15 text-gold-deep"
+                              : "border border-teal-500/30 bg-teal-50 text-teal-800"
                           }`}
                         >
                           <Shield className="h-3 w-3" />
@@ -187,21 +179,21 @@ export default function SuperAdminConsultantsPage() {
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 max-w-sm">
+                      <td className="px-5 py-3.5 max-w-sm">
                         {isSuper ? (
-                          <span className="text-[11px] font-medium text-gold-deep dark:text-champagne italic">
+                          <span className="text-[11px] font-medium text-gold-deep italic">
                             Full Platform Authority (All Permissions Inherent)
                           </span>
                         ) : c.permissions.length === 0 ? (
-                          <span className="text-[11px] text-muted-foreground italic">
+                          <span className="text-[11px] text-muted italic">
                             Zero permissions granted (Restricted)
                           </span>
                         ) : (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-1.5">
                             {c.permissions.map((p) => (
                               <span
                                 key={p}
-                                className="rounded-md border border-gold/25 bg-parchment/40 px-1.5 py-0.5 font-mono text-[10px] text-midnight dark:bg-plum/40 dark:text-champagne"
+                                className="rounded-md border border-gold/25 bg-parchment/60 px-2 py-0.5 font-mono text-[10px] text-midnight font-medium"
                               >
                                 {p}
                               </span>
@@ -210,11 +202,11 @@ export default function SuperAdminConsultantsPage() {
                         )}
                       </td>
 
-                      <td className="px-4 py-3 text-muted-foreground font-mono text-[11px]">
+                      <td className="px-5 py-3.5 text-muted font-mono text-[11px]">
                         {new Date(c.created_at).toLocaleDateString()}
                       </td>
 
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-5 py-3.5 text-right">
                         {!isSuper ? (
                           <button
                             type="button"
@@ -222,13 +214,13 @@ export default function SuperAdminConsultantsPage() {
                               setSelectedConsultant(c);
                               setIsModalOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 rounded-xl border border-gold/30 bg-parchment/40 px-3 py-1 text-[11px] font-semibold text-midnight hover:bg-gold/15 dark:bg-plum/40 dark:text-champagne transition-all"
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-gold/30 bg-white px-3 py-1.5 text-[11px] font-semibold text-midnight shadow-2xs hover:bg-gold/15 transition-all cursor-pointer"
                           >
-                            <KeyRound className="h-3 w-3 text-gold" />
+                            <KeyRound className="h-3.5 w-3.5 text-gold-deep" />
                             Manage Permissions
                           </button>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground font-medium">Owner Level</span>
+                          <span className="text-[11px] text-muted font-medium">Owner Level</span>
                         )}
                       </td>
                     </tr>
@@ -253,21 +245,22 @@ export default function SuperAdminConsultantsPage() {
       {/* Invite Consultant Modal */}
       {isInviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white/95 p-6 shadow-2xl backdrop-blur-xl dark:bg-midnight/95">
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-gold/15 pb-4">
               <div>
-                <h3 className="font-serif text-lg font-bold text-midnight dark:text-ivory flex items-center gap-2">
+                <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">
                   <UserPlus className="h-5 w-5 text-gold" />
                   Invite Consultant Admin
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted mt-0.5">
                   Sends an activation invite to join platform operations.
                 </p>
               </div>
               <button
                 onClick={() => setIsInviteModalOpen(false)}
                 type="button"
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-gold/10 hover:text-midnight dark:hover:text-ivory transition-colors"
+                aria-label="Close dialog"
+                className="rounded-lg p-1.5 text-muted hover:bg-gold/10 hover:text-midnight transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -277,8 +270,8 @@ export default function SuperAdminConsultantsPage() {
               <div
                 className={`mt-4 flex items-center gap-2 rounded-xl border p-3 text-xs font-medium ${
                   inviteMessage.type === "success"
-                    ? "border-emerald-300/60 bg-emerald-950/20 text-emerald-800 dark:text-emerald-200"
-                    : "border-red-300/60 bg-red-950/20 text-red-800 dark:text-red-200"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    : "border-red-300 bg-red-50 text-red-800"
                 }`}
               >
                 {inviteMessage.type === "success" ? (
@@ -292,7 +285,7 @@ export default function SuperAdminConsultantsPage() {
 
             <form onSubmit={handleInviteSubmit} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
+                <label className="block text-xs font-semibold text-midnight mb-1">
                   Full Name
                 </label>
                 <input
@@ -301,12 +294,12 @@ export default function SuperAdminConsultantsPage() {
                   value={inviteFullName}
                   onChange={(e) => setInviteFullName(e.target.value)}
                   placeholder="e.g. Priya Sharma"
-                  className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
+                  className="w-full rounded-xl border border-gold/30 bg-parchment/30 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
+                <label className="block text-xs font-semibold text-midnight mb-1">
                   Email Address
                 </label>
                 <input
@@ -315,7 +308,7 @@ export default function SuperAdminConsultantsPage() {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="consultant@company.com"
-                  className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
+                  className="w-full rounded-xl border border-gold/30 bg-parchment/30 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
                 />
               </div>
 
@@ -324,14 +317,14 @@ export default function SuperAdminConsultantsPage() {
                   type="button"
                   onClick={() => setIsInviteModalOpen(false)}
                   disabled={inviteLoading}
-                  className="rounded-xl border border-gold/30 bg-parchment/50 px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 dark:bg-plum/40 dark:text-champagne transition-colors"
+                  className="rounded-xl border border-gold/30 bg-white px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={inviteLoading}
-                  className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+                  className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
                 >
                   {inviteLoading ? "Sending..." : "Send Invitation"}
                 </button>

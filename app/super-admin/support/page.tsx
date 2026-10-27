@@ -16,8 +16,8 @@ export default async function SuperAdminSupportPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <LifeBuoy className="h-5 w-5 text-amber-500" />
+        <h1 className="text-2xl font-bold font-display tracking-tight text-midnight flex items-center gap-2">
+          <LifeBuoy className="h-6 w-6 text-gold-deep" />
           Customer & Astrologer Support Desk
         </h1>
         <p className="text-xs text-muted">

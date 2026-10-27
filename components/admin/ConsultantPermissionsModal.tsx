@@ -64,35 +64,36 @@ export function ConsultantPermissionsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gold/40 bg-white/95 shadow-2xl backdrop-blur-xl dark:bg-midnight/95">
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gold/40 bg-white shadow-2xl backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-gold/15 p-6">
           <div>
-            <h3 className="font-serif text-lg font-bold text-midnight dark:text-ivory flex items-center gap-2">
+            <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">
               <Shield className="h-5 w-5 text-gold" />
               Manage Consultant Permissions
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Account: <span className="font-semibold text-midnight dark:text-champagne">{consultant.full_name ?? "Unnamed"}</span> ({consultant.role})
+            <p className="text-xs text-muted mt-0.5">
+              Account: <span className="font-semibold text-midnight">{consultant.full_name ?? "Unnamed"}</span> ({consultant.role})
             </p>
           </div>
           <button
             onClick={onClose}
             type="button"
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-gold/10 hover:text-midnight dark:hover:text-ivory transition-colors"
+            aria-label="Close dialog"
+            className="rounded-lg p-1.5 text-muted hover:bg-gold/10 hover:text-midnight transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-950/20 p-3 text-xs text-red-800 dark:text-red-200">
+          <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted">
             Grant or revoke specific operational capabilities. Consultant Admins can only perform actions that are explicitly selected below.
           </p>
 
@@ -106,29 +107,29 @@ export function ConsultantPermissionsModal({
                   onClick={() => togglePerm(p.key)}
                   className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
                     isChecked
-                      ? "border-gold/60 bg-gold/15 dark:bg-gold/20"
-                      : "border-gold/20 bg-parchment/20 hover:bg-gold/5 dark:bg-plum/20 dark:hover:bg-plum/40"
+                      ? "border-gold/60 bg-gold/15"
+                      : "border-gold/20 bg-parchment/20 hover:bg-gold/10"
                   }`}
                 >
                   <div
                     className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                       isChecked
                         ? "border-gold bg-gold text-midnight"
-                        : "border-gold/40 bg-transparent"
+                        : "border-gold/40 bg-white"
                     }`}
                   >
                     {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-midnight dark:text-ivory">
+                      <span className="text-xs font-semibold text-midnight">
                         {p.label}
                       </span>
-                      <span className="font-mono text-[10px] text-gold-deep dark:text-champagne">
+                      <span className="font-mono text-[10px] text-gold-deep">
                         {p.key}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-[11px] text-muted mt-0.5">
                       {p.description}
                     </p>
                   </div>
@@ -142,14 +143,14 @@ export function ConsultantPermissionsModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-xl border border-gold/30 bg-parchment/50 px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 dark:bg-plum/40 dark:text-champagne transition-colors"
+              className="rounded-xl border border-gold/30 bg-white px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+              className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
             >
               {loading ? "Saving..." : "Save Permissions"}
             </button>

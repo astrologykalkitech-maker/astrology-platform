@@ -32,7 +32,7 @@ export function AdminShell({
   }, [menuOpen]);
 
   return (
-    <div className="min-h-screen flex flex-col portal-bg text-ink antialiased">
+    <div className="h-screen flex flex-col portal-bg text-ink antialiased overflow-hidden">
       {/* Accessibility: Skip to Content */}
       <a
         href="#admin-main-content"
@@ -48,7 +48,7 @@ export function AdminShell({
         onMenuClick={() => setMenuOpen(true)}
       />
 
-      <div className="flex-1 flex flex-col lg:flex-row min-w-0">
+      <div className="flex-1 flex overflow-hidden min-w-0">
         <AdminSidebar
           isSuperAdmin={isSuperAdmin}
           permissions={permissions}
@@ -58,9 +58,9 @@ export function AdminShell({
         <main
           id="admin-main-content"
           tabIndex={-1}
-          className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full min-w-0 outline-none"
+          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 w-full min-w-0 outline-none"
         >
-          <div className="rise-in w-full">{children}</div>
+          <div className="max-w-7xl mx-auto w-full min-w-0 rise-in">{children}</div>
         </main>
       </div>
     </div>

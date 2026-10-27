@@ -65,28 +65,29 @@ export function RankingModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white/95 p-6 shadow-2xl backdrop-blur-xl dark:bg-midnight/95">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-gold/15 pb-4">
           <div>
-            <h3 className="font-serif text-lg font-bold text-midnight dark:text-ivory flex items-center gap-2">
+            <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">
               <Award className="h-5 w-5 text-gold" />
-              Ranking & Placement
+              Ranking &amp; Placement
             </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Listing: <span className="font-semibold text-midnight dark:text-champagne">{listing.display_name}</span>
+            <p className="text-xs text-muted mt-0.5">
+              Listing: <span className="font-semibold text-midnight">{listing.display_name}</span>
             </p>
           </div>
           <button
             onClick={onClose}
             type="button"
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-gold/10 hover:text-midnight dark:hover:text-ivory transition-colors"
+            aria-label="Close dialog"
+            className="rounded-lg p-1.5 text-muted hover:bg-gold/10 hover:text-midnight transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {error && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-300/60 bg-red-950/20 p-3 text-xs text-red-800 dark:text-red-200">
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
             <span>{error}</span>
           </div>
@@ -94,7 +95,7 @@ export function RankingModal({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
+            <label className="block text-xs font-semibold text-midnight mb-1">
               Manual Ranking Priority (-100 to 1000)
             </label>
             <input
@@ -103,14 +104,14 @@ export function RankingModal({
               max={1000}
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value))}
-              className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
+              className="w-full rounded-xl border border-gold/30 bg-parchment/30 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-muted mt-1">
               Higher values appear earlier in search and directory placement. Default is 0.
             </p>
           </div>
 
-          <div className="rounded-xl border border-gold/25 bg-parchment/30 p-3.5 dark:bg-plum/20">
+          <div className="rounded-xl border border-gold/25 bg-parchment/30 p-3.5">
             <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
@@ -118,34 +119,34 @@ export function RankingModal({
                 onChange={(e) => setIsFeatured(e.target.checked)}
                 className="h-4 w-4 rounded border-gold/40 text-gold focus:ring-gold"
               />
-              <span className="text-xs font-semibold text-midnight dark:text-ivory">
+              <span className="text-xs font-semibold text-midnight">
                 Pin as Featured Listing
               </span>
             </label>
-            <p className="text-[11px] text-muted-foreground mt-1 pl-6.5">
+            <p className="text-[11px] text-muted mt-1 pl-6.5">
               Featured listings are pinned prominently at the top of the directory with a gold badge.
             </p>
           </div>
 
           {isFeatured && (
             <div>
-              <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
+              <label className="block text-xs font-semibold text-midnight mb-1">
                 Featured Expiry Date (Optional)
               </label>
               <input
                 type="date"
                 value={featuredUntil}
                 onChange={(e) => setFeaturedUntil(e.target.value)}
-                className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
+                className="w-full rounded-xl border border-gold/30 bg-parchment/30 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted mt-1">
                 Leave blank for continuous featured placement until manually removed.
               </p>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-midnight dark:text-ivory mb-1">
+            <label className="block text-xs font-semibold text-midnight mb-1">
               Reason / Justification
             </label>
             <input
@@ -153,7 +154,7 @@ export function RankingModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Featured partner promotion for Q4"
-              className="w-full rounded-xl border border-gold/30 bg-parchment/20 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-plum/30 dark:text-ivory"
+              className="w-full rounded-xl border border-gold/30 bg-parchment/30 p-2.5 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
             />
           </div>
 
@@ -162,14 +163,14 @@ export function RankingModal({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-xl border border-gold/30 bg-parchment/50 px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 dark:bg-plum/40 dark:text-champagne transition-colors"
+              className="rounded-xl border border-gold/30 bg-white px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/10 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+              className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
             >
               {loading ? "Saving..." : "Save Ranking"}
             </button>

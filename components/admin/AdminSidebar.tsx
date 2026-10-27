@@ -101,7 +101,7 @@ export function AdminSidebar({
   const sidebarContent = (
     <div className="flex h-full flex-col bg-midnight text-ivory">
       {/* Brand Header */}
-      <div className="flex items-center justify-between border-b border-gold/15 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-gold/15 px-4 py-3 shrink-0">
         <Link
           href={isSuperAdmin ? "/super-admin" : "/admin"}
           onClick={() => onClose?.()}
@@ -132,7 +132,7 @@ export function AdminSidebar({
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3.5 sidebar-scrollbar">
         {isSuperAdmin ? (
           superAdminSections.map((sec) => (
             <div key={sec.title} className="space-y-1">
@@ -142,10 +142,15 @@ export function AdminSidebar({
               <div className="space-y-0.5 pt-1">
                 {sec.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive =
-                    item.href === "/super-admin"
-                      ? pathname === "/super-admin"
-                      : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const allHrefs = superAdminSections.flatMap((s) => s.items.map((i) => i.href));
+                  const isExact = pathname === item.href;
+                  const hasMoreSpecificMatch = allHrefs.some(
+                    (otherHref) =>
+                      otherHref !== item.href &&
+                      otherHref.startsWith(item.href) &&
+                      (pathname === otherHref || pathname.startsWith(`${otherHref}/`))
+                  );
+                  const isActive = isExact || (!hasMoreSpecificMatch && pathname.startsWith(`${item.href}/`));
 
                   return (
                     <Link
@@ -213,7 +218,7 @@ export function AdminSidebar({
       </nav>
 
       {/* Sidebar Footer Indicator */}
-      <div className="border-t border-gold/15 p-3.5 text-center">
+      <div className="border-t border-gold/15 p-2.5 text-center shrink-0">
         <div className="flex items-center justify-center gap-2 text-[11px] text-ivory/50">
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>Vedic Security Shield Active</span>
@@ -245,7 +250,7 @@ export function AdminSidebar({
       </aside>
 
       {/* Persistent Desktop Sidebar */}
-      <aside className="hidden lg:block w-64 shrink-0 border-r border-gold/15 bg-midnight">
+      <aside className="hidden lg:flex flex-col w-64 shrink-0 h-full border-r border-gold/15 bg-midnight overflow-hidden">
         {sidebarContent}
       </aside>
     </>

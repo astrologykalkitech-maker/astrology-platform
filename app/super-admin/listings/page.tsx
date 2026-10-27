@@ -103,12 +103,14 @@ export default function SuperAdminListingsPage() {
               placeholder="Search by astrologer name, city, or unique slug..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+              suppressHydrationWarning
               className="w-full rounded-xl border border-gold/20 bg-parchment/30 py-2 pl-9 pr-3 text-xs text-midnight outline-none focus:border-gold focus:bg-white transition-colors"
             />
           </div>
           <button
             type="submit"
-            className="rounded-xl bg-midnight px-4 py-2 text-xs font-semibold text-champagne hover:bg-plum transition-colors shadow-xs"
+            className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-sm hover:brightness-110 transition-all cursor-pointer"
           >
             Search
           </button>
@@ -133,7 +135,7 @@ export default function SuperAdminListingsPage() {
               key={st}
               type="button"
               onClick={() => setStatusFilter(st)}
-              className={`rounded-lg px-2.5 py-1 capitalize transition-colors font-medium text-xs ${
+              className={`rounded-lg px-2.5 py-1 capitalize transition-colors font-medium text-xs cursor-pointer ${
                 statusFilter === st
                   ? "bg-midnight text-champagne font-semibold shadow-xs"
                   : "bg-parchment/60 text-muted hover:bg-gold/15 hover:text-midnight"
@@ -149,7 +151,7 @@ export default function SuperAdminListingsPage() {
       <div className="overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="border-b border-gold/20 bg-parchment/50 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            <thead className="border-b border-gold/20 bg-parchment/60 text-[11px] font-semibold uppercase tracking-wider text-gold-deep">
               <tr>
                 <th className="px-5 py-3">Astrologer Profile</th>
                 <th className="px-5 py-3">Experience & Location</th>
@@ -190,7 +192,7 @@ export default function SuperAdminListingsPage() {
 
                     <td className="px-5 py-3.5">
                       <div className="font-medium text-ink">
-                        {item.experience_years ?? 0} years experience
+                        {item.experience_years ?? 0} {item.experience_years === 1 ? "year" : "years"} experience
                       </div>
                       <div className="text-[11px] text-muted flex items-center gap-1 mt-0.5">
                         <MapPin className="h-3 w-3 text-teal" />
@@ -200,8 +202,14 @@ export default function SuperAdminListingsPage() {
 
                     <td className="px-5 py-3.5">
                       <div className="font-bold text-midnight flex items-center gap-0.5">
-                        <IndianRupee className="h-3 w-3 text-gold-deep" />
-                        <span>{item.consultation_fee ? item.consultation_fee : "Not set"}</span>
+                        {item.consultation_fee ? (
+                          <>
+                            <IndianRupee className="h-3 w-3 text-gold-deep" />
+                            <span>{item.consultation_fee}</span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-normal text-muted">Fee not set</span>
+                        )}
                       </div>
                       <div className="text-[11px] text-muted truncate max-w-[160px] mt-0.5">
                         {(item.specializations ?? []).join(", ") || "Vedic General"}

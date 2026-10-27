@@ -173,7 +173,7 @@ export default function SuperAdminBookingsPage() {
           </div>
           <button
             type="submit"
-            className="rounded-xl bg-midnight px-4 py-2 text-xs font-semibold text-champagne hover:bg-plum transition-colors shadow-xs"
+            className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-5 py-2 text-xs font-semibold text-midnight shadow-sm hover:brightness-110 transition-all cursor-pointer"
           >
             Search
           </button>

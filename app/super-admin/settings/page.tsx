@@ -115,13 +115,13 @@ export default function SuperAdminSettingsPage() {
       {/* Settings Grid */}
       <div className="space-y-4">
         {/* 1. Automated Lead Distribution */}
-        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-midnight dark:text-ivory">
+              <h3 className="text-sm font-semibold text-midnight">
                 Automated Lead Distribution Engine
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 When enabled, platform-generated leads are automatically routed to eligible astrologers using the configured routing strategy.
               </p>
             </div>
@@ -141,7 +141,7 @@ export default function SuperAdminSettingsPage() {
                 type="button"
                 disabled={savingKey === "lead_auto_distribution_enabled"}
                 onClick={() => handleSaveSetting("lead_auto_distribution_enabled")}
-                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "lead_auto_distribution_enabled" ? "Saving..." : "Save"}
               </button>
@@ -150,13 +150,13 @@ export default function SuperAdminSettingsPage() {
         </div>
 
         {/* 2. Maximum Open Leads Per Consultant */}
-        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-midnight dark:text-ivory">
+              <h3 className="text-sm font-semibold text-midnight">
                 Maximum Open Leads Per Consultant
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Cap on concurrent open leads an astrologer/consultant may hold before being skipped in automated distribution.
               </p>
             </div>
@@ -172,13 +172,13 @@ export default function SuperAdminSettingsPage() {
                     max_open_leads_per_consultant: Number(e.target.value),
                   }))
                 }
-                className="w-24 rounded-xl border border-gold/30 bg-parchment/20 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-midnight/90 dark:text-ivory"
+                className="w-24 rounded-xl border border-gold/30 bg-parchment/30 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
               />
               <button
                 type="button"
                 disabled={savingKey === "max_open_leads_per_consultant"}
                 onClick={() => handleSaveSetting("max_open_leads_per_consultant")}
-                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "max_open_leads_per_consultant" ? "Saving..." : "Save"}
               </button>
@@ -187,13 +187,13 @@ export default function SuperAdminSettingsPage() {
         </div>
 
         {/* 3. Direct Lead Routing Policy */}
-        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-sm backdrop-blur-sm dark:bg-midnight/70">
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-midnight dark:text-ivory">
+              <h3 className="text-sm font-semibold text-midnight">
                 Direct Lead Routing Policy
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Determine whether direct customer inquiries to a specific listing route immediately or require manual owner clearance.
               </p>
             </div>
@@ -206,7 +206,7 @@ export default function SuperAdminSettingsPage() {
                     direct_lead_routing_policy: e.target.value,
                   }))
                 }
-                className="rounded-xl border border-gold/30 bg-parchment/20 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold dark:bg-midnight/90 dark:text-ivory"
+                className="rounded-xl border border-gold/30 bg-parchment/30 p-2 text-xs text-midnight outline-none focus:border-gold focus:ring-1 focus:ring-gold"
               >
                 <option value="immediate_route">Immediate Route (Prompt customer contact)</option>
                 <option value="require_moderation">Central Moderation First (Hold in queue)</option>
@@ -215,7 +215,7 @@ export default function SuperAdminSettingsPage() {
                 type="button"
                 disabled={savingKey === "direct_lead_routing_policy"}
                 onClick={() => handleSaveSetting("direct_lead_routing_policy")}
-                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all"
+                className="rounded-xl bg-gradient-to-r from-gold to-gold-deep px-4 py-2 text-xs font-semibold text-midnight shadow-md hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer"
               >
                 {savingKey === "direct_lead_routing_policy" ? "Saving..." : "Save"}
               </button>
