@@ -22,6 +22,7 @@ import { updateCustomerProfileAction } from "@/app/actions/customer";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
+import { ProfilePhotoUploader } from "@/components/profile/ProfilePhotoUploader";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
@@ -98,28 +99,33 @@ export default function CustomerProfileClient({ initialProfile }: Props) {
         </div>
       </div>
 
-      {/* Profile Overview Card with Readiness Ring */}
-      <div className={`${CARD} p-6 sm:p-7 bg-gradient-to-br from-white via-white to-amber-50/50`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <span className="shrink-0 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep p-[3px] shadow-md">
-              <Avatar name={fullName || "Customer"} size="xl" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-midnight font-display">{fullName || "Seeker"}</h2>
-                <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-champagne/30 px-2.5 py-0.5 text-[11px] font-semibold text-midnight">
+      {/* Profile Overview Card with Photo Uploader & Readiness Ring */}
+      <div className={`${CARD} p-5 sm:p-7 bg-gradient-to-br from-white via-white to-amber-50/50 min-w-0`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 min-w-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 min-w-0 w-full md:w-auto">
+            <ProfilePhotoUploader
+              initialPhotoUrl={initialProfile.avatar_url}
+              name={fullName || "Customer"}
+            />
+            <div className="min-w-0 flex-1 w-full">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-midnight font-display truncate max-w-[200px] xs:max-w-[260px] sm:max-w-[320px]">
+                  {fullName || "Seeker"}
+                </h2>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-gold/30 bg-champagne/30 px-2.5 py-0.5 text-[11px] font-semibold text-midnight">
                   <Sparkles className="h-3 w-3 text-gold-deep" /> Verified Seeker
                 </span>
               </div>
-              <p className="text-xs text-muted mt-0.5">{initialProfile.email}</p>
-              <div className="mt-2 flex items-center gap-2 text-xs">
+              <p className="text-xs text-muted mt-1 break-all select-all font-mono">
+                {initialProfile.email}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 {initialProfile.emailVerified ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[11px]">
                     <CheckCircle2 className="h-3 w-3" /> Email Verified
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-[11px]">
                     <Shield className="h-3 w-3" /> Email Pending Verification
                   </span>
                 )}
@@ -127,7 +133,7 @@ export default function CustomerProfileClient({ initialProfile }: Props) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gold/20 bg-parchment/60 p-4 sm:w-60 text-center">
+          <div className="rounded-xl border border-gold/20 bg-parchment/60 p-4 w-full md:w-60 text-center shrink-0">
             <p className="text-xs font-semibold text-midnight">Kundli Readiness</p>
             <p className="text-2xl font-bold font-display text-gold-deep mt-0.5">{readinessPercent}%</p>
             <p className="text-[11px] text-muted mt-1">

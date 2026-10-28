@@ -14,6 +14,7 @@ export type QueryIntent =
   | "recommend_astrologer"
   | "profile_selection"
   | "compare_astrologers"
+  | "live_data_birth_details"
   | "live_data_bookings"
   | "live_data_leads"
   | "live_data_profile_status"
@@ -301,6 +302,24 @@ export function classifyQuery(
   }
 
   // 7. Detect Live Data Queries
+    // Customer Birth Details & Kundli Readiness
+  if (
+    role === "customer" &&
+    (normalized.match(/\b(birth\s*details?|date\s*of\s*birth|dob|time\s*of\s*birth|tob|birth\s*place|birthplace|place\s*of\s*birth|janam\s*tithi|janam\s*samay|janam\s*sthan|janam\s*kundli|kundli\s*readiness|my\s*details?)\b/) ||
+     (normalized.includes("born") && normalized.match(/\b(when|where|time|what)\b/)) ||
+     (normalized.includes("birth") && normalized.match(/\b(my|meri|mine|details|record|profile|data)\b/)) ||
+     (normalized.includes("kundli") && normalized.match(/\b(my|meri|mine|readiness|profile|complete|status)\b/)))
+  ) {
+    return {
+      intent: "live_data_birth_details",
+      category: "profile",
+      priority: "medium",
+      isHinglish,
+      relevantKnowledge: retrieveRelevantKnowledge(role, query, 2),
+      suggestedAction: "continue",
+    };
+  }
+
   // A. User's or Astrologer's own bookings
   if (
     multiTurn.followUpType === "astrologer_bookings_followup" ||

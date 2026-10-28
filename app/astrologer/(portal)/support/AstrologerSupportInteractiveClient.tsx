@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   askSupportAiAction,
+  submitAiFeedbackAction,
   createSupportTicketAction,
   getUserSupportTicketsAction,
   getSupportTicketDetailsAction,
@@ -43,7 +44,15 @@ export default function AstrologerSupportInteractiveClient() {
   // AI Chat State
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiMessages, setAiMessages] = useState<Array<{ role: "user" | "assistant"; content: string; isFallback?: boolean }>>([
+  const [escalatingInteractionId, setEscalatingInteractionId] = useState<string | null>(null);
+  const [aiMessages, setAiMessages] = useState<Array<{
+    role: "user" | "assistant";
+    content: string;
+    isFallback?: boolean;
+    interactionId?: string;
+    feedbackGiven?: 1 | -1;
+    feedbackPending?: boolean;
+  }>>([
     {
       role: "assistant",
       content:
@@ -111,6 +120,7 @@ export default function AstrologerSupportInteractiveClient() {
             role: "assistant",
             content: res.data!.message,
             isFallback: res.data!.isFallback,
+            interactionId: res.data!.interactionId,
           },
         ]);
       } else {
@@ -134,6 +144,34 @@ export default function AstrologerSupportInteractiveClient() {
         },
       ]);
     }
+  }
+
+
+  // Submit AI message feedback
+  async function handleGiveFeedback(index: number, interactionId: string, rating: 1 | -1) {
+    setAiMessages((prev) =>
+      prev.map((msg, i) => (i === index ? { ...msg, feedbackPending: true } : msg))
+    );
+
+    const res = await submitAiFeedbackAction({ interactionId, rating });
+
+    setAiMessages((prev) =>
+      prev.map((msg, i) =>
+        i === index
+          ? {
+              ...msg,
+              feedbackPending: false,
+              feedbackGiven: res.success ? rating : undefined,
+            }
+          : msg
+      )
+    );
+  }
+
+  // Escalate specific AI interaction to human ticket
+  function handleEscalateWithInteraction(interactionId: string) {
+    setEscalatingInteractionId(interactionId);
+    handleEscalateFromAi();
   }
 
   // Escalate from AI to Human Ticket
@@ -311,6 +349,49 @@ export default function AstrologerSupportInteractiveClient() {
                         (Offline platform grounding active)
                       </p>
                     )}
+                    
+                    {/* Interactive Feedback & Escalation Bar */}
+                    {m.role === "assistant" && m.interactionId && (
+                      <div className="mt-3 pt-2.5 border-t border-line/60 flex flex-wrap items-center justify-between gap-2 text-[11px] not-prose">
+                        {m.feedbackGiven ? (
+                          <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            Thank you for your feedback!
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2 text-muted">
+                            <span>Was this helpful?</span>
+                            <button
+                              type="button"
+                              disabled={m.feedbackPending}
+                              onClick={() => handleGiveFeedback(idx, m.interactionId!, 1)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-line bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 transition-colors disabled:opacity-50"
+                            >
+                              👍 Yes
+                            </button>
+                            <button
+                              type="button"
+                              disabled={m.feedbackPending}
+                              onClick={() => handleGiveFeedback(idx, m.interactionId!, -1)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-line bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors disabled:opacity-50"
+                            >
+                              👎 No
+                            </button>
+                          </div>
+                        )}
+
+                        {m.feedbackGiven === -1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleEscalateWithInteraction(m.interactionId!)}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-lg hover:bg-amber-100 transition-colors shadow-sm"
+                          >
+                            <LifeBuoy className="h-3 w-3 text-amber-700" /> Escalate to Super Admin
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                   </div>
                   {m.role === "user" && (
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-midnight text-white mt-1">

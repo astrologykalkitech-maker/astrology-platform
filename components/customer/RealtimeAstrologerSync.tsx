@@ -53,11 +53,11 @@ export function RealtimeAstrologerSync() {
           }
         });
 
-      // Window focus / reconnection listener: guarantees customer catches up after sleep/background
+      // Window focus / reconnection listener: only re-syncs if user was away for over 5 minutes
       const handleVisibilityChange = () => {
         if (document.visibilityState === "visible") {
           const now = Date.now();
-          if (now - lastRefreshTimeRef.current > 2000) {
+          if (now - lastRefreshTimeRef.current > 300_000) {
             triggerRefresh();
           }
         }

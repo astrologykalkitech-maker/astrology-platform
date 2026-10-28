@@ -23,9 +23,21 @@ interface RawAssignmentRow {
     customer: {
       id: string;
       full_name: string | null;
+      phone?: string | null;
+      date_of_birth?: string | null;
+      time_of_birth?: string | null;
+      birthplace?: string | null;
+      gender?: string | null;
+      avatar_url?: string | null;
     } | {
       id: string;
       full_name: string | null;
+      phone?: string | null;
+      date_of_birth?: string | null;
+      time_of_birth?: string | null;
+      birthplace?: string | null;
+      gender?: string | null;
+      avatar_url?: string | null;
     }[] | null;
   } | {
     id: string;
@@ -36,9 +48,21 @@ interface RawAssignmentRow {
     customer: {
       id: string;
       full_name: string | null;
+      phone?: string | null;
+      date_of_birth?: string | null;
+      time_of_birth?: string | null;
+      birthplace?: string | null;
+      gender?: string | null;
+      avatar_url?: string | null;
     } | {
       id: string;
       full_name: string | null;
+      phone?: string | null;
+      date_of_birth?: string | null;
+      time_of_birth?: string | null;
+      birthplace?: string | null;
+      gender?: string | null;
+      avatar_url?: string | null;
     }[] | null;
   }[] | null;
 }
@@ -58,6 +82,12 @@ function mapRawAssignmentToLeadItem(row: RawAssignmentRow): AstrologerLeadItem {
       customerInfo = {
         id: rawCustomer.id,
         full_name: rawCustomer.full_name ?? null,
+        phone: rawCustomer.phone ?? null,
+        date_of_birth: rawCustomer.date_of_birth ?? null,
+        time_of_birth: rawCustomer.time_of_birth ?? null,
+        birthplace: rawCustomer.birthplace ?? null,
+        gender: (rawCustomer.gender as any) ?? null,
+        avatar_url: rawCustomer.avatar_url ?? null,
       };
     }
   }
@@ -99,7 +129,13 @@ const NESTED_ASSIGNMENT_SELECT = `
     created_at,
     customer:profiles!leads_customer_id_fkey (
       id,
-      full_name
+      full_name,
+      phone,
+      date_of_birth,
+      time_of_birth,
+      birthplace,
+      gender,
+      avatar_url
     )
   )
 `;

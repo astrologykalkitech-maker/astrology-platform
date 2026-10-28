@@ -85,16 +85,19 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
         }}
       />
 
-      {/* Brand logo click overlay */}
+      {/* Brand logo click overlay with backdrop concealing any conflicting background art subtitles */}
       <Link
         href="/customer/astrologers"
         onClick={onNavigate}
-        className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-end pb-1"
+        className="absolute inset-x-5 top-[18%] z-10 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-center"
       >
         <span className="sr-only">JyotishSetu Customer Portal, explore astrologers</span>
-        <span className="rounded-full bg-midnight/90 px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest text-champagne border border-gold/40 shadow-sm backdrop-blur-xs">
-          Customer Portal
-        </span>
+        <div className="w-full py-1 px-3.5 rounded-full bg-midnight/95 border border-gold/40 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5">
+          <Sparkles className="h-3 w-3 text-gold shrink-0" />
+          <span className="text-[10.5px] font-bold uppercase tracking-widest text-champagne whitespace-nowrap">
+            Customer Portal
+          </span>
+        </div>
       </Link>
 
       <button

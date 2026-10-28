@@ -14,6 +14,12 @@ export type { AssignmentStatus, LeadStatus };
 export interface LeadCustomerInfo {
   id: string;
   full_name: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  time_of_birth?: string | null;
+  birthplace?: string | null;
+  gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
+  avatar_url?: string | null;
 }
 
 /**

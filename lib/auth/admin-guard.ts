@@ -12,7 +12,7 @@ import type { User } from "@supabase/supabase-js";
 /**
  * Retrieves the list of granted permission keys for a given user from the database.
  */
-export async function fetchUserPermissions(userId: string): Promise<AdminPermissionKey[]> {
+export const fetchUserPermissions = cache(async function fetchUserPermissions(userId: string): Promise<AdminPermissionKey[]> {
   try {
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const supabase = await createAdminClient();
@@ -29,7 +29,7 @@ export async function fetchUserPermissions(userId: string): Promise<AdminPermiss
   } catch {
     return [];
   }
-}
+});
 
 export class AdminPermissionDeniedError extends Error {
   readonly requiredPermission: AdminPermissionKey;

@@ -501,7 +501,7 @@ export default async function HomePage() {
               <div className="lg:col-span-5 flex justify-center">
                 <div className="relative w-full max-w-[380px] aspect-square rounded-3xl overflow-hidden border border-[#eddcb8] shadow-[0_4px_20px_rgba(0,0,0,0.06)] bg-white">
                   <Image
-                    src="/images/jyotishsetu/why-choose-chakra.jpg"
+                    src="/images/jyotishsetu/why-choose-chakra.webp"
                     alt="Vedic meditation silhouette with seven glowing chakras and astrology celestial mandala"
                     fill
                     sizes="(max-width: 1024px) 380px, 420px"

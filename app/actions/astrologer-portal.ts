@@ -78,23 +78,24 @@ export async function getAstrologerBookingsAction(): Promise<
 
     const rawBookings = (bookings || []) as CustomerBooking[];
     const customerIds = Array.from(new Set(rawBookings.map((b) => b.customer_id).filter(Boolean)));
-    let customerMap: Record<string, string> = {};
+    let customerMap: Record<string, { name: string; avatarUrl: string | null }> = {};
 
     if (customerIds.length > 0) {
       const { data: customers } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, avatar_url")
         .in("id", customerIds);
       if (customers) {
         customerMap = Object.fromEntries(
-          customers.map((c) => [c.id, c.full_name || "Verified Customer"])
+          customers.map((c) => [c.id, { name: c.full_name || "Verified Customer", avatarUrl: c.avatar_url || null }])
         );
       }
     }
 
     const enriched = rawBookings.map((b) => ({
       ...b,
-      customer_name: customerMap[b.customer_id] || "Verified Customer",
+      customer_name: customerMap[b.customer_id]?.name || "Verified Customer",
+      customer_avatar_url: customerMap[b.customer_id]?.avatarUrl || null,
     }));
 
     return { success: true, data: enriched };

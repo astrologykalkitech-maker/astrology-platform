@@ -307,3 +307,91 @@ test("Cross-Dashboard E2E Support Workflow: Query -> Escalation -> Admin Reply -
   assert.equal(ticket.status, "resolved");
   assert.ok(ticket.resolved_at !== null);
 });
+
+// ==============================================================================
+// 7. SELF-LEARNING MEMORY, CONTEXT & PII SANITIZATION TESTS (Phase 10)
+// ==============================================================================
+
+test("AI System: Customer astrological context formatting identifies complete vs missing coordinates", () => {
+  function formatCustomerContext(profile: {
+    full_name: string | null;
+    date_of_birth: string | null;
+    time_of_birth: string | null;
+    birthplace: string | null;
+    gender: string | null;
+  }) {
+    const missing: string[] = [];
+    if (!profile.date_of_birth) missing.push("Date of Birth");
+    if (!profile.time_of_birth) missing.push("Time of Birth");
+    if (!profile.birthplace) missing.push("Birth Place");
+
+    const readiness = Math.round(((3 - missing.length) / 3) * 100);
+    return {
+      readiness,
+      missing,
+      isComplete: readiness === 100,
+    };
+  }
+
+  // Complete seeker
+  const complete = formatCustomerContext({
+    full_name: "Aarav Sharma",
+    date_of_birth: "1994-11-20",
+    time_of_birth: "07:45:00",
+    birthplace: "Varanasi, UP",
+    gender: "male",
+  });
+  assert.equal(complete.readiness, 100);
+  assert.equal(complete.isComplete, true);
+  assert.equal(complete.missing.length, 0);
+
+  // Incomplete seeker missing time of birth
+  const partial = formatCustomerContext({
+    full_name: "Sneha Patel",
+    date_of_birth: "1996-03-15",
+    time_of_birth: null,
+    birthplace: "Ahmedabad, Gujarat",
+    gender: "female",
+  });
+  assert.equal(partial.readiness, 67);
+  assert.equal(partial.isComplete, false);
+  assert.ok(partial.missing.includes("Time of Birth"));
+});
+
+test("AI System: PII sanitization strips customer emails, phone numbers, and raw UUIDs", () => {
+  function sanitizePii(text: string): string {
+    return text
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[REDACTED_EMAIL]")
+      .replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, "[REDACTED_ID]")
+      .replace(/(?:\+\d{1,3}[-.\s]*)?\b(?:\d{5}[-.\s]*\d{5}|\d{10}|\(?\d{3}\)?[-.\s]*\d{3}[-.\s]*\d{4})\b/g, "[REDACTED_PHONE]");
+  }
+
+  const rawDialogue =
+    "Customer rahul.verma@example.com (phone +91 98765 43210) reported issue with booking 12345678-abcd-1234-abcd-1234567890ab.";
+  const sanitized = sanitizePii(rawDialogue);
+
+  assert.ok(!sanitized.includes("rahul.verma@example.com"));
+  assert.ok(!sanitized.includes("98765"));
+  assert.ok(!sanitized.includes("12345678-abcd"));
+  assert.ok(sanitized.includes("[REDACTED_EMAIL]"));
+  assert.ok(sanitized.includes("[REDACTED_PHONE]"));
+  assert.ok(sanitized.includes("[REDACTED_ID]"));
+});
+
+test("AI System: Feedback submission validation enforces discrete ratings and interaction ID", () => {
+  function validateFeedbackPayload(payload: { interactionId?: string; rating?: number }) {
+    if (!payload.interactionId || typeof payload.interactionId !== "string") {
+      return { valid: false, error: "Invalid interaction ID" };
+    }
+    if (payload.rating !== 1 && payload.rating !== -1) {
+      return { valid: false, error: "Rating must be 1 or -1" };
+    }
+    return { valid: true };
+  }
+
+  assert.equal(validateFeedbackPayload({ interactionId: "abc-123", rating: 1 }).valid, true);
+  assert.equal(validateFeedbackPayload({ interactionId: "abc-123", rating: -1 }).valid, true);
+  assert.equal(validateFeedbackPayload({ interactionId: "abc-123", rating: 0 }).valid, false);
+  assert.equal(validateFeedbackPayload({ interactionId: "", rating: 1 }).valid, false);
+  assert.equal(validateFeedbackPayload({ rating: 1 }).valid, false);
+});

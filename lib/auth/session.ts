@@ -51,58 +51,18 @@ async function getAuthCookieStatus(): Promise<{ hasMain: boolean; hasAdmin: bool
   }
 }
 
-/**
- * Retrieves the currently authenticated Supabase user using the secure server client.
- * Calls supabase.auth.getUser() on main client (DB1) first, and falls back to admin client (DB2).
- * Wrapped in React cache to deduplicate redundant lookups within a single render pass.
- */
-export const getCurrentUser = cache(async function getCurrentUser(): Promise<User | null> {
-  const { hasMain, hasAdmin } = await getAuthCookieStatus();
-  if (!hasMain && !hasAdmin) {
-    return null;
-  }
-
-  if (hasMain) {
-    try {
-      const supabase = await createClient("main");
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
-      if (!error && user) {
-        return user;
-      }
-    } catch {
-      // Continue to admin fallback
-    }
-  }
-
-  if (hasAdmin) {
-    try {
-      const adminSupabase = await createClient("admin");
-      const {
-        data: { user: adminUser },
-        error: adminError,
-      } = await adminSupabase.auth.getUser();
-
-      if (!adminError && adminUser) {
-        return adminUser;
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  return null;
-});
+export interface AuthContext {
+  user: User;
+  profile: Profile;
+  target: "main" | "admin";
+}
 
 /**
- * Retrieves the current authenticated user's record from public.profiles.
- * Crucial: fetches role securely from the database table (DB1 or DB2).
- * Wrapped in React cache to eliminate duplicate database roundtrips on layout + page trees.
+ * Unified authenticated session retrieval:
+ * Queries Supabase Auth and public.profiles exactly once per request lifecycle,
+ * then stores the result in React's per-request cache.
  */
-export const getCurrentProfile = cache(async function getCurrentProfile(): Promise<Profile | null> {
+export const getAuthSession = cache(async function getAuthSession(): Promise<AuthContext | null> {
   const { hasMain, hasAdmin } = await getAuthCookieStatus();
   if (!hasMain && !hasAdmin) {
     return null;
@@ -114,9 +74,10 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
       const mainClient = await createClient("main");
       const {
         data: { user },
+        error,
       } = await mainClient.auth.getUser();
 
-      if (user) {
+      if (!error && user) {
         const { data: profile } = await mainClient
           .from("profiles")
           .select("id, full_name, role, created_at, updated_at")
@@ -124,7 +85,11 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
           .maybeSingle();
 
         if (profile) {
-          return profile as Profile;
+          return {
+            user,
+            profile: profile as Profile,
+            target: "main",
+          };
         }
 
         // Privileged fallback: fetch via service-role to avoid false-negatives from RLS policies
@@ -138,7 +103,11 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
             .maybeSingle();
 
           if (privProfile) {
-            return privProfile as Profile;
+            return {
+              user,
+              profile: privProfile as Profile,
+              target: "main",
+            };
           }
 
           // Safe recovery: if user is authenticated in auth.users but has no row in public.profiles,
@@ -158,7 +127,11 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
             .maybeSingle();
 
           if (recoveredProfile) {
-            return recoveredProfile as Profile;
+            return {
+              user,
+              profile: recoveredProfile as Profile,
+              target: "main",
+            };
           }
         } catch {
           // Fall through
@@ -175,19 +148,28 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
       const adminClient = await createClient("admin");
       const {
         data: { user: adminUser },
+        error: adminError,
       } = await adminClient.auth.getUser();
 
-      if (adminUser) {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const privileged = await createAdminClient();
-        const { data: adminProfile } = await privileged
-          .from("profiles")
-          .select("id, full_name, role, created_at, updated_at")
-          .eq("id", adminUser.id)
-          .maybeSingle();
+      if (!adminError && adminUser) {
+        try {
+          const { createAdminClient } = await import("@/lib/supabase/admin");
+          const privileged = await createAdminClient();
+          const { data: adminProfile } = await privileged
+            .from("profiles")
+            .select("id, full_name, role, created_at, updated_at")
+            .eq("id", adminUser.id)
+            .maybeSingle();
 
-        if (adminProfile) {
-          return adminProfile as Profile;
+          if (adminProfile) {
+            return {
+              user: adminUser,
+              profile: adminProfile as Profile,
+              target: "admin",
+            };
+          }
+        } catch {
+          // Fall through
         }
       }
     } catch {
@@ -198,99 +180,38 @@ export const getCurrentProfile = cache(async function getCurrentProfile(): Promi
   return null;
 });
 
-export interface AuthContext {
-  user: User;
-  profile: Profile;
-  target: "main" | "admin";
-}
+/**
+ * Retrieves the currently authenticated Supabase user using the secure server client.
+ * Wrapped in React cache to deduplicate redundant lookups within a single render pass.
+ */
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<User | null> {
+  const session = await getAuthSession();
+  return session?.user ?? null;
+});
+
+/**
+ * Retrieves the current authenticated user's record from public.profiles.
+ * Crucial: fetches role securely from the database table (DB1 or DB2).
+ * Wrapped in React cache to eliminate duplicate database roundtrips on layout + page trees.
+ */
+export const getCurrentProfile = cache(async function getCurrentProfile(): Promise<Profile | null> {
+  const session = await getAuthSession();
+  return session?.profile ?? null;
+});
 
 /**
  * Requires an authenticated user session and valid database profile.
  * Throws AuthRequiredError if the session is missing or invalid.
+ * Uses request-memoized session lookup.
  */
-export async function requireAuth(): Promise<AuthContext> {
-  // Check main DB1 session
-  try {
-    const mainClient = await createClient("main");
-    const {
-      data: { user },
-    } = await mainClient.auth.getUser();
-
-    if (user) {
-      const { data: profile } = await mainClient
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile) {
-        return {
-          user,
-          profile: profile as Profile,
-          target: "main",
-        };
-      }
-
-      // Privileged fallback for DB1
-      try {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const privileged = await createAdminClient("main");
-        const { data: privProfile } = await privileged
-          .from("profiles")
-          .select("id, full_name, role, created_at, updated_at")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (privProfile) {
-          return {
-            user,
-            profile: privProfile as Profile,
-            target: "main",
-          };
-        }
-      } catch {
-        // Fall through to admin check
-      }
-    }
-  } catch {
-    // Fall through to admin check
+export const requireAuth = cache(async function requireAuth(): Promise<AuthContext> {
+  const session = await getAuthSession();
+  if (!session) {
+    throw new AuthRequiredError();
   }
+  return session;
+});
 
-  // Check admin DB2 session
-  try {
-    const adminClient = await createClient("admin");
-    const {
-      data: { user: adminUser },
-    } = await adminClient.auth.getUser();
-
-    if (adminUser) {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const privileged = await createAdminClient();
-      const { data: adminProfile } = await privileged
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", adminUser.id)
-        .maybeSingle();
-
-      if (adminProfile) {
-        return {
-          user: adminUser,
-          profile: adminProfile as Profile,
-          target: "admin",
-        };
-      }
-    }
-  } catch {
-    // Fall through
-  }
-
-  throw new AuthRequiredError();
-}
-
-/**
- * Enforces that the current authenticated user has the 'astrologer' role.
- * Throws AuthRequiredError if unauthenticated, or ForbiddenRoleError if role mismatch.
- */
 export async function requireAstrologer(): Promise<AuthContext> {
   const context = await requireAuth();
 

@@ -5,6 +5,7 @@ import { getCurrentProfile, getCurrentUser, AuthRequiredError } from "@/lib/auth
 import { requireAdminAccess } from "@/lib/auth/admin-guard";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { askGeminiSupport, generateAiTicketSummary } from "@/lib/ai/gemini-service";
+import { learnFromResolvedTicket, promoteHighRatedInteractionToKnowledge } from "@/lib/ai/learning-engine";
 import type { AstrologerRecommendationCard } from "@/lib/ai/live-tools";
 import type {
   SupportTicket,
@@ -56,6 +57,8 @@ export async function askSupportAiAction(payload: {
   isFallback: boolean;
   modelUsed: string;
   recommendations?: AstrologerRecommendationCard[];
+  interactionId?: string;
+  learnedSourcesUsed?: number;
 }>> {
   try {
     const { user, role } = await requireSupportUser();
@@ -89,6 +92,8 @@ export async function askSupportAiAction(payload: {
         isFallback: response.isFallback,
         modelUsed: response.modelUsed,
         recommendations: response.recommendations,
+        interactionId: response.interactionId,
+        learnedSourcesUsed: response.learnedSourcesUsed,
       },
     };
   } catch (err: unknown) {
@@ -107,6 +112,7 @@ export async function createSupportTicketAction(payload: {
   message: string;
   aiHistory?: Array<{ role: string; content: string }>;
   isEscalation?: boolean;
+  interactionId?: string;
 }): Promise<SupportActionResult<SupportTicket>> {
   try {
     const { user, role, name, email } = await requireSupportUser();
@@ -212,6 +218,19 @@ export async function createSupportTicketAction(payload: {
         isEscalation: !!payload.isEscalation,
       },
     });
+
+    // Mark interaction as escalated in ai_interaction_logs if interactionId provided
+    if (payload.interactionId) {
+      try {
+        await adminSupabase
+          .from("ai_interaction_logs")
+          .update({ escalated_to_ticket: true })
+          .eq("id", payload.interactionId)
+          .eq("user_id", user.id);
+      } catch (escErr) {
+        console.warn("[Escalate Interaction Warning]", escErr);
+      }
+    }
 
     return { success: true, data: ticket as SupportTicket };
   } catch (err: unknown) {
@@ -677,8 +696,16 @@ export async function adminUpdateTicketStatusAction(payload: {
       console.warn("[Status Change Audit Event Warning]", eventErr);
     }
 
-    // Notify user if resolved
+    // Notify user if resolved and trigger self-learning
     if (payload.status === "resolved") {
+      try {
+        learnFromResolvedTicket(payload.ticketId).catch((err) => {
+          console.warn("[learnFromResolvedTicket Warning]:", err);
+        });
+      } catch (learnErr) {
+        console.warn("[learnFromResolvedTicket Error]:", learnErr);
+      }
+
       try {
         await adminSupabase.from("customer_notifications").insert({
           customer_id: updatedTicket.user_id,
@@ -695,6 +722,77 @@ export async function adminUpdateTicketStatusAction(payload: {
     return { success: true, data: updatedTicket as SupportTicket };
   } catch (err: unknown) {
     const errorMsg = (err as Error)?.message || "Failed to update support ticket.";
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Submit positive (+1) or negative (-1) feedback for an AI interaction.
+ * Updates ai_interaction_logs, updates confidence via record_learned_kb_feedback RPC,
+ * and promotes high-rated novel interactions to knowledge.
+ */
+export async function submitAiFeedbackAction(payload: {
+  interactionId: string;
+  rating: 1 | -1;
+  comment?: string;
+}): Promise<SupportActionResult<{ recorded: boolean; promoted?: boolean }>> {
+  try {
+    const { user } = await requireSupportUser();
+    const { interactionId, rating, comment } = payload;
+
+    if (!interactionId || (rating !== 1 && rating !== -1)) {
+      return { success: false, error: "Invalid feedback payload." };
+    }
+
+    const adminSupabase = await createAdminClient("main");
+
+    // 1. Fetch interaction log ensuring ownership
+    const { data: log, error: logErr } = await adminSupabase
+      .from("ai_interaction_logs")
+      .select("id, user_id, learned_knowledge_ids, feedback_rating")
+      .eq("id", interactionId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (logErr || !log) {
+      return { success: false, error: "Interaction record not found or unauthorized." };
+    }
+
+    // 2. Prevent duplicate conflicting submissions
+    if (log.feedback_rating !== null) {
+      return { success: true, data: { recorded: true } };
+    }
+
+    // 3. Update feedback in ai_interaction_logs
+    await adminSupabase
+      .from("ai_interaction_logs")
+      .update({
+        feedback_rating: rating,
+        feedback_comment: comment ? comment.slice(0, 1000) : null,
+      })
+      .eq("id", interactionId);
+
+    // 4. If learned knowledge was used, update helpful/unhelpful counts via RPC
+    const learnedIds = (log.learned_knowledge_ids || []) as string[];
+    if (learnedIds.length > 0) {
+      await adminSupabase.rpc("record_learned_kb_feedback", {
+        kb_ids: learnedIds,
+        is_helpful: rating === 1,
+      });
+    }
+
+    // 5. If positive rating and no learned knowledge was used, promote to candidate knowledge
+    let promoted = false;
+    if (rating === 1 && learnedIds.length === 0) {
+      promoteHighRatedInteractionToKnowledge(interactionId).catch((err) => {
+        console.warn("[Promote Knowledge Warning]:", err);
+      });
+      promoted = true;
+    }
+
+    return { success: true, data: { recorded: true, promoted } };
+  } catch (err: unknown) {
+    const errorMsg = (err as Error)?.message || "Failed to submit feedback.";
     return { success: false, error: errorMsg };
   }
 }
