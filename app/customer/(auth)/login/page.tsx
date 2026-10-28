@@ -6,7 +6,11 @@ import { getCurrentProfile } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Customer Login" };
 
-export default async function CustomerLoginPage() {
+export default async function CustomerLoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ reason?: string; error?: string }>;
+}) {
   // Already signed in: redirect to appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
@@ -22,9 +26,16 @@ export default async function CustomerLoginPage() {
     redirect("/astrologer/dashboard");
   }
 
+  const { reason, error } = searchParams ? await searchParams : {};
+
   return (
     <AuthShell mode="login" role="customer">
-      <LoginForm role="customer" />
+      <LoginForm
+        role="customer"
+        reason={reason}
+        error={error}
+        showRoleNotice={reason === "role" || reason === "role_unauthorized"}
+      />
     </AuthShell>
   );
 }

@@ -87,7 +87,7 @@ test("OAuth Redirect Security: Prevents open redirects on OAuth callback", () =>
   // Callback loops blocked
   assert.equal(validateRedirectPath("/auth/callback"), "/customer");
   assert.equal(validateRedirectPath(""), "/customer");
-  assert.equal(validateRedirectPath(null as any), "/customer");
+  assert.equal(validateRedirectPath(null as unknown as string), "/customer");
 });
 
 test("OAuth Role Isolation: User cannot elevate to super_admin or admin via callback", () => {

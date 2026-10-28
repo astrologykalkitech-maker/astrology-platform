@@ -90,6 +90,43 @@ export async function getCurrentProfile(): Promise<Profile | null> {
       if (profile) {
         return profile as Profile;
       }
+
+      // Privileged fallback: fetch via service-role to avoid false-negatives from RLS policies
+      try {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const privileged = await createAdminClient("main");
+        const { data: privProfile } = await privileged
+          .from("profiles")
+          .select("id, full_name, role, created_at, updated_at")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (privProfile) {
+          return privProfile as Profile;
+        }
+
+        // Safe recovery: if user is authenticated in auth.users but has no row in public.profiles,
+        // provision the baseline profile record from user metadata so they are not stranded
+        const userMetaRole = user.user_metadata?.role;
+        const assignedRole = userMetaRole === "astrologer" ? "astrologer" : "customer";
+        const metaName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+
+        const { data: recoveredProfile } = await privileged
+          .from("profiles")
+          .insert({
+            id: user.id,
+            full_name: metaName,
+            role: assignedRole,
+          })
+          .select("id, full_name, role, created_at, updated_at")
+          .maybeSingle();
+
+        if (recoveredProfile) {
+          return recoveredProfile as Profile;
+        }
+      } catch {
+        // Fall through
+      }
     }
   } catch {
     // Continue to admin check
@@ -153,6 +190,27 @@ export async function requireAuth(): Promise<AuthContext> {
           profile: profile as Profile,
           target: "main",
         };
+      }
+
+      // Privileged fallback for DB1
+      try {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const privileged = await createAdminClient("main");
+        const { data: privProfile } = await privileged
+          .from("profiles")
+          .select("id, full_name, role, created_at, updated_at")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (privProfile) {
+          return {
+            user,
+            profile: privProfile as Profile,
+            target: "main",
+          };
+        }
+      } catch {
+        // Fall through to admin check
       }
     }
   } catch {

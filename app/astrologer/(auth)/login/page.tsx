@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Astrologer Login" };
 export default async function AstrologerLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string }>;
+  searchParams: Promise<{ reason?: string; error?: string }>;
 }) {
   // Already signed in with appropriate role: skip the login screen.
   const profile = await getCurrentProfile();
@@ -23,11 +23,15 @@ export default async function AstrologerLoginPage({
     redirect("/astrologer/dashboard");
   }
 
-  const { reason } = await searchParams;
+  const { reason, error } = await searchParams;
 
   return (
     <AuthShell mode="login">
-      <LoginForm showRoleNotice={reason === "role"} />
+      <LoginForm
+        reason={reason}
+        error={error}
+        showRoleNotice={reason === "role" || reason === "customer_account"}
+      />
     </AuthShell>
   );
 }
