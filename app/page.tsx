@@ -472,7 +472,7 @@ export default async function HomePage() {
                     </svg>
                   ),
                 },
-              ].map((item, index) => (
+              ].map((item) => (
                 <div key={item.step} className="flex flex-col items-center text-center relative group">
                   {/* Circular icon container with small golden numbered badge */}
                   <div className="relative mb-4">

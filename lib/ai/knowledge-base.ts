@@ -1,0 +1,557 @@
+/**
+ * JyotishSetu Comprehensive Platform Knowledge Base
+ *
+ * Authoritative, verified knowledge items covering:
+ * 1. Platform Operations, Bookings, Virtual Rooms, and Account Access
+ * 2. Astrologer Lifecycle, Lead Management, and Listing Policies
+ * 3. Vedic Life Guidance (Career, Marriage, Health, Wealth, Business, Education, Family, Kundli)
+ *    with strict ethical, medical, and financial advisory boundaries.
+ */
+
+import type { SupportTicketCategory } from "@/lib/types/database.types";
+
+export interface KnowledgeItem {
+  id: string;
+  title: string;
+  applicableRoles: ("customer" | "astrologer")[];
+  category: SupportTicketCategory;
+  keywords: string[];
+  hinglishKeywords: string[];
+  summary: string;
+  problemDescription: string;
+  solutionSteps: string[];
+  relatedRoute?: string;
+  requiresLiveData?: boolean;
+  escalateIfUnresolved: boolean;
+}
+
+export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
+  // ─── AUTHENTICATION & SESSIONS ──────────────────────────────────────────────
+  {
+    id: "kb-auth-oauth-role",
+    title: "Google OAuth Login & Role Assignment",
+    applicableRoles: ["customer", "astrologer"],
+    category: "account",
+    keywords: ["google", "oauth", "login", "signup", "role", "redirect", "reason=role", "sign in", "account access"],
+    hinglishKeywords: ["login nahi ho raha", "google sign in error", "account nahi khul raha", "galat account"],
+    summary: "Resolving Google OAuth role redirection or switching between customer and astrologer accounts.",
+    problemDescription: "User sees 'reason=role' redirect or is logged into the wrong portal after Google OAuth.",
+    solutionSteps: [
+      "Ensure you are using the correct login page: /customer/login for seekers, or /astrologer/login for Vedic astrologers.",
+      "If you registered as a Customer, signing in on the Astrologer page will redirect you with a role notice because account roles are separated for security.",
+      "Click 'Sign out and continue' on the login screen to clear any active session before switching accounts.",
+      "If you are an astrologer and believe your account role was misassigned, our Super Admin team can re-assign your role upon ticket escalation.",
+    ],
+    relatedRoute: "/customer/login",
+    escalateIfUnresolved: true,
+  },
+  {
+    id: "kb-auth-session-recovery",
+    title: "Session Expiration & Re-Authentication",
+    applicableRoles: ["customer", "astrologer"],
+    category: "account",
+    keywords: ["session", "expired", "logged out", "cookie", "token", "refresh", "timeout"],
+    hinglishKeywords: ["baar baar logout", "session expire", "login time out"],
+    summary: "How to resolve unexpected session logouts and maintain browser authentication.",
+    problemDescription: "User gets redirected to login unexpectedly during platform navigation.",
+    solutionSteps: [
+      "JyotishSetu sessions use secure HTTP-only cookies that refresh automatically on active tabs.",
+      "Clear browser cookies for the site if you notice looping redirects.",
+      "Ensure third-party cookies or strict ad-blockers are not blocking Supabase authentication calls.",
+      "Log in again at /customer/login or /astrologer/login to receive a fresh secure session token.",
+    ],
+    relatedRoute: "/customer/login",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-auth-password-reset",
+    title: "Password Reset & Account Recovery",
+    applicableRoles: ["customer", "astrologer"],
+    category: "account",
+    keywords: ["password", "forgot", "reset", "recover", "change password"],
+    hinglishKeywords: ["password bhool gaya", "password reset kaise kare", "naya password"],
+    summary: "Step-by-step instructions to reset a forgotten password.",
+    problemDescription: "User forgot password or cannot log in with their email and password.",
+    solutionSteps: [
+      "Navigate to /customer/forgot-password or /astrologer/forgot-password.",
+      "Enter your registered email address and submit the reset request.",
+      "Check your inbox (and spam/promotions folder) for the secure recovery link.",
+      "Click the link to open /auth/reset-password and enter a new strong password.",
+    ],
+    relatedRoute: "/customer/forgot-password",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── BOOKINGS & SCHEDULES ──────────────────────────────────────────────────
+  {
+    id: "kb-booking-muhurat-window",
+    title: "Consultation Room Unlock Timing (15-Minute Window)",
+    applicableRoles: ["customer", "astrologer"],
+    category: "consultation",
+    keywords: ["how do i join", "join consultation", "join call", "join meeting", "how to join", "room unlock", "when can i join", "timing", "muhurat", "15 minutes", "join button", "slot time"],
+    hinglishKeywords: ["room kab khulega", "call kab shuru hogi", "join button kab aayega", "meeting timing", "join kaise kare"],
+    summary: "Virtual consultation rooms unlock exactly 15 minutes before the scheduled Muhurat slot.",
+    problemDescription: "User wonders why the Join Room button is not yet active or when they can enter.",
+    solutionSteps: [
+      "For privacy and security, virtual consultation rooms unlock precisely 15 minutes before the scheduled session start time.",
+      "Open your Bookings tab (/customer/bookings or /astrologer/bookings).",
+      "During the active window (15 minutes prior to session end), the 'Join Video Call' or 'Join Voice Call' button illuminates.",
+      "Both customer and astrologer enter the identical encrypted room endpoint automatically.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-booking-cancellation-policy",
+    title: "Consultation Cancellation & Rescheduling",
+    applicableRoles: ["customer", "astrologer"],
+    category: "booking",
+    keywords: ["cancel", "reschedule", "change time", "refund", "missed slot", "cancellation"],
+    hinglishKeywords: ["booking cancel kaise kare", "time badalna hai", "reschedule karna hai", "meeting cancel"],
+    summary: "How to cancel or reschedule an upcoming Vedic consultation booking.",
+    problemDescription: "Customer or astrologer needs to cancel an appointment or select a different slot.",
+    solutionSteps: [
+      "Go to your Bookings tab (/customer/bookings).",
+      "Locate the upcoming booking with status 'pending' or 'confirmed'.",
+      "Click 'Cancel Consultation' to release the slot prior to the start time.",
+      "Completed or in-progress consultations cannot be cancelled directly through the UI.",
+      "To reschedule, cancel the pending slot and create a new booking for your desired Muhurat time, or contact the astrologer via enquiries.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: true,
+  },
+  {
+    id: "kb-booking-create-workflow",
+    title: "How to Book an Astrologer",
+    applicableRoles: ["customer"],
+    category: "booking",
+    keywords: ["how to book", "schedule", "new booking", "consultation mode", "video", "call", "chat"],
+    hinglishKeywords: ["booking kaise kare", "astrologer se appointment kaise le", "slot book karna"],
+    summary: "Complete guide on selecting an astrologer, consultation mode, and Muhurat slot.",
+    problemDescription: "Customer wants guidance on booking a Vedic consultation session.",
+    solutionSteps: [
+      "Browse verified astrologers at /customer/astrologers or ask me for a recommendation right here in chat.",
+      "Open the astrologer's profile to view their Vedic specializations, languages, and fee schedule.",
+      "Select your preferred consultation mode: Video Call, Voice Call, or Discussion Thread.",
+      "Choose an available date and Muhurat time slot that suits your schedule.",
+      "Confirm the booking. It will immediately appear under your Bookings dashboard (/customer/bookings).",
+    ],
+    relatedRoute: "/customer/astrologers",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── CONSULTATION ROOM & TECHNICAL TROUBLESHOOTING ─────────────────────────
+  {
+    id: "kb-tech-media-permissions",
+    title: "Camera and Microphone Permissions for Consultations",
+    applicableRoles: ["customer", "astrologer"],
+    category: "consultation",
+    keywords: ["camera", "microphone", "permission", "mic not working", "camera blocked", "video black", "jaas", "audio", "video", "call", "room", "screen"],
+    hinglishKeywords: ["camera allow kaise kare", "mic ki aawaz nahi aa rahi", "video nahi dikh rahi", "audio issue", "screen black"],
+    summary: "Enabling browser camera and microphone permissions for virtual consultations.",
+    problemDescription: "Browser blocks microphone or camera access when entering the consultation room.",
+    solutionSteps: [
+      "Look for the camera/lock icon in your browser address bar (top left near the URL).",
+      "Click the icon and change Camera and Microphone from 'Blocked' to 'Allow'.",
+      "Refresh the page and re-click 'Join Video Call' from your Bookings tab.",
+      "On mobile devices, check your system settings (iOS Settings -> Safari/Chrome -> Camera/Mic; Android Settings -> Apps -> Browser -> Permissions).",
+      "Close any background apps (Zoom, Teams, WhatsApp Video) that might be locking your hardware.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: true,
+  },
+  {
+    id: "kb-tech-network-reconnect",
+    title: "Network Interruptions & Call Reconnection",
+    applicableRoles: ["customer", "astrologer"],
+    category: "consultation",
+    keywords: ["reconnect", "disconnected", "lag", "poor connection", "call dropped", "network", "bandwidth"],
+    hinglishKeywords: ["call cut gayi", "awaaz atak rahi hai", "net slow hai", "reconnect kaise kare"],
+    summary: "Recovering from dropped connections or poor audio/video quality during a session.",
+    problemDescription: "Consultation call dropped or audio is choppy due to network fluctuations.",
+    solutionSteps: [
+      "Simply refresh the room browser tab or return to /customer/bookings and click 'Join Video Call' again.",
+      "Rooms remain active for the full duration of your booked slot plus a buffer period.",
+      "If Wi-Fi bandwidth is low, toggle off video inside the room toolbar to continue smoothly with high-definition voice.",
+      "Switch to a stable 4G/5G mobile hotspot if your broadband experiences latency.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-tech-browser-support",
+    title: "Supported Browsers & Devices",
+    applicableRoles: ["customer", "astrologer"],
+    category: "technical",
+    keywords: ["browser", "chrome", "safari", "firefox", "edge", "mobile", "ios", "android"],
+    hinglishKeywords: ["kaunsa browser chalega", "phone me chalega kya", "laptop requirement"],
+    summary: "Recommended web browsers for optimal consultation audio and video performance.",
+    problemDescription: "User asks which browser or device to use for consultations.",
+    solutionSteps: [
+      "Recommended Desktop: Google Chrome (version 100+), Mozilla Firefox, Apple Safari (version 15+), or Microsoft Edge.",
+      "Recommended Mobile: Chrome on Android, Safari on iPhone/iPad.",
+      "Ensure your browser is updated to the latest stable release.",
+      "No external software download or app installation is required—rooms run natively in your browser with WebRTC.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── BILLING, FEES & PAYMENTS ───────────────────────────────────────────────
+  {
+    id: "kb-billing-gateway-status",
+    title: "Consultation Fee Schedules & Payment Gateway Status",
+    applicableRoles: ["customer", "astrologer"],
+    category: "billing",
+    keywords: ["payment", "fee", "gateway", "billing", "receipt", "complimentary", "free", "pending payment"],
+    hinglishKeywords: ["payment kaise kare", "fees kitni hai", "paise kab katenge", "complimentary kyu hai"],
+    summary: "Current fee schedule records and planned payment gateway integration status.",
+    problemDescription: "User asks about payment methods, billing receipts, or complimentary consultations.",
+    solutionSteps: [
+      "Our direct payment gateway integration (Razorpay / UPI) is in active scheduled rollout.",
+      "Current consultations display verified fee schedules set by the astrologer.",
+      "Sessions may be marked as 'complimentary' (₹0) or 'pending platform reconciliation' on your Billing page (/customer/billing).",
+      "The platform strictly does not fabricate transaction IDs or claim fake refunds.",
+      "For fee adjustments or special billing inquiries, escalate to Super Admin using the button below.",
+    ],
+    relatedRoute: "/customer/billing",
+    escalateIfUnresolved: true,
+  },
+
+  // ─── CUSTOMER PROFILE & KUNDLI ──────────────────────────────────────────────
+  {
+    id: "kb-customer-kundli-profile",
+    title: "Updating Birth Details & Kundli Chart Data",
+    applicableRoles: ["customer"],
+    category: "profile",
+    keywords: ["kundli", "birth chart", "date of birth", "time of birth", "birthplace", "lagna", "horoscope", "birth details"],
+    hinglishKeywords: ["kundli kaise banaye", "janm patrika", "date of birth change", "birth time update"],
+    summary: "How customers can update their birth date, exact time, and place for Vedic analysis.",
+    problemDescription: "Customer wants to ensure astrologer has accurate birth data before consultation.",
+    solutionSteps: [
+      "Navigate to your Profile tab (/customer/profile).",
+      "Update your Full Name, Date of Birth, Exact Time of Birth, and Place of Birth.",
+      "Save your changes. This information is securely shared with your assigned astrologer during your consultation.",
+      "Having precise birth time (to the minute) ensures your Lagna (Ascendant) and planetary Dasha periods are calculated with complete accuracy.",
+    ],
+    relatedRoute: "/customer/profile",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-customer-reviews-ratings",
+    title: "Submitting Reviews & Blessings for Astrologers",
+    applicableRoles: ["customer"],
+    category: "general",
+    keywords: ["review", "rating", "feedback", "star", "blessing", "testimonial"],
+    hinglishKeywords: ["review kaise de", "rating dena hai", "feedback submit"],
+    summary: "Leaving verified 1-to-5 star ratings and reviews for completed consultations.",
+    problemDescription: "Customer wants to leave feedback or a review for an astrologer.",
+    solutionSteps: [
+      "Upon completion of your consultation, navigate to your Enquiries or Bookings tab.",
+      "You will see the option to leave a 1-to-5 star blessing and a written review.",
+      "Verified reviews help other seekers discover genuine, skilled Vedic astrologers.",
+      "Reviews are published after automatic content moderation check.",
+    ],
+    relatedRoute: "/customer/bookings",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── ASTROLOGER ONBOARDING & PROFILE MANAGEMENT ────────────────────────────
+  {
+    id: "kb-astro-approval-lifecycle",
+    title: "Astrologer Profile Approval & Verification Lifecycle",
+    applicableRoles: ["astrologer"],
+    category: "profile",
+    keywords: ["approval", "verification", "pending approval", "suspended", "changes requested", "listing status"],
+    hinglishKeywords: ["profile approve kab hogi", "listing live kab aayegi", "verification pending", "admin review"],
+    summary: "The verification stages every astrologer profile undergoes before public listing.",
+    problemDescription: "Astrologer wants to know their approval status or why their profile is not yet public.",
+    solutionSteps: [
+      "All Vedic astrologer profiles undergo verification by the Super Admin moderation team to ensure authentic credentials.",
+      "Profile statuses include: 'pending', 'changes_requested', 'approved', and 'suspended'.",
+      "Check your current status on your Astrologer Profile tab (/astrologer/profile).",
+      "If status is 'changes_requested', review the administrative notes, update your certifications or bio, and re-submit.",
+      "Once 'approved', your public profile at /customer/astrologers immediately becomes visible and bookable.",
+    ],
+    relatedRoute: "/astrologer/profile",
+    escalateIfUnresolved: true,
+  },
+  {
+    id: "kb-astro-profile-editing",
+    title: "Setting Astrologer Bio, Specializations & Consultation Rates",
+    applicableRoles: ["astrologer"],
+    category: "profile",
+    keywords: ["edit profile", "consultation fee", "specializations", "languages", "experience", "bio"],
+    hinglishKeywords: ["fees kaise badle", "profile edit", "experience update", "specialization add"],
+    summary: "How astrologers configure their consultation fees, languages, and Vedic specializations.",
+    problemDescription: "Astrologer wants to update their hourly/session rate, languages, or specializations.",
+    solutionSteps: [
+      "Go to /astrologer/profile/edit.",
+      "Update your Display Name, Bio, Years of Experience, and Consultation Fee (in INR).",
+      "Select your Vedic specializations (e.g. Kundli, Vedic, Numerology, Vastu, Career, Marriage).",
+      "Add the languages you can fluently conduct consultations in (e.g. Hindi, English, Sanskrit, Gujarati, Marathi).",
+      "Click 'Save Profile' to immediately update your public listing details.",
+    ],
+    relatedRoute: "/astrologer/profile/edit",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-astro-leads-enquiries",
+    title: "Managing Customer Leads & Consultation Enquiries",
+    applicableRoles: ["astrologer"],
+    category: "leads",
+    keywords: ["leads", "enquiry", "customer message", "pipeline", "assigned", "contacted", "closed"],
+    hinglishKeywords: ["leads kahan dikhengi", "customer enquiry kaise dekhe", "lead status change"],
+    summary: "Managing assigned customer enquiries and updating lead status stages.",
+    problemDescription: "Astrologer wants to know how customer leads are received and progressed.",
+    solutionSteps: [
+      "Assigned leads appear in your Astrologer Leads inbox at /astrologer/leads.",
+      "Click on an enquiry to view the seeker's Vedic questions and contact information.",
+      "Update the lead status from 'assigned' to 'contacted' as you begin communicating.",
+      "You can launch a direct virtual consultation room with the customer from the lead actions bar.",
+      "Mark the lead as 'closed' once the consultation is concluded to record your service delivery.",
+    ],
+    relatedRoute: "/astrologer/leads",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-astro-create-booking",
+    title: "Scheduling Direct Consultations for Customers",
+    applicableRoles: ["astrologer"],
+    category: "booking",
+    keywords: ["create booking", "astrologer booking", "schedule customer", "duration", "booking tool"],
+    hinglishKeywords: ["customer ke liye slot book karna", "direct booking", "astrologer meeting schedule"],
+    summary: "How astrologers can create bookings directly for their existing customers.",
+    problemDescription: "Astrologer wants to manually schedule a consultation slot for a client.",
+    solutionSteps: [
+      "Navigate to /astrologer/bookings/new.",
+      "Enter the customer's unique ID, service type (e.g. Kundli Reading, Muhurat Guidance), and consultation mode (Video, Call, or Chat).",
+      "Select the date, time, and session duration (between 10 and 180 minutes).",
+      "Your profile consultation fee is automatically applied.",
+      "Click 'Create Booking'. The session will be confirmed and immediately reflected on both your and the customer's dashboard.",
+    ],
+    relatedRoute: "/astrologer/bookings/new",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: CAREER, JOB & PROMOTION ───────────────────────────
+  {
+    id: "kb-life-career",
+    title: "Vedic Career Guidance, Jobs & Promotion Prospects",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["career", "job", "promotion", "government job", "sarkari naukri", "work", "profession", "business or job", "career change", "unemployed", "interview"],
+    hinglishKeywords: ["naukri kab lagegi", "promotion kab hoga", "sarkari naukri milegi kya", "job change karu ya nahi", "career guidance"],
+    summary: "Vedic astrological insights into career timing, profession alignment, and 10th House Karma Bhava.",
+    problemDescription: "Customer asks about job prospects, career changes, promotions, or government service.",
+    solutionSteps: [
+      "In Vedic astrology, professional trajectory is primarily analyzed through the 10th House (Karma Bhava), the Sun (authority and government influence), Saturn (perseverance and service), and Mercury (trade and analytical roles).",
+      "Active Dasha and Antardasha periods indicate favorable Muhurats for career transitions, promotions, or venturing into new initiatives.",
+      "Astrology provides perspective on natural strengths and timing; however, personal effort, qualification, and preparation remain essential.",
+      "Our verified career astrologers examine your 10th house planetary placements (Navamsha D9 and Dashamsha D10 charts) to provide personalized guidance.",
+      "Ask me to recommend a career astrologer or click below to browse specialists in career and vocational astrology.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Career",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: LOVE, MARRIAGE & COMPATIBILITY ────────────────────
+  {
+    id: "kb-life-marriage",
+    title: "Marriage Timing, Relationship Harmony & Kundli Matching",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["marriage", "love", "relationship", "wedding", "compatibility", "guna milan", "kundli matching", "partner", "spouse", "breakup", "divorce", "delay in marriage"],
+    hinglishKeywords: ["shaadi kab hogi", "marriage timing", "kundli milan kaise hota hai", "love marriage hogi ya arrange", "rishta kab pakka hoga"],
+    summary: "Vedic relationship analysis, 7th House Kalatra Bhava, Venus/Jupiter placements, and compatibility matching.",
+    problemDescription: "Customer asks when they will marry, about relationship compatibility, or Kundli matching.",
+    solutionSteps: [
+      "In Vedic astrology, marital harmony and partnerships are governed by the 7th House (Kalatra Bhava), with Venus (representing love and romance) and Jupiter (representing Dharma and marital longevity) acting as key significators.",
+      "Kundli Matching (Ashtakoot Milan) evaluates 8 cosmic dimensions totaling 36 Gunas to gauge psychological, emotional, and health compatibility.",
+      "Important Notice: Astrology provides guidance and compatibility insights, but can never deterministically guarantee marriage dates, reconciliation, or control another person's feelings.",
+      "A qualified Vedic astrologer can examine transits of Jupiter and Saturn across your 7th house and provide objective compatibility insights.",
+      "Ask me to recommend a relationship astrologer or explore our verified marriage specialists.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Marriage",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: HEALTH & WELLBEING (STRICT MEDICAL BOUNDARY) ──────
+  {
+    id: "kb-life-health",
+    title: "Health, Vitality & Medical Boundary Policy",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["health", "illness", "disease", "medical", "doctor", "medicine", "vitality", "wellbeing", "pain", "mental health", "depression", "recovery"],
+    hinglishKeywords: ["tabiyat kharab hai", "bimaari kab theek hogi", "health prediction", "sehat kaisi rahegi"],
+    summary: "Traditional Ayurvedic-Vedic vitality perspective with a strict medical disclaimer.",
+    problemDescription: "Customer asks about health predictions, illness recovery, or medical decisions.",
+    solutionSteps: [
+      "CRITICAL MEDICAL NOTICE: Astrology is NOT medical science and can NEVER diagnose illnesses, predict disease progression, or replace professional healthcare.",
+      "If you are experiencing physical symptoms, mental health distress, or medical conditions, please consult a licensed medical doctor or healthcare professional immediately.",
+      "In case of a medical emergency, contact your local emergency services (112 / 102 / 911) without delay.",
+      "From a traditional Vedic perspective, the 6th House (Roga Bhava) and Sun (Atmakaraka) are studied alongside Ayurveda for holistic lifestyle balance, diet, and spiritual tranquility.",
+      "Our astrologers provide spiritual, meditative, and lifestyle guidance only, strictly upholding medical boundaries.",
+    ],
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: MONEY, FINANCE & WEALTH (STRICT FINANCIAL BOUNDARY)
+  {
+    id: "kb-life-finance",
+    title: "Wealth, Prosperity & Financial Advisory Boundaries",
+    applicableRoles: ["customer"],
+    category: "billing",
+    keywords: ["money", "wealth", "finance", "debt", "loan", "investment", "shares", "crypto", "stock market", "lottery", "rich", "poverty", "financial future"],
+    hinglishKeywords: ["paisa kab aayega", "dhan labh", "karz kab utrega", "share market me invest karu", "financial guidance"],
+    summary: "Vedic perspectives on Dhana Yogas (2nd & 11th Houses) with strict non-investment advisory boundaries.",
+    problemDescription: "Customer asks about financial future, wealth generation, stock trading, or debt relief.",
+    solutionSteps: [
+      "CRITICAL FINANCIAL NOTICE: Astrology CANNOT predict stock market movements, guarantee investment returns, or replace professional financial planning.",
+      "Never base capital investments, speculative trades, or legal financial commitments solely on astrology. Always consult a certified financial advisor (SEBI-registered / CFA).",
+      "In Vedic astrology, prosperity is examined through the 2nd House (accumulated wealth), 11th House (gains and aspirations), and benefic aspects of Jupiter and Venus (Dhana Yogas).",
+      "Vedic wisdom emphasizes Dharma in earning, disciplined financial management, and charity (Daan) to balance planetary karmas.",
+      "Our astrologers offer spiritual perspectives on auspicious timings for planning, but do not provide commercial financial advice.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Finance",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: BUSINESS & PROPERTY ──────────────────────────────
+  {
+    id: "kb-life-business",
+    title: "Business Ventures, Partnerships & Property Muhurat",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["business", "startup", "entrepreneurship", "property", "real estate", "land", "partnership", "trade", "commercial"],
+    hinglishKeywords: ["business shuru karu kya", "dukaan kab kholu", "zameen kab khareedu", "nayi company"],
+    summary: "Analyzing 7th & 10th Houses for trade and selecting auspicious Muhurats for enterprise.",
+    problemDescription: "Customer asks about auspicious timing for launching a business or purchasing property.",
+    solutionSteps: [
+      "Commercial success in Vedic astrology is analyzed via the 7th House (partnerships & public trade), 10th House (enterprise), and Mercury (intellect and commerce).",
+      "Property acquisitions are traditionally linked to the 4th House (Bhumi Bhava) and Mars (significator of immovable land and construction).",
+      "Selecting an auspicious Muhurat (cosmic timing) ensures that an enterprise begins during harmonious lunar and planetary hours.",
+      "Astrology serves as advisory guidance alongside sound business fundamentals, thorough market research, and legal due diligence.",
+      "Explore our verified Vedic consultants who specialize in business and property Muhurats.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Business",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: EDUCATION, EXAMS & STUDENTS ──────────────────────
+  {
+    id: "kb-life-education",
+    title: "Higher Education, Competitive Exams & Focus for Students",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["education", "exam", "studies", "student", "competitive exam", "college", "university", "neet", "iit", "upsc", "focus", "concentration"],
+    hinglishKeywords: ["padhai me man nahi lagta", "exam clear hoga kya", "higher studies ke liye konsa course accha hai", "competitive exam result"],
+    summary: "Vedic insights into intellectual aptitude, 4th & 5th Houses, and examination preparation.",
+    problemDescription: "Student or parent asks about academic choices, exam success, or study concentration.",
+    solutionSteps: [
+      "In Vedic astrology, learning and retention are governed by the 4th House (foundational learning), 5th House (intellect, memory, and Buddhi), and Mercury (cognitive quickness) and Jupiter (wisdom).",
+      "Astrological charts reveal an individual's natural learning affinity (scientific, analytical, artistic, or administrative), aiding informed stream selection.",
+      "Important Note: Astrology can never guarantee examination outcomes. Dedicated preparation, structured revision, and self-belief are irreplaceable.",
+      "Traditional Vedic remedies include Saraswati Vandana and Gayatri meditation to calm the mind and enhance intellectual clarity during study periods.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Education",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC LIFE GUIDANCE: FAMILY & CHILDREN ─────────────────────────────────
+  {
+    id: "kb-life-family",
+    title: "Family Harmony, Children & Domestic Tranquility",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["family", "children", "parents", "domestic peace", "arguments", "relatives", "kids", "progeny"],
+    hinglishKeywords: ["parivar me kalesh", "baccho ki chinta", "ghar me shanti kaise laye", "family problems"],
+    summary: "Navigating family dynamics, 2nd (Kutumba) & 4th (Matru/Sukha) Houses with Vedic empathy.",
+    problemDescription: "Customer seeks guidance on family disputes, parental health, or domestic peace.",
+    solutionSteps: [
+      "Domestic happiness is traditionally analyzed through the 2nd House (immediate family & speech) and the 4th House (home peace, emotional security, and mother).",
+      "The 5th House (Putra Bhava) and Jupiter signify progeny, children's welfare, and emotional fulfillment.",
+      "Astrology provides perspective on patience, understanding planetary temperaments, and harmonizing family dynamics without assigning blame.",
+      "Maintaining an empathetic, non-judgmental environment and open dialogue remains the cornerstone of domestic tranquility.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Family",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── VEDIC CONCEPTS & KUNDLI EXPLANATIONS ────────────────────────────────────
+  {
+    id: "kb-life-spirituality-kundli",
+    title: "Understanding Your Kundli (Birth Chart), Bhavas & Dashas",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["what is kundli", "birth chart explained", "lagna", "ascendant", "bhavas", "houses", "grahas", "planets", "rashis", "dasha", "vimshottari", "sade sati", "rahu ketu"],
+    hinglishKeywords: ["kundli kya hoti hai", "lagna kya hai", "sade sati kya hoti hai", "rahu ketu ka asar", "dasha ka matlab"],
+    summary: "Plain-language guide to Vedic astrological charts, planetary periods, and houses.",
+    problemDescription: "Customer asks for an explanation of basic Vedic astrology concepts or terminology.",
+    solutionSteps: [
+      "A Kundli (Janampatri) is a celestial map of the cosmos at the exact moment and geographic location of your birth.",
+      "Lagna (Ascendant): The zodiac sign rising on the eastern horizon at your birth time; it represents your core identity, vitality, and life path.",
+      "The 12 Houses (Bhavas): Each segment represents a facet of life—1st (Self), 2nd (Wealth), 4th (Home), 7th (Partnership), 9th (Dharma & Fortune), 10th (Career).",
+      "Vimshottari Dasha: A 120-year planetary timeline that activates different areas of life during specific planetary reigns.",
+      "Sade Sati: A 7.5-year transit of Saturn across the natal Moon, traditionally viewed not as a curse, but as a transformative period of discipline, maturity, and growth.",
+      "You can view and update your exact birth information in your Profile tab (/customer/profile).",
+    ],
+    relatedRoute: "/customer/profile",
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-life-manglik-facts",
+    title: "Manglik Dosha Facts & Dispelling Astrological Myths",
+    applicableRoles: ["customer"],
+    category: "consultation",
+    keywords: ["manglik", "mangal dosha", "mars", "kuja dosha", "manglik myth", "dosha cancellation"],
+    hinglishKeywords: ["manglik hona bura hai kya", "mangal dosh ke upay", "manglik dosha cancellation", "kya manglik non manglik se shaadi kar sakta hai"],
+    summary: "Objective Vedic facts on Mars placement, dispelling fear-based misconceptions around Manglik Dosha.",
+    problemDescription: "Customer is worried because someone told them they are Manglik.",
+    solutionSteps: [
+      "Manglik Dosha (Kuja Dosha) occurs when Mars is situated in the 1st, 2nd, 4th, 7th, 8th, or 12th houses of the Lagna chart.",
+      "Misconception vs Reality: Traditional texts list numerous cancellations (Kuja Dosha Bhanga)—such as Mars in its own sign, aspect of Jupiter, or the partner having similar fiery planetary placements.",
+      "Over 40% of all astrological charts possess some form of Mangal placement. It reflects high vitality, leadership, and drive rather than misfortune.",
+      "Responsible Vedic astrologers never spread fear or demand expensive rituals to 'cure' Manglik status. True compatibility is judged on overall character, values, and total chart harmony.",
+    ],
+    relatedRoute: "/customer/astrologers?specialization=Kundli",
+    escalateIfUnresolved: false,
+  },
+
+  // ─── PLATFORM POLICIES & ETHICS ─────────────────────────────────────────────
+  {
+    id: "kb-policy-vedic-ethics",
+    title: "Vedic Platform Guidelines & Ethical Boundaries",
+    applicableRoles: ["customer", "astrologer"],
+    category: "general",
+    keywords: ["policy", "guidelines", "ethics", "guarantee", "medical", "legal", "rules", "disclaimer", "trust"],
+    hinglishKeywords: ["platform rules", "kya allowed hai", "guaranteed result", "disclaimer", "bharosa"],
+    summary: "Authentic Vedic astrology advisory boundaries, disclaimers, and conduct standards.",
+    problemDescription: "User asks about guaranteed astrological outcomes or medical/legal predictions.",
+    solutionSteps: [
+      "Vedic astrology provides cosmic guidance based on planetary cycles, Karma, and Dasha periods. Astrologers must never promise 100% deterministic or guaranteed outcomes.",
+      "Astrologers on JyotishSetu adhere to traditional Dharmic principles of empathy, honesty, and guidance.",
+      "Consultations must never be treated as substitutes for licensed medical, psychiatric, or legal counsel.",
+      "Users experiencing emotional distress or health emergencies should seek qualified professional help immediately.",
+    ],
+    escalateIfUnresolved: false,
+  },
+  {
+    id: "kb-policy-human-escalation",
+    title: "Opening a Support Ticket with Super Admin Desk",
+    applicableRoles: ["customer", "astrologer"],
+    category: "general",
+    keywords: ["human support", "ticket", "super admin", "escalate", "agent", "representative", "complaint", "talk to human"],
+    hinglishKeywords: ["admin se baat karni hai", "human support chahiye", "complaint lodge karna", "ticket banana", "agent se connect karo"],
+    summary: "How to escalate an issue to a human support representative or Super Admin.",
+    problemDescription: "User has an unresolved problem or dispute requiring human administrative intervention.",
+    solutionSteps: [
+      "Click the 'Request Human Support' button at the top of this chat or switch to the 'Submit Ticket' tab.",
+      "Our AI assistant will automatically package the summary of your conversation and diagnostic details.",
+      "Enter any additional notes and submit. You will receive an official tracking reference (e.g. TICK-1042).",
+      "The Super Admin desk reviews tickets promptly and provides replies directly in your 'My Support Tickets' inbox.",
+    ],
+    relatedRoute: "/customer/support",
+    escalateIfUnresolved: true,
+  },
+];

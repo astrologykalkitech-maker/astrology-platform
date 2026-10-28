@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Inbox,
@@ -50,7 +50,6 @@ export default function SuperAdminLeadsPage() {
   const [selectedLeadForAssign, setSelectedLeadForAssign] = useState<AdminLeadItem | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
-  const [, startTransition] = useTransition();
 
   const loadData = async () => {
     setLoading(true);

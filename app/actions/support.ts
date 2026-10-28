@@ -5,6 +5,7 @@ import { getCurrentProfile, getCurrentUser, AuthRequiredError } from "@/lib/auth
 import { requireAdminAccess } from "@/lib/auth/admin-guard";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { askGeminiSupport, generateAiTicketSummary } from "@/lib/ai/gemini-service";
+import type { AstrologerRecommendationCard } from "@/lib/ai/live-tools";
 import type {
   SupportTicket,
   SupportMessage,
@@ -54,6 +55,7 @@ export async function askSupportAiAction(payload: {
   suggestedAction?: "continue" | "escalate" | "self_service";
   isFallback: boolean;
   modelUsed: string;
+  recommendations?: AstrologerRecommendationCard[];
 }>> {
   try {
     const { user, role } = await requireSupportUser();
@@ -86,6 +88,7 @@ export async function askSupportAiAction(payload: {
         suggestedAction: response.suggestedAction,
         isFallback: response.isFallback,
         modelUsed: response.modelUsed,
+        recommendations: response.recommendations,
       },
     };
   } catch (err: unknown) {

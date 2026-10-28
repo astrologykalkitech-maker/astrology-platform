@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
-import { buttonStyles } from "@/components/astrologer/ui/Button";
 import BookingForm from "./BookingForm";
 
 export const metadata = {

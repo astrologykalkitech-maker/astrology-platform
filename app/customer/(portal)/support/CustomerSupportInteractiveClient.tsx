@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   LifeBuoy,
   Send,
@@ -18,6 +19,9 @@ import {
   RefreshCw,
   PlusCircle,
   X,
+  Star,
+  ExternalLink,
+  ShieldCheck,
 } from "lucide-react";
 import {
   askSupportAiAction,
@@ -32,6 +36,7 @@ import type {
   SupportTicketCategory,
   SupportTicketPriority,
 } from "@/lib/types/database.types";
+import type { AstrologerRecommendationCard } from "@/lib/ai/live-tools";
 
 interface FAQItem {
   question: string;
@@ -87,11 +92,16 @@ export default function CustomerSupportInteractiveClient() {
   // AI Chat State
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiMessages, setAiMessages] = useState<Array<{ role: "user" | "assistant"; content: string; isFallback?: boolean }>>([
+  const [aiMessages, setAiMessages] = useState<Array<{
+    role: "user" | "assistant";
+    content: string;
+    isFallback?: boolean;
+    recommendations?: AstrologerRecommendationCard[];
+  }>>([
     {
       role: "assistant",
       content:
-        "Namaste! I am JyotishSetu's AI Support Assistant. I can help you with consultation room access, Muhurat slot timings, birth chart details, astrologer directory questions, or escalating issues to our human Super Admin team. How may I assist you today?",
+        "Namaste! I am JyotishSetu's AI Support Assistant. I can help you with consultation room access, Muhurat slot timings, birth chart details, recommending verified astrologers, or escalating issues to our human Super Admin team. How may I assist you today?",
     },
   ]);
 
@@ -158,6 +168,7 @@ export default function CustomerSupportInteractiveClient() {
             role: "assistant",
             content: res.data!.message,
             isFallback: res.data!.isFallback,
+            recommendations: res.data!.recommendations,
           },
         ]);
       } else {
@@ -170,7 +181,7 @@ export default function CustomerSupportInteractiveClient() {
           },
         ]);
       }
-    } catch (err: unknown) {
+    } catch {
       setAiLoading(false);
       setAiMessages((prev) => [
         ...prev,
@@ -353,6 +364,76 @@ export default function CustomerSupportInteractiveClient() {
                     }`}
                   >
                     {m.content}
+
+                    {/* Rich Astrologer Recommendations Cards */}
+                    {m.recommendations && m.recommendations.length > 0 && (
+                      <div className="mt-3.5 space-y-2.5 not-prose">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-gold-deep">
+                          Recommended Astrologers:
+                        </p>
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {m.recommendations.map((astro) => (
+                            <div
+                              key={astro.id}
+                              className="rounded-xl border border-gold/30 bg-white p-3 shadow-sm hover:border-gold transition-all"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className="font-semibold text-midnight text-xs">
+                                      {astro.name}
+                                    </h4>
+                                    <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <ShieldCheck className="h-2.5 w-2.5" /> Verified
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 text-[11px] text-muted">
+                                    <span className="flex items-center text-amber-600 font-semibold gap-0.5">
+                                      <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                                      {astro.rating_avg} ({astro.total_reviews})
+                                    </span>
+                                    <span>•</span>
+                                    <span>{astro.experience_years}+ yrs exp</span>
+                                    <span>•</span>
+                                    <span className="font-semibold text-midnight">
+                                      ₹{astro.consultation_fee}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <Link
+                                  href={astro.profile_url}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-gold-deep to-amber-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow hover:brightness-105 transition-all"
+                                >
+                                  View Profile <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              </div>
+
+                              {astro.match_reason && (
+                                <p className="mt-2 text-[10px] text-amber-800 bg-amber-50/80 px-2 py-1 rounded border border-amber-200/60 font-medium">
+                                  {astro.match_reason}
+                                </p>
+                              )}
+
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {astro.specializations.slice(0, 3).map((spec, i) => (
+                                  <span
+                                    key={i}
+                                    className="rounded bg-parchment px-1.5 py-0.5 text-[10px] text-midnight/80 border border-line"
+                                  >
+                                    {spec}
+                                  </span>
+                                ))}
+                                <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-600">
+                                  {astro.languages.join(", ")}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {m.isFallback && (
                       <p className="mt-2 text-[10px] text-amber-700 font-medium">
                         (Offline platform grounding active)
@@ -382,10 +463,11 @@ export default function CustomerSupportInteractiveClient() {
               <p className="text-[11px] font-semibold text-muted mb-2">Suggested Topics:</p>
               <div className="flex flex-wrap gap-1.5">
                 {[
+                  "Suggest an astrologer for career guidance",
+                  "Find a Hindi speaking Vedic astrologer",
+                  "What are my upcoming bookings?",
                   "When does my live consultation room unlock?",
                   "How do I cancel or reschedule my booking?",
-                  "How do I update my Kundli and birth details?",
-                  "Why is my consultation marked complimentary?",
                 ].map((q, i) => (
                   <button
                     key={i}
