@@ -10,19 +10,14 @@ import {
   Sparkles,
   User,
   Phone,
-  Mail,
   CalendarPlus,
-  MessageSquare,
   CheckCircle2,
   AlertCircle,
-  Video,
-  ExternalLink,
 } from "lucide-react";
 import { requireAstrologer } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidUUID } from "@/lib/validations/lead";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
-import { Card } from "@/components/astrologer/ui/Card";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatDateTime, formatExactDateTime } from "@/lib/astrologer/format";
 

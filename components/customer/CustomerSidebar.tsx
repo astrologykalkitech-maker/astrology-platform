@@ -75,13 +75,13 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
         aria-hidden="true"
         className="pointer-events-none object-cover object-top"
       />
-      {/* Dark gradient mask for clear readability while maintaining ancient temple aesthetics */}
+      {/* Dark gradient mask for clear readability, masking out conflicting subtitle art */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(21,16,39,0.1) 18%, rgba(21,16,39,0.85) 30%, rgba(21,16,39,0.92) 80%, rgba(21,16,39,0.4) 92%, rgba(21,16,39,0.1) 100%)",
+            "linear-gradient(to bottom, rgba(21,16,39,0.05) 0%, rgba(21,16,39,0.1) 15%, rgba(21,16,39,0.98) 16.5%, rgba(21,16,39,0.98) 22.5%, rgba(21,16,39,0.92) 80%, rgba(21,16,39,0.4) 92%, rgba(21,16,39,0.1) 100%)",
         }}
       />
 
@@ -89,12 +89,12 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
       <Link
         href="/customer/astrologers"
         onClick={onNavigate}
-        className="absolute inset-x-5 top-[18%] z-10 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-center"
+        className="absolute inset-x-5 top-[17.5%] z-10 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-center"
       >
         <span className="sr-only">JyotishSetu Customer Portal, explore astrologers</span>
-        <div className="w-full py-1 px-3.5 rounded-full bg-midnight/95 border border-gold/40 shadow-lg backdrop-blur-md flex items-center justify-center gap-1.5">
+        <div className="w-full py-1.5 px-4 rounded-full bg-[#151027] border border-gold/45 shadow-[0_4px_16px_rgba(0,0,0,0.85)] flex items-center justify-center gap-1.5">
           <Sparkles className="h-3 w-3 text-gold shrink-0" />
-          <span className="text-[10.5px] font-bold uppercase tracking-widest text-champagne whitespace-nowrap">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-champagne whitespace-nowrap">
             Customer Portal
           </span>
         </div>

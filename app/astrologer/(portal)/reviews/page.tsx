@@ -17,8 +17,10 @@ const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function AstrologerReviewsPage() {
-  await requireAstrologerPage();
-  const res = await getAstrologerReviewsAction();
+  const [, res] = await Promise.all([
+    requireAstrologerPage(),
+    getAstrologerReviewsAction(),
+  ]);
   const data = res.success && res.data ? res.data : { reviews: [], averageRating: 5.0, totalReviews: 0 };
 
   return (

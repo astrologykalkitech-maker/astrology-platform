@@ -4,6 +4,24 @@
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
+const DEFAULT_ADMIN_TIMEOUT_MS = 10000;
+
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_ADMIN_TIMEOUT_MS);
+
+  if (init?.signal) {
+    init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return fetch(input, {
+    ...init,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 /**
  * Returns a privileged Supabase client for verified server actions.
  * Only call this AFTER verifying user authorization via requireSuperAdmin() or
@@ -11,10 +29,6 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
  *
  * Fails closed: Requires SUPABASE_SERVICE_ROLE_KEY to be set in environment.
  * Never silently falls back to an unprivileged client when a service-role operation is requested.
- *
- * IMPORTANT: Never use NEXT_PUBLIC_* variables for service role keys.
- * NEXT_PUBLIC_* variables are bundled into client-side JavaScript and exposed in the browser.
- * Only server-only environment variables (without the NEXT_PUBLIC_ prefix) are safe for secrets.
  */
 export async function createAdminClient(target: "main" | "admin" = "admin") {
   const isMain = target === "main";
@@ -38,6 +52,9 @@ export async function createAdminClient(target: "main" | "admin" = "admin") {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    global: {
+      fetch: fetchWithTimeout,
     },
   });
 }

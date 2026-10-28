@@ -5,15 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Calendar,
-  Clock,
-  Video,
-  PhoneCall,
-  MessageSquare,
   User,
   Sparkles,
   AlertCircle,
   Loader2,
-  CheckCircle2,
 } from "lucide-react";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 

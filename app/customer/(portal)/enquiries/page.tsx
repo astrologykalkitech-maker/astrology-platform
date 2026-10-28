@@ -22,8 +22,7 @@ const CARD_TABLE =
   "relative overflow-x-auto rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function EnquiriesPage() {
-  await requireCustomerPage();
-  const result = await getCustomerEnquiries();
+  const [, result] = await Promise.all([requireCustomerPage(), getCustomerEnquiries()]);
 
   if (!result.success || !result.data) {
     return (

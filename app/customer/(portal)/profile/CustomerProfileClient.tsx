@@ -21,7 +21,6 @@ import type { CustomerFullProfile } from "@/lib/types/database.types";
 import { updateCustomerProfileAction } from "@/app/actions/customer";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
-import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { ProfilePhotoUploader } from "@/components/profile/ProfilePhotoUploader";
 
 const CARD =

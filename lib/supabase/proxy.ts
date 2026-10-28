@@ -1,6 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+const PROXY_TIMEOUT_MS = 4000;
+
+function fetchWithProxyTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+
+  if (init?.signal) {
+    init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return fetch(input, {
+    ...init,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 /**
  * Refreshes Supabase session tokens by synchronizing cookies
  * between the incoming NextRequest and outgoing NextResponse,
@@ -23,6 +41,9 @@ export async function updateSession(
       supabaseUrl,
       supabaseKey,
       {
+        global: {
+          fetch: fetchWithProxyTimeout,
+        },
         cookieOptions: {
           name: "sb-main-auth-token",
         },
@@ -71,6 +92,9 @@ export async function updateSession(
   if (adminUrl && adminKey && hasAdminCookie) {
     try {
       const adminSupabase = createServerClient(adminUrl, adminKey, {
+        global: {
+          fetch: fetchWithProxyTimeout,
+        },
         cookieOptions: {
           name: "sb-admin-auth-token",
         },

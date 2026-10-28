@@ -33,8 +33,7 @@ export default async function AstrologerProfilePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  await requireCustomerPage();
-  const { slug } = await params;
+  const [{ slug }] = await Promise.all([params, requireCustomerPage()]);
   const astro = await getPublicApprovedAstrologerBySlug(slug);
 
   if (!astro) {

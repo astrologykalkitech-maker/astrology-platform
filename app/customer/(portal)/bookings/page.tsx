@@ -9,8 +9,10 @@ import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 export const dynamic = "force-dynamic";
 
 export default async function BookingsPage() {
-  await requireCustomerPage();
-  const res = await getCustomerBookings();
+  const [, res] = await Promise.all([
+    requireCustomerPage(),
+    getCustomerBookings(),
+  ]);
   const initialBookings = res.success && res.data ? res.data : [];
 
   return (
