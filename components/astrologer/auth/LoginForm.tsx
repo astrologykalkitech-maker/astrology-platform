@@ -130,13 +130,11 @@ export function LoginForm({
       // Route users to their appropriate dashboard based on their role
       if (result.data.role === "super_admin" || result.data.role === "admin") {
         router.replace("/super-admin");
-        router.refresh();
         return;
       }
 
       if (result.data.role === "consultant_admin") {
         router.replace("/admin");
-        router.refresh();
         return;
       }
 
@@ -153,7 +151,6 @@ export function LoginForm({
           : copy.redirect;
 
       router.replace(destination);
-      router.refresh();
     });
   }
 

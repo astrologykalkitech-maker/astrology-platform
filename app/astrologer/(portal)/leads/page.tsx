@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/astrologer/ui/PageHeader";
 import { AssignmentBadge } from "@/components/astrologer/ui/StatusBadge";
 import { getLeadCounts } from "@/lib/astrologer/lead-stats";
 import { formatDateTime, timeAgo } from "@/lib/astrologer/format";
-import { requireAstrologerPage } from "@/lib/astrologer/guard";
+import { getOwnAstrologerProfile, requireAstrologerPage } from "@/lib/astrologer/guard";
 
 export const metadata: Metadata = { title: "My Leads" };
 
@@ -24,13 +24,16 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ status?: string; page?: string }> }) {
-  await requireAstrologerPage();
-  const sp = await searchParams;
+  const [, { profile }, sp] = await Promise.all([
+    requireAstrologerPage(),
+    getOwnAstrologerProfile(),
+    searchParams,
+  ]);
   const status: TabKey = TABS.some((t) => t.key === sp.status) ? (sp.status as TabKey) : "all";
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
   const [counts, result] = await Promise.all([
-    getLeadCounts(),
+    getLeadCounts(profile?.id),
     getMyAssignedLeads({ status, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   ]);
 
