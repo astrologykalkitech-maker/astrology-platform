@@ -17,6 +17,8 @@ export type QueryIntent =
   | "live_data_bookings"
   | "live_data_leads"
   | "live_data_profile_status"
+  | "live_data_profile_completion"
+  | "live_data_earnings"
   | "live_data_tickets"
   | "human_escalation"
   | "platform_troubleshooting"
@@ -299,10 +301,11 @@ export function classifyQuery(
   }
 
   // 7. Detect Live Data Queries
-  // A. User's own bookings
+  // A. User's or Astrologer's own bookings
   if (
-    normalized.match(/\b(my bookings?|upcoming|scheduled|appointment|meeting time|next call|meri booking)\b/) &&
-    normalized.match(/\b(show|check|status|when|what|view|batao|kya)\b/)
+    multiTurn.followUpType === "astrologer_bookings_followup" ||
+    (normalized.match(/\b(my bookings?|upcoming|scheduled|appointment|meeting time|next call|meri booking|sessions?|calls?)\b/) &&
+      normalized.match(/\b(show|check|status|when|what|view|batao|kya|today|schedule)\b/))
   ) {
     return {
       intent: "live_data_bookings",
@@ -331,11 +334,45 @@ export function classifyQuery(
     };
   }
 
-  // C. Astrologer profile approval status
+  // C. Astrologer profile completion checklist
   if (
     role === "astrologer" &&
-    normalized.match(/\b(approval|verified|listing status|profile status|approve|verification)\b/) &&
-    normalized.match(/\b(my|am i|is my|mera|meri|check|status|kab|hogi)\b/)
+    (multiTurn.followUpType === "astrologer_checklist_followup" ||
+      normalized.match(/\b(checklist|missing|percentage|kya bacha hai|kya baki hai|what is missing|profile score)\b/) ||
+      (normalized.includes("profile") && normalized.match(/\b(complete|completion|100%|finish)\b/)))
+  ) {
+    return {
+      intent: "live_data_profile_completion",
+      category: "profile",
+      priority: "medium",
+      isHinglish,
+      relevantKnowledge: retrieveRelevantKnowledge(role, query, 2),
+      suggestedAction: "continue",
+    };
+  }
+
+  // D. Astrologer consultation earnings & payouts
+  if (
+    role === "astrologer" &&
+    (multiTurn.followUpType === "astrologer_earnings_followup" ||
+      normalized.match(/\b(earnings?|payouts?|revenue|income|kamai|settlement|withdrawal|fees earned)\b/))
+  ) {
+    return {
+      intent: "live_data_earnings",
+      category: "billing",
+      priority: "medium",
+      isHinglish,
+      relevantKnowledge: retrieveRelevantKnowledge(role, query, 2),
+      suggestedAction: "continue",
+    };
+  }
+
+  // E. Astrologer profile approval status
+  if (
+    role === "astrologer" &&
+    (multiTurn.followUpType === "astrologer_status_followup" ||
+      (normalized.match(/\b(approval|verified|listing status|profile status|approve|verification)\b/) &&
+        normalized.match(/\b(my|am i|is my|mera|meri|check|status|kab|hogi|why|pending)\b/)))
   ) {
     return {
       intent: "live_data_profile_status",
@@ -347,7 +384,7 @@ export function classifyQuery(
     };
   }
 
-  // D. Support tickets status
+  // F. Support tickets status
   if (normalized.match(/\btickets?\b/) && normalized.match(/\b(status|my|check|show|view|mera|number|complaint)\b/)) {
     return {
       intent: "live_data_tickets",

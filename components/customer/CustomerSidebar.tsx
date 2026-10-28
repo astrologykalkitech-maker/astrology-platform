@@ -39,7 +39,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
 ];
 
-
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
   { label: "Live Chat", icon: MessageSquare, desc: "Instant one-on-one live messaging with verified Vedic pandits launching in Phase 2." },
   { label: "Kundli Matching", icon: HelpCircle, desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon." },
@@ -53,11 +52,12 @@ function isActive(pathname: string, item: NavItem) {
 
 type SidebarProps = {
   open: boolean;
+  isLoggedIn?: boolean;
   onNavigate: () => void;
   onClose: () => void;
 };
 
-export function CustomerSidebar({ open, onNavigate, onClose }: SidebarProps) {
+export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -151,10 +151,20 @@ export function CustomerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         </nav>
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">
-          <CustomerSignOutButton
-            variant="goldLight"
-            className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
-          />
+          {isLoggedIn ? (
+            <CustomerSignOutButton
+              variant="goldLight"
+              className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
+            />
+          ) : (
+            <Link
+              href="/customer/login"
+              onClick={onNavigate}
+              className="flex w-full items-center justify-center rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-4 py-2.5 text-xs font-bold text-midnight shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
+            >
+              Sign In to JyotishSetu
+            </Link>
+          )}
         </div>
       </div>
     </aside>

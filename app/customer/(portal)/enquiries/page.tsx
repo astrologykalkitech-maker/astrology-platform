@@ -6,6 +6,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { getCustomerEnquiries } from "@/app/actions/customer";
+import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
@@ -21,6 +22,7 @@ const CARD_TABLE =
   "relative overflow-x-auto rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function EnquiriesPage() {
+  await requireCustomerPage();
   const result = await getCustomerEnquiries();
 
   if (!result.success || !result.data) {

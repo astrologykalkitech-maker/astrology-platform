@@ -9,12 +9,14 @@ import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologer
 interface CustomerShellProps {
   customerName: string;
   userInitial: string;
+  isLoggedIn?: boolean;
   children: ReactNode;
 }
 
 export function CustomerShell({
   customerName,
   userInitial,
+  isLoggedIn = true,
   children,
 }: CustomerShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -39,7 +41,7 @@ export function CustomerShell({
         Skip to content
       </a>
 
-      <RealtimeAstrologerSync />
+      {isLoggedIn && <RealtimeAstrologerSync />}
 
       <CustomerBottomNav menuOpen={menuOpen} onMore={() => setMenuOpen(true)} />
 
@@ -54,6 +56,7 @@ export function CustomerShell({
 
       <CustomerSidebar
         open={menuOpen}
+        isLoggedIn={isLoggedIn}
         onNavigate={() => setMenuOpen(false)}
         onClose={() => setMenuOpen(false)}
       />
@@ -62,6 +65,7 @@ export function CustomerShell({
         <CustomerHeader
           customerName={customerName}
           userInitial={userInitial}
+          isLoggedIn={isLoggedIn}
           menuOpen={menuOpen}
           onMenuClick={() => setMenuOpen(true)}
         />

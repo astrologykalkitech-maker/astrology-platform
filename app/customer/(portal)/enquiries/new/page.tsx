@@ -76,6 +76,10 @@ function NewEnquiryContent() {
       });
 
       if (!result.success) {
+        if (result.error && (result.error.toLowerCase().includes("auth") || result.error.toLowerCase().includes("log in"))) {
+          router.push(`/customer/login?redirectTo=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+          return;
+        }
         throw new Error(result.error || "Failed to submit enquiry.");
       }
 
