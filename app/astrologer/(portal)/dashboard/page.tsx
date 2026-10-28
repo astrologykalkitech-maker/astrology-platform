@@ -64,7 +64,10 @@ export default async function DashboardPage() {
     );
   }
 
-  const [counts, recent] = await Promise.all([getLeadCounts(), getMyAssignedLeads({ status: "all", limit: 4 })]);
+  const [counts, recent] = await Promise.all([
+    getLeadCounts(profile.id),
+    getMyAssignedLeads({ status: "all", limit: 4 }),
+  ]);
   const completion = getProfileCompletion(profile);
   const leads = recent.success ? recent.data.leads : [];
 

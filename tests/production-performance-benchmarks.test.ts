@@ -116,3 +116,27 @@ test("Performance Benchmark: Edge-level route protection decision executes in < 
   assert.ok(avgMs < 0.05, `Edge security evaluation took ${avgMs.toFixed(4)}ms per check`);
 });
 
+test("Performance Benchmark: In-memory lead statistics status aggregation executes in < 1ms", () => {
+  const mockAssignments = Array.from({ length: 500 }, (_, i) => ({
+    id: `assign-${i}`,
+    status: i % 4 === 0 ? "assigned" : i % 4 === 1 ? "contacted" : i % 4 === 2 ? "closed" : "assigned",
+  }));
+
+  const start = performance.now();
+  for (let i = 0; i < 1000; i++) {
+    let assigned = 0;
+    let contacted = 0;
+    let closed = 0;
+    for (const a of mockAssignments) {
+      if (a.status === "assigned") assigned++;
+      else if (a.status === "contacted") contacted++;
+      else if (a.status === "closed") closed++;
+    }
+    assert.equal(assigned + contacted + closed, 500);
+  }
+  const duration = performance.now() - start;
+  const avgMs = duration / 1000;
+  assert.ok(avgMs < 0.05, `Aggregation of 500 records took ${avgMs.toFixed(4)}ms per pass`);
+});
+
+

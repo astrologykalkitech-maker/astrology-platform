@@ -40,13 +40,6 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
     >
-      <head>
-        {/* Font Awesome CDN - Icons ke liye zaroori hai */}
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-        />
-      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

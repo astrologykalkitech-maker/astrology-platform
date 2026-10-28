@@ -10,11 +10,39 @@ interface PublicNavbarProps {
   isLoggedIn?: boolean;
 }
 
-export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarProps) {
+export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLoggedIn = false }: PublicNavbarProps) {
+  const [currentRole, setCurrentRole] = useState(initialRole);
+  const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedIn);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) return;
+    try {
+      if (
+        typeof document !== "undefined" &&
+        (document.cookie.includes("sb-main-auth-token") || document.cookie.includes("sb-"))
+      ) {
+        import("@/lib/supabase/client").then(({ createClient }) => {
+          const client = createClient();
+          client.auth
+            .getUser()
+            .then(({ data }) => {
+              if (data?.user) {
+                setIsLoggedIn(true);
+                const role = data.user.user_metadata?.role || "customer";
+                setCurrentRole(role);
+              }
+            })
+            .catch(() => {});
+        });
+      }
+    } catch {
+      // Non-blocking
+    }
+  }, [isLoggedIn]);
 
   const handleMouseEnterServices = () => {
     if (dropdownTimeoutRef.current) {

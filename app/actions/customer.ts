@@ -62,12 +62,20 @@ export async function getCustomerDashboardData(): Promise<
     const { user, profile, target } = await requireCustomerContext();
     const supabase = await createClient(target);
 
-    // Query authenticated customer's own leads only
-    const { data: leads, error } = await supabase
-      .from("leads")
-      .select("id, subject, message, status, created_at, astrologer_id")
-      .eq("customer_id", user.id)
-      .order("created_at", { ascending: false });
+    // Concurrently query authenticated customer's leads and bookings in parallel
+    const [leadsResult, bookingsResult] = await Promise.all([
+      supabase
+        .from("leads")
+        .select("id, subject, message, status, created_at, astrologer_id")
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("customer_bookings")
+        .select("id, status, scheduled_at")
+        .eq("customer_id", user.id),
+    ]);
+
+    const { data: leads, error } = leadsResult;
 
     if (error) {
       return {
@@ -114,23 +122,15 @@ export async function getCustomerDashboardData(): Promise<
       (l) => l.status === "closed" || l.status === "converted"
     ).length;
 
-    // Query authenticated customer's bookings count if table exists
     let totalBookings = 0;
     let upcomingBookings = 0;
-    try {
-      const { data: bookings } = await supabase
-        .from("customer_bookings")
-        .select("id, status, scheduled_at")
-        .eq("customer_id", user.id);
+    const bookings = bookingsResult.data;
 
-      if (bookings && bookings.length > 0) {
-        totalBookings = bookings.length;
-        upcomingBookings = bookings.filter(
-          (b) => b.status === "confirmed" || b.status === "pending"
-        ).length;
-      }
-    } catch {
-      // customer_bookings may not exist yet on fresh installations
+    if (bookings && bookings.length > 0) {
+      totalBookings = bookings.length;
+      upcomingBookings = bookings.filter(
+        (b) => b.status === "confirmed" || b.status === "pending"
+      ).length;
     }
 
     const isEmailVerified = Boolean(user.email_confirmed_at);
