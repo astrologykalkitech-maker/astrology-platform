@@ -37,6 +37,43 @@ export interface ResolvedContext {
 }
 
 /**
+ * Detects whether a query is primarily a conversational greeting rather than a specific support request.
+ */
+export function isGreetingQuery(normalizedQuery: string): boolean {
+  const clean = normalizedQuery
+    .toLowerCase()
+    .replace(/[!?,.:;~]+/g, " ")
+    .trim();
+
+  // If empty after stripping punctuation, not a greeting
+  if (!clean) return false;
+
+  // Check if message contains substantive action/issue keywords
+  const hasSubstantiveKeywords =
+    /\b(login|log in|logout|sign in|signin|signup|sign up|password|oauth|google|redirect|reset|booking|book|appointment|cancel|cancellation|reschedule|refund|astrologer|pandit|jyotish|recommend|suggest|lead|leads|kundli|birth|dob|tob|chart|horoscope|ticket|complaint|escalat|admin|payout|earnings|fee|fees|payment|room|video|call|muhurat|slot|career|job|marriage|shaadi|health|illness|disease|doctor|money|finance|business|education|exam|family|upay|remedy|dasha|graha)\b/.test(
+      clean
+    );
+
+  if (hasSubstantiveKeywords) {
+    return false;
+  }
+
+  // Pure greeting patterns (exact matches or greeting phrases)
+  const greetingPhrases = [
+    /^(hi|hello|hey|heya|hiya|hie|hii+)(\s+(there|friend|jyotishsetu|team|bot|assistant|ji))?$/,
+    /^(namaste|namaskar|namaskaram|pranam|pranaam|vandanam|vanakkam)(\s+(ji|jyotishsetu|pandit\s*ji))?$/,
+    /^(good\s*(morning|afternoon|evening|day))(\s+(to\s*you|there|jyotishsetu|team))?$/,
+    /^(how\s*are\s*you|how\s*r\s*u|how\s*do\s*you\s*do|how\s*is\s*it\s*going)(\s*today)?$/,
+    /^(hi|hello|hey|namaste)[,\s]+(how\s*are\s*you|how\s*r\s*u|kya\s*haal\s*hai|kaise\s*ho)(\s*today)?$/,
+    /^(kya\s*haal\s*hai|kaise\s*ho|kaise\s*hain|aap\s*kaise\s*hain|sab\s*theek)(\s*ji)?$/,
+    /^(sup|yo|what['’]?s\s*up|wassup)(\s*there)?$/,
+    /^(greetings|welcome|bonjour|hola)$/,
+  ];
+
+  return greetingPhrases.some((rgx) => rgx.test(clean));
+}
+
+/**
  * Extracts accumulated preferences and resolves follow-up references across turns
  */
 export function resolveMultiTurnContext(
@@ -44,6 +81,17 @@ export function resolveMultiTurnContext(
   currentQuery: string
 ): ResolvedContext {
   const normalizedCurrent = currentQuery.trim().toLowerCase();
+
+  // If the latest query is a conversational greeting, reset context to avoid stale topic leakage
+  if (isGreetingQuery(normalizedCurrent)) {
+    return {
+      effectiveQuery: currentQuery,
+      isFollowUp: false,
+      accumulatedPreferences: {},
+      referencedAstrologerSlugs: [],
+    };
+  }
+
   const accumulated: AstrologerPreferenceExtraction = {};
   const referencedSlugs: string[] = [];
 

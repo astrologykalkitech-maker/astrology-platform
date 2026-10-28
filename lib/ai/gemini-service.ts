@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupportTicketCategory, SupportTicketPriority } from "@/lib/types/database.types";
-import { classifyQuery, type ClassifiedQueryResult } from "./rag-pipeline";
+import { classifyQuery, generateGreetingResponse, type ClassifiedQueryResult } from "./rag-pipeline";
 import {
   searchApprovedAstrologers,
   getCustomerBirthDetailsSummary,
@@ -97,7 +97,13 @@ LANGUAGE & TONE:
 - Match the user's language: English, Hindi, or Hinglish seamlessly.
 - Be warm, empathetic, structured, and concise (usually 2 or 3 short paragraphs or clear bullet points).
 - Answer the user's actual question first before offering additional guidance.
-- Do NOT mention "Gemini" or "Google" — respond as JyotishSetu's Master AI Assistant.`;
+- Do NOT mention "Gemini" or "Google" — respond as JyotishSetu's Master AI Assistant.
+
+GREETINGS & RELEVANCE RULES:
+- When the user sends a greeting (e.g. "hi", "hello", "hey", "namaste", "good morning", "how are you?"), respond with a warm, welcoming, concise greeting.
+- Respond PRIMARILY to the user's latest message. Never assume the user is experiencing an authentication, login, OAuth, or account role issue unless they explicitly state one.
+- Never dump an unrelated troubleshooting guide or Google OAuth instructions when the user merely says hello.
+- If the user's intent is genuinely ambiguous, ask a brief, polite clarifying question.`;
 
 export const ASTROLOGER_SYSTEM_PROMPT = `You are JyotishSetu's Master AI Consultant Support & Vedic Operations Assistant for astrologers, Acharyas, and Pandits.
 
@@ -129,7 +135,12 @@ OPERATIONAL ASSISTANCE & SECURITY:
 - Never reveal another astrologer's private records or customer list.
 - Direct genuine profile-review disputes, payout discrepancies, and technical consultation-room problems to the Super Admin escalation workflow.
 - Match the user's language: English, Hindi, or Hinglish. Respond respectfully and clearly.
-- Do NOT mention "Gemini" or "Google" — respond as JyotishSetu's Master AI Assistant.`;
+- Do NOT mention "Gemini" or "Google" — respond as JyotishSetu's Master AI Assistant.
+
+GREETINGS & RELEVANCE RULES:
+- When the astrologer sends a greeting (e.g. "hi", "hello", "hey", "namaste", "good morning", "how are you?"), respond with a warm, welcoming, concise greeting.
+- Respond PRIMARILY to the astrologer's latest message. Never dump an unrelated troubleshooting guide or OAuth instructions when the astrologer merely says hello.
+- Never assume an operational issue unless explicitly described by the user.`;
 
 // ─── Format Knowledge Base & Learned Context ──────────────────────────────────
 
@@ -168,6 +179,19 @@ function buildDeterministicFallback(
     boundaryPrefix = "⚠️ **Medical Notice**: Vedic astrology provides traditional spiritual insights into vitality, but NEVER diagnoses illnesses, predicts disease progression, or replaces professional healthcare. For any physical or mental symptoms, please consult a licensed medical doctor immediately. In case of emergencies, contact local emergency services.\n\n";
   } else if (hasFinancialBoundary) {
     boundaryPrefix = "⚠️ **Financial Notice**: Astrology offers philosophical perspectives on prosperity and timing, but CANNOT predict stock market movements or guarantee investment returns. For financial investments, taxation, and debt planning, please consult a certified financial advisor.\n\n";
+  }
+
+  // Handle conversational greeting fallback
+  if (intent === "greeting") {
+    return {
+      success: true,
+      message: generateGreetingResponse(role, query),
+      category: "general",
+      priority: "low",
+      suggestedAction: "continue",
+      isFallback: false,
+      modelUsed: "deterministic-greeting",
+    };
   }
 
   // Handle profile selection follow-up
@@ -256,21 +280,30 @@ function buildDeterministicFallback(
     }
   }
 
-  // Knowledge base item match
+  // Knowledge base item match - verify genuine topic relevance before returning specific troubleshooting steps
   if (relevantKnowledge.length > 0) {
     const top = relevantKnowledge[0];
-    const stepsFormatted = top.solutionSteps.map((s, i) => `${i + 1}. ${s}`).join("\n");
-    const routeText = top.relatedRoute ? `\n\nYou can access this directly at: ${top.relatedRoute}` : "";
+    const normalizedQ = query.toLowerCase();
+    const hasRelevance =
+      top.keywords.some((k) => normalizedQ.includes(k.toLowerCase())) ||
+      top.hinglishKeywords.some((hk) => normalizedQ.includes(hk.toLowerCase())) ||
+      normalizedQ.includes(top.title.toLowerCase()) ||
+      normalizedQ.includes(top.category.toLowerCase());
 
-    return {
-      success: true,
-      message: `${boundaryPrefix}${top.summary}\n\nHere is how to approach this:\n${stepsFormatted}${routeText}\n\nIf you need personalized consultation, feel free to ask me for an astrologer recommendation or click 'Request Human Support' for administrative assistance.`,
-      category: top.category,
-      priority: top.category === "consultation" || top.category === "booking" ? "high" : "medium",
-      suggestedAction: top.escalateIfUnresolved ? "escalate" : "continue",
-      isFallback: true,
-      modelUsed: "grounded-knowledge-base",
-    };
+    if (hasRelevance) {
+      const stepsFormatted = top.solutionSteps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+      const routeText = top.relatedRoute ? `\n\nYou can access this directly at: ${top.relatedRoute}` : "";
+
+      return {
+        success: true,
+        message: `${boundaryPrefix}${top.summary}\n\nHere is how to approach this:\n${stepsFormatted}${routeText}\n\nIf you need personalized consultation, feel free to ask me for an astrologer recommendation or click 'Request Human Support' for administrative assistance.`,
+        category: top.category,
+        priority: top.category === "consultation" || top.category === "booking" ? "high" : "medium",
+        suggestedAction: top.escalateIfUnresolved ? "escalate" : "continue",
+        isFallback: true,
+        modelUsed: "grounded-knowledge-base",
+      };
+    }
   }
 
   // General safe fallback
@@ -317,6 +350,20 @@ export async function askGeminiSupport(params: {
 
   // 2. Classify intent, extract entities, resolve multi-turn conversation history
   const classification = classifyQuery(role, query, history);
+
+  // Fast path: Pure conversational greetings respond instantly without expensive model calls or knowledge pollution
+  if (classification.intent === "greeting") {
+    const greetingMsg = generateGreetingResponse(role, query);
+    return {
+      success: true,
+      message: greetingMsg,
+      category: "general",
+      priority: "low",
+      suggestedAction: "continue",
+      isFallback: false,
+      modelUsed: "deterministic-greeting",
+    };
+  }
 
   // 3. Parallel Context Retrieval using Promise.allSettled
   const [learnedRes, liveContextRes] = await Promise.allSettled([

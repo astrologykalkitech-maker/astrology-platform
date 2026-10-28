@@ -362,9 +362,6 @@ export default function CustomerSupportInteractiveClient() {
                 <div>
                   <h3 className="text-sm font-semibold text-midnight flex items-center gap-2">
                     JyotishSetu AI Care
-                    <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      Gemini AI Powered
-                    </span>
                   </h3>
                   <p className="text-xs text-muted">24/7 instant guidance for consultations, rooms, and bookings</p>
                 </div>
@@ -530,7 +527,7 @@ export default function CustomerSupportInteractiveClient() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-deep animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </span>
-                  <span>Gemini AI is thinking...</span>
+                  <span>JyotishSetu is thinking...</span>
                 </div>
               )}
             </div>

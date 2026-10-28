@@ -8,9 +8,10 @@
 
 import { PLATFORM_KNOWLEDGE_BASE, type KnowledgeItem } from "./knowledge-base";
 import type { SupportTicketCategory, SupportTicketPriority } from "@/lib/types/database.types";
-import { resolveMultiTurnContext, type ConversationTurn } from "./multi-turn-context";
+import { resolveMultiTurnContext, isGreetingQuery, type ConversationTurn } from "./multi-turn-context";
 
 export type QueryIntent =
+  | "greeting"
   | "recommend_astrologer"
   | "profile_selection"
   | "compare_astrologers"
@@ -144,6 +145,19 @@ export function classifyQuery(
       priority: "medium",
       isHinglish: false,
       relevantKnowledge: retrieveRelevantKnowledge(role, query, 1),
+      suggestedAction: "continue",
+    };
+  }
+
+  // 0.5. Pure Conversational Greeting Detection
+  // (Only triggers when no substantive platform keywords are present)
+  if (isGreetingQuery(normalizedRaw)) {
+    return {
+      intent: "greeting",
+      category: "general",
+      priority: "low",
+      isHinglish: false,
+      relevantKnowledge: [],
       suggestedAction: "continue",
     };
   }
@@ -324,7 +338,7 @@ export function classifyQuery(
   if (
     multiTurn.followUpType === "astrologer_bookings_followup" ||
     (normalized.match(/\b(my bookings?|upcoming|scheduled|appointment|meeting time|next call|meri booking|sessions?|calls?)\b/) &&
-      normalized.match(/\b(show|check|status|when|what|view|batao|kya|today|schedule)\b/))
+      normalized.match(/\b(show|check|status|when|what|where|view|batao|kya|today|schedule|kahan)\b/))
   ) {
     return {
       intent: "live_data_bookings",
@@ -496,10 +510,61 @@ export function retrieveRelevantKnowledge(
 
   scored.sort((a, b) => b.score - a.score);
 
-  // Return items with score > 0, fallback to top items if none matched
+  // Return items with score > 0, fallback to top items for generic troubleshooting context
   const matches = scored.filter((s) => s.score > 0).map((s) => s.item);
   if (matches.length === 0) {
     return scored.slice(0, limit).map((s) => s.item);
   }
   return matches.slice(0, limit);
+}
+
+/**
+ * Generates an authentic, friendly, and concise greeting response based on the user's role and query.
+ */
+export function generateGreetingResponse(role: "customer" | "astrologer", query: string): string {
+  const clean = query.toLowerCase().trim();
+
+  // Namaste variations
+  if (/\b(namaste|namaskar|namaskaram|pranam|pranaam|vandanam|vanakkam)\b/.test(clean)) {
+    if (role === "astrologer") {
+      return "Namaste! Welcome to JyotishSetu Astrologer Support. How may I assist you with your consultations, leads, or profile today?";
+    }
+    return "Namaste! Welcome to JyotishSetu. How may I assist you today? You can ask me about consultations, astrologers, your Kundli birth chart, or bookings.";
+  }
+
+  // Good morning / afternoon / evening
+  if (/\bgood\s*morning\b/.test(clean)) {
+    return role === "astrologer"
+      ? "Good morning! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good morning! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+  }
+
+  if (/\bgood\s*afternoon\b/.test(clean)) {
+    return role === "astrologer"
+      ? "Good afternoon! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good afternoon! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+  }
+
+  if (/\bgood\s*evening\b/.test(clean)) {
+    return role === "astrologer"
+      ? "Good evening! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good evening! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+  }
+
+  // How are you / Kaise ho
+  if (/\b(how\s*are\s*you|how\s*r\s*u|how\s*do\s*you\s*do|kaise\s*ho|kya\s*haal\s*hai)\b/.test(clean)) {
+    if (/\b(kaise\s*ho|kya\s*haal\s*hai)\b/.test(clean)) {
+      return "Main bilkul theek hoon, dhanyawad! JyotishSetu mein aapka swagat hai. Main aapki kya sahayata kar sakta hoon?";
+    }
+    if (role === "astrologer") {
+      return "I'm doing well, thank you! Welcome to JyotishSetu Astrologer Care. How can I assist you with your schedule, leads, or consultations today?";
+    }
+    return "I'm doing well, thank you! Welcome to JyotishSetu. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
+  }
+
+  // Default friendly greeting (hi, hello, hey, hey there, etc.)
+  if (role === "astrologer") {
+    return "Hello! Welcome to JyotishSetu Astrologer Support. How can I help you today? You can ask about your assigned leads, upcoming bookings, earnings, or profile verification.";
+  }
+  return "Hi! Welcome to JyotishSetu. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
 }
