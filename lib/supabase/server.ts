@@ -1,6 +1,27 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+const DEFAULT_SUPABASE_TIMEOUT_MS = 10000;
+
+/**
+ * Universal fetch wrapper enforcing a 10s timeout to prevent hanging Server Components.
+ */
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_SUPABASE_TIMEOUT_MS);
+
+  if (init?.signal) {
+    init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return fetch(input, {
+    ...init,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
 export function createPublicServerClient(target: "main" | "admin" = "main") {
   const isMain = target === "main";
   const url = isMain
@@ -13,6 +34,9 @@ export function createPublicServerClient(target: "main" | "admin" = "main") {
        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
 
   return createServerClient(url, key, {
+    global: {
+      fetch: fetchWithTimeout,
+    },
     cookies: {
       getAll() {
         return [];
@@ -36,6 +60,9 @@ export async function createClient(target: "main" | "admin" = "main") {
        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
 
   return createServerClient(url, key, {
+    global: {
+      fetch: fetchWithTimeout,
+    },
     cookieOptions: {
       name: isMain ? "sb-main-auth-token" : "sb-admin-auth-token",
     },

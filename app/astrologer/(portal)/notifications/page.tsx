@@ -14,8 +14,10 @@ export const metadata = {
 };
 
 export default async function AstrologerNotificationsPage() {
-  await requireAstrologerPage();
-  const res = await getAstrologerNotificationsAction();
+  const [, res] = await Promise.all([
+    requireAstrologerPage(),
+    getAstrologerNotificationsAction(),
+  ]);
   const notifications = res.success && res.data ? res.data : [];
 
   return (

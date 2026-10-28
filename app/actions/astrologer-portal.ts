@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAstrologer } from "@/lib/auth/session";
+import { getOwnAstrologerProfile } from "@/lib/astrologer/guard";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type {
   CustomerBooking,
@@ -38,22 +39,17 @@ export interface AstrologerEarningsSummary {
 }
 
 /**
- * Resolves the authenticated astrologer's profile record.
+ * Resolves the authenticated astrologer's profile record using request-memoized lookup.
  */
 async function getAuthenticatedAstrologerProfile() {
   const { user, target } = await requireAstrologer();
-  const supabase = await createClient(target);
-
-  const { data: profile, error } = await supabase
-    .from("astrologer_profiles")
-    .select("id, display_name, user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { profile, error } = await getOwnAstrologerProfile();
 
   if (error || !profile) {
-    throw new Error("Astrologer profile record not found.");
+    throw new Error(error || "Astrologer profile record not found.");
   }
 
+  const supabase = await createClient(target);
   return { user, profile, supabase };
 }
 
