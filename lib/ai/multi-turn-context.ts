@@ -20,7 +20,17 @@ export interface ConversationTurn {
 export interface ResolvedContext {
   effectiveQuery: string;
   isFollowUp: boolean;
-  followUpType?: "confirmation" | "refine_language" | "refine_budget" | "more_options" | "select_profile" | "compare";
+  followUpType?:
+    | "confirmation"
+    | "refine_language"
+    | "refine_budget"
+    | "more_options"
+    | "select_profile"
+    | "compare"
+    | "astrologer_status_followup"
+    | "astrologer_checklist_followup"
+    | "astrologer_earnings_followup"
+    | "astrologer_bookings_followup";
   selectedOrdinal?: number; // 1 for first, 2 for second, etc.
   accumulatedPreferences: AstrologerPreferenceExtraction;
   referencedAstrologerSlugs: string[];
@@ -154,6 +164,50 @@ export function resolveMultiTurnContext(
     isFollowUp = true;
     followUpType = "more_options";
     effectiveQuery = `Show more astrologers for ${accumulated.specialization}`;
+  }
+
+  // Pattern G: Astrologer Profile Moderation / Status Follow-up
+  const isAstroStatusFollowUp =
+    /^(why is it pending|when will it be approved|is it approved|is my profile approved|kab approve hoga|why pending|what about my status|what about my approval|i uploaded the document|i uploaded document|i updated my bio|i made the changes)\b/i.test(
+      normalizedCurrent
+    );
+  if (isAstroStatusFollowUp) {
+    isFollowUp = true;
+    followUpType = "astrologer_status_followup";
+    effectiveQuery = "Check my astrologer profile approval status and explain why it is pending or what actions are required.";
+  }
+
+  // Pattern H: Astrologer Profile Checklist / Missing Requirements Follow-up
+  const isAstroChecklistFollowUp =
+    /^(what is missing|kya baki hai|what else do i need|what is needed|checklist please|profile checklist|how to reach 100%|check my profile completion)\b/i.test(
+      normalizedCurrent
+    );
+  if (isAstroChecklistFollowUp) {
+    isFollowUp = true;
+    followUpType = "astrologer_checklist_followup";
+    effectiveQuery = "Check my astrologer profile completion checklist and show missing fields.";
+  }
+
+  // Pattern I: Astrologer Earnings & Payout Follow-up
+  const isAstroEarningsFollowUp =
+    /^(what about my earnings|how much did i earn|show my earnings|show my payout|meri kamai|payout details|when will i get paid)\b/i.test(
+      normalizedCurrent
+    );
+  if (isAstroEarningsFollowUp) {
+    isFollowUp = true;
+    followUpType = "astrologer_earnings_followup";
+    effectiveQuery = "Show my consultation earnings summary and payout schedule.";
+  }
+
+  // Pattern J: Astrologer Consultation Bookings Follow-up
+  const isAstroBookingsFollowUp =
+    /^(what about my bookings|any calls today|do i have any appointments|show my scheduled sessions|any meetings today|meri bookings)\b/i.test(
+      normalizedCurrent
+    );
+  if (isAstroBookingsFollowUp) {
+    isFollowUp = true;
+    followUpType = "astrologer_bookings_followup";
+    effectiveQuery = "Show my scheduled consultation bookings schedule.";
   }
 
   return {

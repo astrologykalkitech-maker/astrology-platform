@@ -18,7 +18,7 @@ export default async function CustomerLayout({
   const userInitial = (customerName[0] || "C").toUpperCase();
 
   return (
-    <CustomerShell customerName={customerName} userInitial={userInitial}>
+    <CustomerShell customerName={customerName} userInitial={userInitial} isLoggedIn={true}>
       {children}
     </CustomerShell>
   );

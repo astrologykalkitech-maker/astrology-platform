@@ -5,9 +5,10 @@ import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 
 interface AstrologerShowcaseProps {
   astrologers: PublicAstrologerProfile[];
+  isLoggedIn?: boolean;
 }
 
-export function AstrologerShowcase({ astrologers }: AstrologerShowcaseProps) {
+export function AstrologerShowcase({ astrologers, isLoggedIn = false }: AstrologerShowcaseProps) {
   // Reference cards matching the 3 prominent astrologers shown in the user's design image
   const referenceScholars = [
     {
@@ -136,7 +137,11 @@ export function AstrologerShowcase({ astrologers }: AstrologerShowcaseProps) {
             </div>
 
             <Link
-              href={`/customer/astrologers/${item.slug}`}
+              href={
+                isLoggedIn
+                  ? `/customer/astrologers/${item.slug}`
+                  : `/customer/login?redirectTo=${encodeURIComponent(`/customer/astrologers/${item.slug}`)}`
+              }
               className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#8b631d] hover:text-[#191128] transition-colors group/link shrink-0 ml-auto"
             >
               <span>View Profile</span>

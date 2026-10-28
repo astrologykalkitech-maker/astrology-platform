@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Search,
   X,
+  ExternalLink,
 } from "lucide-react";
 import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
@@ -43,16 +44,16 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
 
   // Filter and sort astrologers
   const filteredAstrologers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
     return astrologers
       .filter((astro) => {
         const matchesQuery =
-          !searchQuery.trim() ||
-          astro.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (astro.city && astro.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          !q ||
+          astro.display_name.toLowerCase().includes(q) ||
+          (astro.city && astro.city.toLowerCase().includes(q)) ||
           (astro.specializations &&
-            astro.specializations.some((s) =>
-              s.toLowerCase().includes(searchQuery.toLowerCase())
-            ));
+            astro.specializations.some((s) => s.toLowerCase().includes(q)));
 
         const matchesSpec =
           selectedSpecialization === "all" ||
@@ -175,6 +176,9 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
           {paginatedAstrologers.map((astro) => {
             const specializations = astro.specializations || [];
             const languages = astro.languages || [];
+            const profileHref = astro.slug
+              ? `/customer/astrologers/${astro.slug}`
+              : `/customer/astrologers/${astro.id}`;
 
             return (
               <div
@@ -183,18 +187,20 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
               >
                 <div>
                   <div className="flex items-start gap-3.5 mb-3">
-                    <Avatar
-                      name={astro.display_name}
-                      src={astro.profile_photo_url}
-                      size="md"
-                      className="!h-14 !w-14"
-                    />
+                    <Link href={profileHref} className="shrink-0 group focus-visible:outline-2 focus-visible:outline-gold rounded-full">
+                      <Avatar
+                        name={astro.display_name}
+                        src={astro.profile_photo_url}
+                        size="md"
+                        className="!h-14 !w-14 group-hover:ring-2 group-hover:ring-gold transition-all"
+                      />
+                    </Link>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="truncate text-base font-semibold text-midnight">
+                      <Link href={profileHref} className="block group focus-visible:outline-2 focus-visible:outline-gold rounded-sm">
+                        <h3 className="truncate text-base font-semibold text-midnight group-hover:text-gold-deep transition-colors">
                           {astro.display_name}
                         </h3>
-                      </div>
+                      </Link>
                       <p className="text-xs font-medium text-gold-deep truncate">
                         {specializations[0] || "Vedic Astrologer"}
                       </p>
@@ -234,7 +240,7 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-gold/15 flex items-center justify-between">
+                <div className="pt-3 border-t border-gold/15 flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">
                       Consultation
@@ -243,14 +249,22 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
                       ₹{astro.consultation_fee ?? 499}
                     </p>
                   </div>
-                  <Link
-                    href={`/customer/enquiries/new?astrologerId=${astro.id}&astrologerName=${encodeURIComponent(
-                      astro.display_name
-                    )}`}
-                    className={buttonStyles({ variant: "gold", size: "sm" })}
-                  >
-                    Consult <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={profileHref}
+                      className={buttonStyles({ variant: "outline", size: "sm", className: "hidden sm:inline-flex text-[11px] px-2.5 py-1" })}
+                    >
+                      Profile <ExternalLink className="h-3 w-3 ml-1" />
+                    </Link>
+                    <Link
+                      href={`/customer/enquiries/new?astrologerId=${astro.id}&astrologerName=${encodeURIComponent(
+                        astro.display_name
+                      )}`}
+                      className={buttonStyles({ variant: "gold", size: "sm", className: "text-[11px] px-3 py-1" })}
+                    >
+                      Consult <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             );
@@ -269,20 +283,9 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
           >
             Previous
           </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
-            <button
-              key={pg}
-              type="button"
-              onClick={() => setCurrentPage(pg)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                currentPage === pg
-                  ? "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight shadow"
-                  : "border border-gold/30 bg-white text-midnight hover:bg-parchment"
-              }`}
-            >
-              {pg}
-            </button>
-          ))}
+          <span className="text-xs text-muted px-2">
+            {currentPage} / {totalPages}
+          </span>
           <button
             type="button"
             disabled={currentPage === totalPages}

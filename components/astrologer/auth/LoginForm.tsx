@@ -33,6 +33,7 @@ interface LoginFormProps {
   showRoleNotice?: boolean;
   reason?: string;
   error?: string;
+  redirectTo?: string;
 }
 
 export function LoginForm({
@@ -40,6 +41,7 @@ export function LoginForm({
   showRoleNotice = false,
   reason,
   error,
+  redirectTo,
 }: LoginFormProps) {
   const router = useRouter();
   const copy = COPY[role];
@@ -145,7 +147,12 @@ export function LoginForm({
         return;
       }
 
-      router.replace(copy.redirect);
+      const destination =
+        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+          ? redirectTo
+          : copy.redirect;
+
+      router.replace(destination);
       router.refresh();
     });
   }
@@ -156,7 +163,7 @@ export function LoginForm({
       <p className="mt-0.5 text-sm text-muted">{copy.subtitle}</p>
 
       <div className="mt-4">
-        <GoogleAuthButton role={role} mode="login" />
+        <GoogleAuthButton role={role} mode="login" next={redirectTo} />
 
         <div className="relative my-4 flex items-center justify-center">
           <div className="absolute inset-0 flex items-center" aria-hidden="true">

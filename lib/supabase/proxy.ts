@@ -3,7 +3,8 @@ import { type NextRequest, NextResponse } from "next/server";
 
 /**
  * Refreshes Supabase session tokens by synchronizing cookies
- * between the incoming NextRequest and outgoing NextResponse.
+ * between the incoming NextRequest and outgoing NextResponse,
+ * and enforces centralized route protection across all route tiers.
  */
 export async function updateSession(
   request: NextRequest
@@ -12,41 +13,47 @@ export async function updateSession(
     request,
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookieOptions: {
-        name: "sb-main-auth-token",
-      },
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  // Calling getUser() refreshes the access token if expired and sets new cookies
-  // Avoid calling getUser() on static assets or when no auth cookies exist to prevent clearing headers
-  // Check for DB1 auth cookie
-  const hasMainCookie = request.cookies
-    .getAll()
-    .some((c) => c.name.startsWith("sb-main-auth-token") || c.name.startsWith("sb-"));
+  let user = null;
 
-  if (hasMainCookie) {
-    try {
-      await supabase.auth.getUser();
-    } catch {
-      // Ignore refresh errors
+  if (supabaseUrl && supabaseKey) {
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        cookieOptions: {
+          name: "sb-main-auth-token",
+        },
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    // Calling getUser() refreshes the access token if expired and sets new cookies
+    const hasMainCookie = request.cookies
+      .getAll()
+      .some((c) => c.name.startsWith("sb-main-auth-token") || (c.name.startsWith("sb-") && !c.name.includes("admin")));
+
+    if (hasMainCookie) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        user = data.user;
+      } catch {
+        // Ignore refresh errors
+      }
     }
   }
 
@@ -58,32 +65,78 @@ export async function updateSession(
 
   const hasAdminCookie = request.cookies
     .getAll()
-    .some((c) => c.name.startsWith("sb-admin-auth-token"));
+    .some((c) => c.name.startsWith("sb-admin-auth-token") || (c.name.startsWith("sb-") && c.name.includes("admin")));
 
+  let adminUser = null;
   if (adminUrl && adminKey && hasAdminCookie) {
-    const adminSupabase = createServerClient(adminUrl, adminKey, {
-      cookieOptions: {
-        name: "sb-admin-auth-token",
-      },
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    });
-
     try {
-      await adminSupabase.auth.getUser();
+      const adminSupabase = createServerClient(adminUrl, adminKey, {
+        cookieOptions: {
+          name: "sb-admin-auth-token",
+        },
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
+        },
+      });
+
+      const { data } = await adminSupabase.auth.getUser();
+      adminUser = data.user;
     } catch {
       // Ignore refresh errors
+    }
+  }
+
+  // Centralized Route Protection Strategy
+  const pathname = request.nextUrl.pathname;
+
+  // 1. Customer Protected Routes
+  const isCustomerAuthPage =
+    pathname === "/customer/login" ||
+    pathname === "/customer/signup" ||
+    pathname === "/customer/forgot-password";
+
+  if (pathname.startsWith("/customer") && !isCustomerAuthPage) {
+    if (!user) {
+      const redirectUrl = new URL("/customer/login", request.url);
+      const returnPath = pathname + request.nextUrl.search;
+      redirectUrl.searchParams.set("redirectTo", returnPath);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // 2. Astrologer Protected Routes
+  const isAstrologerAuthPage =
+    pathname === "/astrologer/login" ||
+    pathname === "/astrologer/signup" ||
+    pathname === "/astrologer/forgot-password";
+
+  if (pathname.startsWith("/astrologer") && !isAstrologerAuthPage) {
+    if (!user) {
+      const redirectUrl = new URL("/astrologer/login", request.url);
+      const returnPath = pathname + request.nextUrl.search;
+      redirectUrl.searchParams.set("redirectTo", returnPath);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  // 3. Super Admin & Admin Protected Routes
+  if (pathname.startsWith("/super-admin") || pathname.startsWith("/admin")) {
+    if (!user && !adminUser) {
+      const redirectUrl = new URL("/customer/login", request.url);
+      redirectUrl.searchParams.set("reason", "admin_required");
+      const returnPath = pathname + request.nextUrl.search;
+      redirectUrl.searchParams.set("redirectTo", returnPath);
+      return NextResponse.redirect(redirectUrl);
     }
   }
 

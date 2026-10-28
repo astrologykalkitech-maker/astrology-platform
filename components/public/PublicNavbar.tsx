@@ -58,6 +58,14 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
       ? "/astrologer/dashboard"
       : "/customer/astrologers";
 
+  const talkToAstrologerUrl = isLoggedIn
+    ? currentRole === "customer"
+      ? "/customer/astrologers"
+      : currentRole === "astrologer"
+      ? "/astrologer/dashboard"
+      : "/super-admin"
+    : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers";
+
   return (
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${
@@ -89,7 +97,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
             Home
           </Link>
           <Link
-            href="/customer/astrologers"
+            href={talkToAstrologerUrl}
             className="hover:text-champagne transition-colors focus-visible:outline-2 focus-visible:outline-gold rounded-md px-1"
           >
             Talk to Astrologer
@@ -119,7 +127,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
               >
                 <div className="rounded-2xl border border-gold/40 bg-[#160d2e]/98 p-2.5 shadow-2xl backdrop-blur-md text-left">
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=love" : "/customer/login?next=/customer/astrologers"}
+                    href={isLoggedIn ? "/customer/astrologers?service=love" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dlove"}
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -128,7 +136,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
                     <span className="text-[11px] text-white/70">Find clarity in love, marriage and relationships</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=career" : "/customer/login?next=/customer/astrologers"}
+                    href={isLoggedIn ? "/customer/astrologers?service=career" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dcareer"}
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -137,7 +145,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
                     <span className="text-[11px] text-white/70">Get guidance for career growth & financial stability</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=kundli" : "/customer/login?next=/customer/astrologers"}
+                    href={isLoggedIn ? "/customer/astrologers?service=kundli" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dkundli"}
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -146,7 +154,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
                     <span className="text-[11px] text-white/70">Decode your life path with detailed Kundli analysis</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=family" : "/customer/login?next=/customer/astrologers"}
+                    href={isLoggedIn ? "/customer/astrologers?service=family" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dfamily"}
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -236,7 +244,7 @@ export function PublicNavbar({ currentRole, isLoggedIn = false }: PublicNavbarPr
               Home
             </Link>
             <Link
-              href="/customer/astrologers"
+              href={talkToAstrologerUrl}
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-3 py-2 hover:bg-white/5 transition-colors"
             >

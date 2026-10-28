@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
+import { requireCustomerPage } from "@/lib/auth/customer-guard";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Customer dashboard root redirect:
- * Per user requirements, the customer dashboard index redirects directly
- * to the astrologers discovery page (/customer/astrologers).
+ * Requires verified customer session, then routes to /customer/astrologers.
  */
-export default function CustomerDashboardRoot() {
+export default async function CustomerDashboardRoot() {
+  await requireCustomerPage();
   redirect("/customer/astrologers");
 }

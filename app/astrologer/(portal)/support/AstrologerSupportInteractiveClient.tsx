@@ -335,11 +335,14 @@ export default function AstrologerSupportInteractiveClient() {
               <p className="text-[11px] font-semibold text-muted mb-2">Frequently Asked by Consultants:</p>
               <div className="flex flex-wrap gap-1.5">
                 {[
+                  "Check my profile completion checklist",
                   "Check my profile approval status",
+                  "Show my upcoming consultation bookings",
+                  "Show my consultation earnings & payouts",
                   "Show my assigned customer leads",
-                  "How do I schedule a booking for a client?",
-                  "Troubleshooting live consultation room connections",
                   "When does my consultation room unlock?",
+                  "How do I schedule a booking for a client?",
+                  "Dharmic conduct & consultation quality standards",
                 ].map((q, i) => (
                   <button
                     key={i}

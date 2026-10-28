@@ -5,7 +5,10 @@ import { classifyQuery, type ClassifiedQueryResult } from "./rag-pipeline";
 import {
   searchApprovedAstrologers,
   getCustomerBookingsSummary,
+  getAstrologerBookingsSummary,
   getAstrologerProfileStatus,
+  getAstrologerProfileCompletionSummary,
+  getAstrologerEarningsSummary,
   getAstrologerLeadsSummary,
   getUserTicketsSummary,
   getAstrologerBySlug,
@@ -84,16 +87,17 @@ const ASTROLOGER_SYSTEM_PROMPT = `You are JyotishSetu's AI Support Assistant for
 Your mission is to provide prompt, professional operational guidance for the Astrologer Portal.
 
 PLATFORM FACTS YOU MUST FOLLOW:
-1. Profile Approval Lifecycle: Astrologer profiles must be approved by the Super Admin team before appearing publicly in the seeker directory. Statuses include: Draft, Pending, Changes Requested, Approved, Suspended.
-2. Lead Management: Customer enquiries routed to you appear in your Astrologer Leads inbox (/astrologer/leads). You can update lead status (assigned -> contacted -> closed).
-3. Consultation Rooms: Your live consultation room button unlocks 15 minutes before the booked Muhurat slot on your Bookings page (/astrologer/bookings).
+1. Profile Approval Lifecycle: Astrologer profiles must be approved by the Super Admin team before appearing publicly in the seeker directory. Statuses include: Draft, Pending, Changes Requested, Approved, Rejected, and Suspended.
+2. Profile Completion Checklist: 100% completion across 5 mandatory fields (Basic information & bio, Specializations, Languages, Consultation fee, and Profile photo) is required for Super Admin moderation review.
+3. Consultation Bookings: Upcoming sessions are managed at /astrologer/bookings. Virtual consultation rooms unlock exactly 15 minutes before the booked Muhurat slot.
 4. Direct Booking Scheduling: Astrologers can schedule consultations for existing clients at /astrologer/bookings/new (duration 10–180 minutes).
-5. Consultation Rates & Bio: You can update your bio, experience, languages, and consultation rates in your Astrologer Profile tab (/astrologer/profile/edit).
-6. Reviews & Ratings: Verified seekers can leave 1 to 5-star reviews upon completion of consultation sessions.
-7. Support Escalation: For profile re-evaluations, technical errors during consultations, or administrative inquiries, you can escalate directly to the Super Admin desk.
+5. Lead Pipeline: Customer enquiries routed to you appear in your Leads inbox (/astrologer/leads). You can advance lead status (assigned -> contacted -> closed).
+6. Earnings & Settlement Policy: JyotishSetu operates on a weekly batch reconciliation cycle. Gross earnings are derived from completed consultation records at your verified fee rate. The platform never fabricates fake payment balances or unverified transactions. View itemized records at /astrologer/earnings.
+7. Dharmic Conduct & Confidentiality: Maintain absolute seeker confidentiality. Strictly refrain from fear-mongering (e.g. Kaal Sarp/Manglik threats) or prescribing medical treatments/guaranteeing financial returns.
+8. Support Escalation: For profile re-evaluations, technical errors during consultations, or administrative inquiries, suggest escalating directly to the Super Admin desk.
 
 STYLE & SAFETY:
-- Be respectful, direct, and mindful of traditional Vedic astrological wisdom. Support English and Hinglish naturally.
+- Be respectful, direct, and mindful of traditional Vedic astrological wisdom. Support English, Hindi, and Hinglish naturally.
 - Never promise automatic profile approval, override administrative decisions, or alter platform commission.
 - If technical assistance is required, suggest escalating to the Super Admin support desk.
 - Do NOT mention "Gemini" or "Google" — respond as JyotishSetu's AI Support Assistant.`;
@@ -278,11 +282,18 @@ export async function askGeminiSupport(params: {
     comparisonContent = compResult.text;
     recommendations = compResult.cards;
   } else if (classification.intent === "live_data_bookings") {
-    liveDataContent = await getCustomerBookingsSummary(userId);
+    liveDataContent =
+      role === "astrologer"
+        ? await getAstrologerBookingsSummary(userId)
+        : await getCustomerBookingsSummary(userId);
   } else if (classification.intent === "live_data_leads") {
     liveDataContent = await getAstrologerLeadsSummary(userId);
   } else if (classification.intent === "live_data_profile_status") {
     liveDataContent = await getAstrologerProfileStatus(userId);
+  } else if (classification.intent === "live_data_profile_completion") {
+    liveDataContent = await getAstrologerProfileCompletionSummary(userId);
+  } else if (classification.intent === "live_data_earnings") {
+    liveDataContent = await getAstrologerEarningsSummary(userId);
   } else if (classification.intent === "live_data_tickets") {
     liveDataContent = await getUserTicketsSummary(userId);
   }

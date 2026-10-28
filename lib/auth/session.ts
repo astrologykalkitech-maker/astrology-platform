@@ -2,6 +2,8 @@
 // SERVER-SIDE AUTH & SESSION HELPERS
 // =====================================================
 
+import { cache } from "react";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -33,131 +35,168 @@ export class ForbiddenRoleError extends Error {
 }
 
 /**
+ * Fast check for presence of Supabase authentication session cookies.
+ * Prevents unnecessary cross-continental network roundtrips to Supabase for anonymous visitors.
+ */
+async function getAuthCookieStatus(): Promise<{ hasMain: boolean; hasAdmin: boolean }> {
+  try {
+    const cookieStore = await cookies();
+    const all = cookieStore.getAll();
+    const hasMain = all.some((c) => c.name.includes("sb-main-auth-token") || (c.name.startsWith("sb-") && !c.name.includes("admin")));
+    const hasAdmin = all.some((c) => c.name.includes("sb-admin-auth-token") || (c.name.startsWith("sb-") && c.name.includes("admin")));
+    return { hasMain, hasAdmin };
+  } catch {
+    // Outside of request scope (e.g. CLI or automated tests), fall back to safe lookup
+    return { hasMain: true, hasAdmin: true };
+  }
+}
+
+/**
  * Retrieves the currently authenticated Supabase user using the secure server client.
  * Calls supabase.auth.getUser() on main client (DB1) first, and falls back to admin client (DB2).
+ * Wrapped in React cache to deduplicate redundant lookups within a single render pass.
  */
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const supabase = await createClient("main");
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
-
-    if (!error && user) {
-      return user;
-    }
-  } catch {
-    // Continue to admin fallback
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<User | null> {
+  const { hasMain, hasAdmin } = await getAuthCookieStatus();
+  if (!hasMain && !hasAdmin) {
+    return null;
   }
 
-  try {
-    const adminSupabase = await createClient("admin");
-    const {
-      data: { user: adminUser },
-      error: adminError,
-    } = await adminSupabase.auth.getUser();
+  if (hasMain) {
+    try {
+      const supabase = await createClient("main");
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
 
-    if (!adminError && adminUser) {
-      return adminUser;
+      if (!error && user) {
+        return user;
+      }
+    } catch {
+      // Continue to admin fallback
     }
-  } catch {
-    // Fall through
+  }
+
+  if (hasAdmin) {
+    try {
+      const adminSupabase = await createClient("admin");
+      const {
+        data: { user: adminUser },
+        error: adminError,
+      } = await adminSupabase.auth.getUser();
+
+      if (!adminError && adminUser) {
+        return adminUser;
+      }
+    } catch {
+      // Fall through
+    }
   }
 
   return null;
-}
+});
 
 /**
  * Retrieves the current authenticated user's record from public.profiles.
  * Crucial: fetches role securely from the database table (DB1 or DB2).
+ * Wrapped in React cache to eliminate duplicate database roundtrips on layout + page trees.
  */
-export async function getCurrentProfile(): Promise<Profile | null> {
+export const getCurrentProfile = cache(async function getCurrentProfile(): Promise<Profile | null> {
+  const { hasMain, hasAdmin } = await getAuthCookieStatus();
+  if (!hasMain && !hasAdmin) {
+    return null;
+  }
+
   // Try main client (DB1) first
-  try {
-    const mainClient = await createClient("main");
-    const {
-      data: { user },
-    } = await mainClient.auth.getUser();
+  if (hasMain) {
+    try {
+      const mainClient = await createClient("main");
+      const {
+        data: { user },
+      } = await mainClient.auth.getUser();
 
-    if (user) {
-      const { data: profile } = await mainClient
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile) {
-        return profile as Profile;
-      }
-
-      // Privileged fallback: fetch via service-role to avoid false-negatives from RLS policies
-      try {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const privileged = await createAdminClient("main");
-        const { data: privProfile } = await privileged
+      if (user) {
+        const { data: profile } = await mainClient
           .from("profiles")
           .select("id, full_name, role, created_at, updated_at")
           .eq("id", user.id)
           .maybeSingle();
 
-        if (privProfile) {
-          return privProfile as Profile;
+        if (profile) {
+          return profile as Profile;
         }
 
-        // Safe recovery: if user is authenticated in auth.users but has no row in public.profiles,
-        // provision the baseline profile record from user metadata so they are not stranded
-        const userMetaRole = user.user_metadata?.role;
-        const assignedRole = userMetaRole === "astrologer" ? "astrologer" : "customer";
-        const metaName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+        // Privileged fallback: fetch via service-role to avoid false-negatives from RLS policies
+        try {
+          const { createAdminClient } = await import("@/lib/supabase/admin");
+          const privileged = await createAdminClient("main");
+          const { data: privProfile } = await privileged
+            .from("profiles")
+            .select("id, full_name, role, created_at, updated_at")
+            .eq("id", user.id)
+            .maybeSingle();
 
-        const { data: recoveredProfile } = await privileged
-          .from("profiles")
-          .insert({
-            id: user.id,
-            full_name: metaName,
-            role: assignedRole,
-          })
-          .select("id, full_name, role, created_at, updated_at")
-          .maybeSingle();
+          if (privProfile) {
+            return privProfile as Profile;
+          }
 
-        if (recoveredProfile) {
-          return recoveredProfile as Profile;
+          // Safe recovery: if user is authenticated in auth.users but has no row in public.profiles,
+          // provision the baseline profile record from user metadata so they are not stranded
+          const userMetaRole = user.user_metadata?.role;
+          const assignedRole = userMetaRole === "astrologer" ? "astrologer" : "customer";
+          const metaName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+
+          const { data: recoveredProfile } = await privileged
+            .from("profiles")
+            .insert({
+              id: user.id,
+              full_name: metaName,
+              role: assignedRole,
+            })
+            .select("id, full_name, role, created_at, updated_at")
+            .maybeSingle();
+
+          if (recoveredProfile) {
+            return recoveredProfile as Profile;
+          }
+        } catch {
+          // Fall through
         }
-      } catch {
-        // Fall through
       }
+    } catch {
+      // Continue to admin check
     }
-  } catch {
-    // Continue to admin check
   }
 
   // Try admin client (DB2) second
-  try {
-    const adminClient = await createClient("admin");
-    const {
-      data: { user: adminUser },
-    } = await adminClient.auth.getUser();
+  if (hasAdmin) {
+    try {
+      const adminClient = await createClient("admin");
+      const {
+        data: { user: adminUser },
+      } = await adminClient.auth.getUser();
 
-    if (adminUser) {
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const privileged = await createAdminClient();
-      const { data: adminProfile } = await privileged
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", adminUser.id)
-        .maybeSingle();
+      if (adminUser) {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const privileged = await createAdminClient();
+        const { data: adminProfile } = await privileged
+          .from("profiles")
+          .select("id, full_name, role, created_at, updated_at")
+          .eq("id", adminUser.id)
+          .maybeSingle();
 
-      if (adminProfile) {
-        return adminProfile as Profile;
+        if (adminProfile) {
+          return adminProfile as Profile;
+        }
       }
+    } catch {
+      // Fall through
     }
-  } catch {
-    // Fall through
   }
 
   return null;
-}
+});
 
 export interface AuthContext {
   user: User;

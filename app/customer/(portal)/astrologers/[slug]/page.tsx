@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { getPublicApprovedAstrologerBySlug } from "@/lib/astrologer/queries";
+import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import {
@@ -23,6 +24,7 @@ export default async function AstrologerProfilePage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  await requireCustomerPage();
   const { slug } = await params;
   const astro = await getPublicApprovedAstrologerBySlug(slug);
 

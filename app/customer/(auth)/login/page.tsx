@@ -9,12 +9,14 @@ export const metadata: Metadata = { title: "Customer Login" };
 export default async function CustomerLoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ reason?: string; error?: string }>;
+  searchParams?: Promise<{ reason?: string; error?: string; redirectTo?: string }>;
 }) {
-  // Already signed in: redirect to appropriate dashboard.
+  const { reason, error, redirectTo } = searchParams ? await searchParams : {};
+
+  // Already signed in: redirect to destination or appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect("/customer/astrologers");
+    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/customer/astrologers");
   }
   if (profile?.role === "super_admin" || profile?.role === "admin") {
     redirect("/super-admin");
@@ -26,14 +28,13 @@ export default async function CustomerLoginPage({
     redirect("/astrologer/dashboard");
   }
 
-  const { reason, error } = searchParams ? await searchParams : {};
-
   return (
     <AuthShell mode="login" role="customer">
       <LoginForm
         role="customer"
         reason={reason}
         error={error}
+        redirectTo={redirectTo}
         showRoleNotice={reason === "role" || reason === "role_unauthorized"}
       />
     </AuthShell>

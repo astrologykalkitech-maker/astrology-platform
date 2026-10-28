@@ -12,6 +12,7 @@ import { getCustomerUnreadNotificationCount } from "@/app/actions/customer";
 type CustomerHeaderProps = {
   customerName: string;
   userInitial?: string;
+  isLoggedIn?: boolean;
   menuOpen: boolean;
   onMenuClick: () => void;
 };
@@ -32,6 +33,7 @@ function pageTitleFor(pathname: string) {
 
 export function CustomerHeader({
   customerName,
+  isLoggedIn = true,
   menuOpen,
   onMenuClick,
 }: CustomerHeaderProps) {
@@ -41,6 +43,8 @@ export function CustomerHeader({
 
   // Fetch unread count and refresh when navigating or upon notification actions
   useEffect(() => {
+    if (!isLoggedIn) return;
+
     let mounted = true;
     async function loadCount() {
       try {
@@ -74,7 +78,7 @@ export function CustomerHeader({
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
     };
-  }, [pathname]);
+  }, [pathname, isLoggedIn]);
 
   const displayCount = unreadCount > 9 ? "9+" : unreadCount.toString();
 
@@ -98,23 +102,32 @@ export function CustomerHeader({
         >
           <Logo tagline="Customer Portal" />
         </Link>
-        <div className="flex items-center gap-2">
+        {isLoggedIn ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href="/customer/notification"
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-champagne hover:bg-white/10"
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow">
+                  {displayCount}
+                </span>
+              )}
+            </Link>
+            <Link href="/customer/profile" aria-label="My Profile">
+              <Avatar name={customerName} size="sm" />
+            </Link>
+          </div>
+        ) : (
           <Link
-            href="/customer/notification"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-champagne hover:bg-white/10"
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+            href="/customer/login"
+            className="inline-flex items-center gap-1 rounded-lg bg-gold-deep px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-gold transition-colors"
           >
-            <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow">
-                {displayCount}
-              </span>
-            )}
+            Sign In
           </Link>
-          <Link href="/customer/profile" aria-label="My Profile">
-            <Avatar name={customerName} size="sm" />
-          </Link>
-        </div>
+        )}
       </header>
 
       {/* Desktop Header */}
@@ -125,32 +138,51 @@ export function CustomerHeader({
         </div>
 
         <div className="flex items-center gap-5">
-          <Link
-            href="/customer/notification"
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-midnight/70 transition-colors hover:bg-gold/10 hover:text-midnight focus-visible:outline-2 focus-visible:outline-gold"
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
-          >
-            <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow">
-                {displayCount}
-              </span>
-            )}
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link
+                href="/customer/notification"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-midnight/70 transition-colors hover:bg-gold/10 hover:text-midnight focus-visible:outline-2 focus-visible:outline-gold"
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white shadow">
+                    {displayCount}
+                  </span>
+                )}
+              </Link>
 
-          <Link
-            href="/customer/profile"
-            className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity"
-            aria-label="View Customer Profile"
-          >
-            <Avatar name={customerName} size="sm" />
-            <div className="leading-tight">
-              <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{customerName}</p>
-              <p className="text-xs text-muted">Customer Profile</p>
+              <Link
+                href="/customer/profile"
+                className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity"
+                aria-label="View Customer Profile"
+              >
+                <Avatar name={customerName} size="sm" />
+                <div className="leading-tight">
+                  <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{customerName}</p>
+                  <p className="text-xs text-muted">Customer Profile</p>
+                </div>
+              </Link>
+
+              <CustomerSignOutButton />
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <Link
+                href="/customer/login"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 px-3.5 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/10 transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/customer/signup"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gold-deep px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-gold transition-colors"
+              >
+                Create Account
+              </Link>
             </div>
-          </Link>
-
-          <CustomerSignOutButton />
+          )}
         </div>
       </header>
     </>
