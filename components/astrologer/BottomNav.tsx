@@ -33,7 +33,7 @@ export function BottomNav({ menuOpen, onMore }: { menuOpen: boolean; onMore: () 
       {ITEMS.map(({ href, label, icon: Icon, exact }) => {
         const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
         return (
-          <Link key={href} href={href} aria-current={active ? "page" : undefined} className={`${base} min-h-14 ${active ? "text-gold" : "text-ivory/70"}`}>
+          <Link key={href} href={href} prefetch={true} aria-current={active ? "page" : undefined} className={`${base} min-h-14 ${active ? "text-gold" : "text-ivory/70"}`}>
             {active && <span aria-hidden="true" className="absolute inset-x-6 top-0 h-[3px] rounded-b-full bg-gold" />}
             <Icon className="h-5 w-5" aria-hidden="true" />
             {label}

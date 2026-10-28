@@ -101,6 +101,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
       {/* Brand logo click overlay */}
       <Link
         href="/astrologer/dashboard"
+        prefetch={true}
         onClick={onNavigate}
         className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
       >
@@ -126,6 +127,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2 text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne ${

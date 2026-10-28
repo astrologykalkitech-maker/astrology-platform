@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
 import { signIn, signOut } from "@/app/actions/auth";
 import { Button } from "@/components/astrologer/ui/Button";
@@ -45,7 +45,7 @@ export function LoginForm({
 }: LoginFormProps) {
   const router = useRouter();
   const copy = COPY[role];
-  const [isPending, startTransition] = useTransition();
+  const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -108,7 +108,7 @@ export function LoginForm({
     router.refresh();
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
 
@@ -119,11 +119,13 @@ export function LoginForm({
     setErrors(nextErrors);
     if (nextErrors.email || nextErrors.password) return;
 
-    startTransition(async () => {
+    setSubmitting(true);
+    try {
       const result = await signIn({ email, password });
 
       if (!result.success) {
         setFormError(result.error);
+        setSubmitting(false);
         return;
       }
 
@@ -142,6 +144,7 @@ export function LoginForm({
       if (result.data.role !== role) {
         await signOut();
         setFormError(copy.wrongRole);
+        setSubmitting(false);
         return;
       }
 
@@ -151,7 +154,10 @@ export function LoginForm({
           : copy.redirect;
 
       router.replace(destination);
-    });
+    } catch {
+      setFormError("An unexpected error occurred during login. Please try again.");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -202,7 +208,7 @@ export function LoginForm({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           error={errors.email}
-          disabled={isPending}
+          disabled={submitting}
         />
 
         <PasswordField
@@ -213,7 +219,7 @@ export function LoginForm({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           error={errors.password}
-          disabled={isPending}
+          disabled={submitting}
         />
 
         <div className="flex justify-end">
@@ -225,9 +231,9 @@ export function LoginForm({
           </Link>
         </div>
 
-        <Button type="submit" size="lg" fullWidth loading={isPending}>
-          {isPending ? "Logging in…" : "Log in"}
-          {!isPending && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+        <Button type="submit" size="lg" fullWidth loading={submitting}>
+          {submitting ? "Logging in…" : "Log in"}
+          {!submitting && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
         </Button>
       </form>
 

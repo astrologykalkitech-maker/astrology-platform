@@ -60,11 +60,12 @@ export async function getAstrologerBookingsAction(): Promise<
   AuthResult<CustomerBooking[]>
 > {
   try {
-    const { profile, supabase } = await getAuthenticatedAstrologerProfile();
+    const { profile } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
 
-    const { data: bookings, error } = await supabase
+    const { data: bookings, error } = await admin
       .from("customer_bookings")
-      .select("*")
+      .select("*, customer:customer_id(full_name, avatar_url)")
       .eq("astrologer_id", profile.id)
       .order("scheduled_at", { ascending: false });
 
@@ -72,26 +73,15 @@ export async function getAstrologerBookingsAction(): Promise<
       return { success: false, error: error.message };
     }
 
-    const rawBookings = (bookings || []) as CustomerBooking[];
-    const customerIds = Array.from(new Set(rawBookings.map((b) => b.customer_id).filter(Boolean)));
-    let customerMap: Record<string, { name: string; avatarUrl: string | null }> = {};
-
-    if (customerIds.length > 0) {
-      const { data: customers } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .in("id", customerIds);
-      if (customers) {
-        customerMap = Object.fromEntries(
-          customers.map((c) => [c.id, { name: c.full_name || "Verified Customer", avatarUrl: c.avatar_url || null }])
-        );
+    const rawBookings = (bookings || []) as Array<
+      CustomerBooking & {
+        customer?: { full_name?: string | null; avatar_url?: string | null } | null;
       }
-    }
-
-    const enriched = rawBookings.map((b) => ({
+    >;
+    const enriched: CustomerBooking[] = rawBookings.map((b) => ({
       ...b,
-      customer_name: customerMap[b.customer_id]?.name || "Verified Customer",
-      customer_avatar_url: customerMap[b.customer_id]?.avatarUrl || null,
+      customer_name: b.customer?.full_name || "Verified Customer",
+      customer_avatar_url: b.customer?.avatar_url || null,
     }));
 
     return { success: true, data: enriched };
@@ -114,11 +104,12 @@ export async function getAstrologerReviewsAction(): Promise<
   }>
 > {
   try {
-    const { profile, supabase } = await getAuthenticatedAstrologerProfile();
+    const { profile } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
 
-    const { data: reviews, error } = await supabase
+    const { data: reviews, error } = await admin
       .from("consultation_reviews")
-      .select("*")
+      .select("*, customer:customer_id(full_name)")
       .eq("astrologer_id", profile.id)
       .order("created_at", { ascending: false });
 
@@ -126,29 +117,20 @@ export async function getAstrologerReviewsAction(): Promise<
       return { success: false, error: error.message };
     }
 
-    const reviewList = (reviews || []) as ConsultationReview[];
+    const reviewList = (reviews || []) as Array<
+      ConsultationReview & {
+        customer?: { full_name?: string | null } | null;
+      }
+    >;
     const totalReviews = reviewList.length;
     const avg =
       totalReviews > 0
-        ? Number((reviewList.reduce((acc, r) => acc + r.rating, 0) / totalReviews).toFixed(1))
+        ? Number((reviewList.reduce((acc, r) => acc + (r.rating || 5), 0) / totalReviews).toFixed(1))
         : 5.0;
-
-    // Attach customer names
-    const customerIds = Array.from(new Set(reviewList.map((r) => r.customer_id)));
-    let customerMap: Record<string, string> = {};
-    if (customerIds.length > 0) {
-      const { data: customers } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", customerIds);
-      if (customers) {
-        customerMap = Object.fromEntries(customers.map((c) => [c.id, c.full_name || "Verified Customer"]));
-      }
-    }
 
     const enriched = reviewList.map((r) => ({
       ...r,
-      customer_name: customerMap[r.customer_id] || "Verified Customer",
+      customer_name: r.customer?.full_name || "Verified Customer",
     }));
 
     return {

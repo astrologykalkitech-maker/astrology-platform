@@ -88,6 +88,7 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
       {/* Brand logo click overlay with backdrop concealing any conflicting background art subtitles */}
       <Link
         href="/customer/astrologers"
+        prefetch={true}
         onClick={onNavigate}
         className="absolute inset-x-5 top-[17.5%] z-10 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne flex flex-col items-center justify-center"
       >
@@ -119,6 +120,7 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={`relative flex items-center gap-3 rounded-xl px-3.5 py-2 text-sm font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne ${

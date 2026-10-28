@@ -638,7 +638,8 @@ export async function getCustomerBookings(): Promise<
         cancellation_reason,
         cancelled_at,
         created_at,
-        updated_at
+        updated_at,
+        astrologer:astrologer_id(display_name)
       `)
       .eq("customer_id", user.id)
       .order("scheduled_at", { ascending: true });
@@ -650,28 +651,17 @@ export async function getCustomerBookings(): Promise<
       };
     }
 
-    const rawBookings = bookings || [];
-    const astroIds = Array.from(new Set(rawBookings.map((b) => b.astrologer_id)));
-
-    let astroNameMap: Record<string, string> = {};
-    if (astroIds.length > 0) {
-      const { data: astrologers } = await supabase
-        .from("astrologer_profiles")
-        .select("id, display_name")
-        .in("id", astroIds);
-
-      if (astrologers) {
-        astroNameMap = Object.fromEntries(
-          astrologers.map((a) => [a.id, a.display_name])
-        );
+    const rawBookings = (bookings || []) as Array<
+      CustomerBooking & {
+        astrologer?: { display_name?: string | null } | null;
       }
-    }
+    >;
 
     const result: CustomerBooking[] = rawBookings.map((b) => ({
       id: b.id,
       customer_id: b.customer_id,
       astrologer_id: b.astrologer_id,
-      astrologer_name: astroNameMap[b.astrologer_id] || "Vedic Astrologer",
+      astrologer_name: b.astrologer?.display_name || "Vedic Astrologer",
       service_type: b.service_type,
       consultation_mode: b.consultation_mode as ConsultationMode,
       scheduled_at: b.scheduled_at,
