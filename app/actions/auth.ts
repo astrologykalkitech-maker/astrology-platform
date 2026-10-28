@@ -351,9 +351,23 @@ export async function signIn(
       };
     }
 
-    // If DB1 returned a profile, check whether this user is an admin or super_admin in DB2
     let resolvedRole = profile.role;
     let resolvedFullName = profile.full_name;
+
+    // For standard customers and astrologers, resolve immediately without cross-database delay
+    if (resolvedRole === "customer" || resolvedRole === "astrologer") {
+      return {
+        success: true,
+        data: {
+          userId: data.user.id,
+          email: data.user.email ?? email,
+          role: resolvedRole,
+          full_name: resolvedFullName,
+        },
+      };
+    }
+
+    // Only for administrative roles, check whether this user is an admin or super_admin in DB2
 
     try {
       const adminUrl = process.env.ADMIN_SUPABASE_URL;
