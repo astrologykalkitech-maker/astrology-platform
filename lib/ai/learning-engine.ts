@@ -12,7 +12,6 @@ import { GoogleGenAI } from "@google/genai";
 import { createAdminClient } from "@/lib/supabase/admin";
 export type { MatchLearnedKnowledgeResult };
 import type {
-  AiLearnedKnowledge,
   MatchLearnedKnowledgeResult,
   SupportTicketCategory,
 } from "@/lib/types/database.types";
@@ -49,10 +48,13 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
       contents: sanitized,
     });
 
-    // Extract values array from response
-    const values =
-      (response as any).embedding?.values ||
-      (response as any).embeddings?.[0]?.values;
+    // Extract values array from response safely without any
+    interface EmbedContentResponse {
+      embedding?: { values?: number[] };
+      embeddings?: Array<{ values?: number[] }>;
+    }
+    const embedRes = response as unknown as EmbedContentResponse;
+    const values = embedRes.embedding?.values || embedRes.embeddings?.[0]?.values;
 
     if (Array.isArray(values) && values.length === 768) {
       if (EMBEDDING_CACHE.size >= MAX_CACHE_SIZE) {

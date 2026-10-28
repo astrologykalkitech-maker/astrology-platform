@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyQuery, generateGreetingResponse } from "../lib/ai/rag-pipeline";
+import { classifyQuery } from "../lib/ai/rag-pipeline";
 import { isGreetingQuery } from "../lib/ai/multi-turn-context";
 import { askGeminiSupport } from "../lib/ai/gemini-service";
 

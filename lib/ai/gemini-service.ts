@@ -418,8 +418,9 @@ export async function askGeminiSupport(params: {
   // 5. Interaction logger helper
   const logInteraction = async (
     responseText: string,
-    fallback: boolean
+    isFallback: boolean = false
   ): Promise<string | undefined> => {
+    void isFallback;
     try {
       const admin = await createAdminClient("main");
       const usedKnowledgeIds = classification.relevantKnowledge.map((k) => k.id);

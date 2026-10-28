@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { createAstrologerProfile, updateAstrologerProfile } from "@/app/actions/astrologer-profile";
 import { ChipInput } from "@/components/astrologer/profile/ChipInput";
-import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { ProfilePhotoUploader } from "@/components/profile/ProfilePhotoUploader";
 import { Button } from "@/components/astrologer/ui/Button";
 import { Card } from "@/components/astrologer/ui/Card";

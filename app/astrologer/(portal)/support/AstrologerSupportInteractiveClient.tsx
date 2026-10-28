@@ -202,6 +202,7 @@ export default function AstrologerSupportInteractiveClient() {
       priority,
       aiHistory: aiMessages.slice(-4),
       isEscalation: aiMessages.length > 2,
+      interactionId: escalatingInteractionId || undefined,
     });
 
     setSubmitting(false);

@@ -10,8 +10,6 @@ import {
   User,
   Phone,
   CalendarPlus,
-  ExternalLink,
-  ShieldCheck,
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";

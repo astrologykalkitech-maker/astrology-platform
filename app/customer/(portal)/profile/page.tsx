@@ -12,9 +12,10 @@ export const metadata = {
 };
 
 export default async function CustomerProfilePage() {
-  await requireCustomerPage();
-
-  const result = await getCustomerFullProfile();
+  const [, result] = await Promise.all([
+    requireCustomerPage(),
+    getCustomerFullProfile(),
+  ]);
 
   if (!result.success || !result.data) {
     redirect("/customer");

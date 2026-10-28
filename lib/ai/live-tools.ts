@@ -625,7 +625,7 @@ export async function getCustomerBirthDetailsSummary(userId: string): Promise<st
     }
 
     return lines.join("\n");
-  } catch (err) {
+  } catch {
     return "An error occurred while loading your birth details. Please visit your Kundli Profile.";
   }
 }
@@ -691,7 +691,7 @@ export async function getCustomerAstrologicalContext(userId: string): Promise<st
     }
 
     return lines.join("\n");
-  } catch (err) {
+  } catch {
     return "[CUSTOMER CONTEXT: Retrieval error occurred]";
   }
 }
@@ -758,7 +758,7 @@ export async function getAstrologerOperationalSnapshot(userId: string): Promise<
     }
 
     return lines.join("\n");
-  } catch (err) {
+  } catch {
     return "[ASTROLOGER CONTEXT: Operational snapshot retrieval error occurred]";
   }
 }

@@ -86,7 +86,7 @@ function mapRawAssignmentToLeadItem(row: RawAssignmentRow): AstrologerLeadItem {
         date_of_birth: rawCustomer.date_of_birth ?? null,
         time_of_birth: rawCustomer.time_of_birth ?? null,
         birthplace: rawCustomer.birthplace ?? null,
-        gender: (rawCustomer.gender as any) ?? null,
+        gender: (rawCustomer.gender as "male" | "female" | "other" | null) ?? null,
         avatar_url: rawCustomer.avatar_url ?? null,
       };
     }

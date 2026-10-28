@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   experimental: {
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: ["lucide-react", "@google/genai", "date-fns"],
   },
   images: {
     formats: ["image/avif", "image/webp"],
