@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Star, ChevronRight, User } from "lucide-react";
+import { Star, ChevronRight } from "lucide-react";
 import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 
 interface AstrologerShowcaseProps {

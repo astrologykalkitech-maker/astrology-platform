@@ -81,7 +81,7 @@ export default function BookingForm() {
             className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
           >
             <option value="Video">Video</option>
-            <option value="Voice">Voice</option>
+            <option value="Call">Call (Voice)</option>
             <option value="Chat">Chat</option>
           </select>
         </label>
@@ -90,7 +90,8 @@ export default function BookingForm() {
           <input
             name="duration_minutes"
             type="number"
-            min={5}
+            min={10}
+            max={180}
             value={form.duration_minutes}
             onChange={handleChange}
             className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"

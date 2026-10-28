@@ -123,7 +123,7 @@ export default function AstrologerSupportInteractiveClient() {
           },
         ]);
       }
-    } catch (err: unknown) {
+    } catch {
       setAiLoading(false);
       setAiMessages((prev) => [
         ...prev,
@@ -335,10 +335,11 @@ export default function AstrologerSupportInteractiveClient() {
               <p className="text-[11px] font-semibold text-muted mb-2">Frequently Asked by Consultants:</p>
               <div className="flex flex-wrap gap-1.5">
                 {[
-                  "When will my astrologer profile review be completed?",
-                  "How do I update my consultation per-minute rates?",
-                  "How does the lead status pipeline work?",
+                  "Check my profile approval status",
+                  "Show my assigned customer leads",
+                  "How do I schedule a booking for a client?",
                   "Troubleshooting live consultation room connections",
+                  "When does my consultation room unlock?",
                 ].map((q, i) => (
                   <button
                     key={i}

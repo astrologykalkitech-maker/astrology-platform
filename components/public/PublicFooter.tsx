@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/astrologer/Logo";
-import { ShieldCheck, Sparkles, HeartHandshake, PhoneCall } from "lucide-react";
+import { ShieldCheck, Sparkles, HeartHandshake } from "lucide-react";
 
 export function PublicFooter() {
   return (
