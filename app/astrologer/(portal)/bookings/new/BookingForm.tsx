@@ -1,31 +1,74 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Calendar,
+  Clock,
+  Video,
+  PhoneCall,
+  MessageSquare,
+  User,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 
-export default function BookingForm() {
+interface BookingFormProps {
+  initialCustomerId?: string;
+  initialCustomerName?: string;
+  initialLeadId?: string;
+  initialServiceType?: string;
+}
+
+export default function BookingForm({
+  initialCustomerId = "",
+  initialCustomerName = "",
+  initialLeadId = "",
+  initialServiceType = "",
+}: BookingFormProps) {
   const router = useRouter();
   const [form, setForm] = useState({
-    customer_id: "",
-    service_type: "",
+    customer_id: initialCustomerId,
+    service_type: initialServiceType || "Vedic Astrology Consultation",
     consultation_mode: "Video",
     scheduled_at: "",
     duration_minutes: 30,
-    notes: "",
+    notes: initialLeadId ? `Scheduled from Lead Enquiry #${initialLeadId.slice(0, 8)}` : "",
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: name === "duration_minutes" ? Number(value) : value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: name === "duration_minutes" ? Number(value) : value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (!form.customer_id.trim()) {
+      setError("Please provide a valid Customer ID.");
+      setLoading(false);
+      return;
+    }
+
+    if (!form.scheduled_at) {
+      setError("Please select a valid scheduled date and time.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/astrologer/create-booking", {
         method: "POST",
@@ -45,86 +88,147 @@ export default function BookingForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gold/25 bg-white p-6 shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)]">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 rounded-2xl border border-gold/25 bg-white p-6 sm:p-8 shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)]"
+    >
       {error && (
-        <div className="rounded-md bg-rose-100 p-3 text-rose-800">{error}</div>
+        <div className="flex items-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-700">
+          <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+          <span>{error}</span>
+        </div>
       )}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-midnight">Customer ID</span>
+
+      {/* Target Seeker Information */}
+      {initialCustomerId ? (
+        <div className="rounded-xl border border-gold/30 bg-parchment/60 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold/20 text-gold-deep">
+                <User className="h-5 w-5" />
+              </span>
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                  Booking Consultation For
+                </span>
+                <p className="font-display text-base font-bold text-midnight">
+                  {initialCustomerName || "Assigned Seeker"}
+                </p>
+                <p className="font-mono text-[11px] text-muted">{initialCustomerId}</p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-champagne/40 px-2.5 py-0.5 text-[11px] font-semibold text-midnight">
+              <Sparkles className="h-3 w-3 text-gold-deep" /> Verified
+            </span>
+          </div>
+        </div>
+      ) : (
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-midnight">Customer ID (UUID) *</span>
           <input
             name="customer_id"
             type="text"
             required
             value={form.customer_id}
             onChange={handleChange}
-            className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
+            placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           />
+          <span className="text-[11px] text-muted">
+            Tip: You can schedule directly from any lead enquiry to pre-fill customer details automatically.
+          </span>
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-midnight">Service Type</span>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-midnight">Consultation Topic / Service *</span>
           <input
             name="service_type"
             type="text"
             required
             value={form.service_type}
             onChange={handleChange}
-            className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
+            placeholder="e.g. Kundli Matching, Career Consultation"
+            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-midnight">Mode</span>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-midnight">Consultation Mode *</span>
           <select
             name="consultation_mode"
             value={form.consultation_mode}
             onChange={handleChange}
-            className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
+            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           >
-            <option value="Video">Video</option>
-            <option value="Call">Call (Voice)</option>
-            <option value="Chat">Chat</option>
+            <option value="Video">Video Session (Jit.si Encrypted)</option>
+            <option value="Call">Voice Call</option>
+            <option value="Chat">Chat Consultation</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-medium text-midnight">Duration (minutes)</span>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-midnight">Scheduled Date & Time *</span>
           <input
-            name="duration_minutes"
-            type="number"
-            min={10}
-            max={180}
-            value={form.duration_minutes}
+            name="scheduled_at"
+            type="datetime-local"
+            required
+            value={form.scheduled_at}
             onChange={handleChange}
-            className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
+            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           />
         </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-midnight">Duration (Minutes) *</span>
+          <select
+            name="duration_minutes"
+            value={form.duration_minutes}
+            onChange={handleChange}
+            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+          >
+            <option value={15}>15 Minutes (Express)</option>
+            <option value={30}>30 Minutes (Standard)</option>
+            <option value={45}>45 Minutes (Comprehensive)</option>
+            <option value={60}>60 Minutes (In-depth Chart & Remedies)</option>
+          </select>
+        </label>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="font-medium text-midnight">Scheduled At</span>
-        <input
-          name="scheduled_at"
-          type="datetime-local"
-          required
-          value={form.scheduled_at}
-          onChange={handleChange}
-          className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
-        />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="font-medium text-midnight">Notes (optional)</span>
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-midnight">Astrological Notes & Preparation (Optional)</span>
         <textarea
           name="notes"
           rows={3}
           value={form.notes}
           onChange={handleChange}
-          className="rounded border border-line bg-white px-3 py-2 text-midnight focus:outline-none focus:ring-2 focus:ring-gold"
+          placeholder="Add any specific questions or areas of focus for this consultation..."
+          className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
         />
       </label>
-      <div className="flex justify-end space-x-2">
-        <Link href="/astrologer/bookings" className={buttonStyles({ variant: "outline", size: "sm" })}>
+
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-gold/15">
+        <Link
+          href="/astrologer/bookings"
+          className={buttonStyles({ variant: "outline", size: "md" })}
+        >
           Cancel
         </Link>
-        <button type="submit" disabled={loading} className={buttonStyles({ variant: "gold", size: "sm" })}>
-          {loading ? "Creating..." : "Create Booking"}
+        <button
+          type="submit"
+          disabled={loading}
+          className={buttonStyles({ variant: "gold", size: "md" })}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scheduling...
+            </>
+          ) : (
+            <>
+              <Calendar className="h-4 w-4 mr-2" /> Confirm & Schedule Booking
+            </>
+          )}
         </button>
       </div>
     </form>

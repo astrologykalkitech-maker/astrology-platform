@@ -65,7 +65,7 @@ export function RankingModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl backdrop-blur-xl">
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-gold/15 pb-4">
           <div>
             <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">

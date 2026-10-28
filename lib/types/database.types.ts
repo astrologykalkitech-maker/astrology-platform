@@ -195,6 +195,7 @@ export interface CustomerBooking {
   id: string;
   customer_id: string;
   customer_name?: string;
+  customer_avatar_url?: string | null;
   astrologer_id: string;
   astrologer_name?: string;
   service_type: string;
@@ -347,4 +348,56 @@ export interface SupportTicketEvent {
   action: string;
   details?: Record<string, unknown>;
   created_at: string;
+}
+
+// =====================================================
+// AI SELF-LEARNING & INTERACTION LOG TYPES (Phase 1)
+// =====================================================
+
+export interface AiLearnedKnowledge {
+  id: string;
+  source_ticket_id: string | null;
+  applicable_role: "customer" | "astrologer" | "both";
+  category: SupportTicketCategory;
+  question_pattern: string;
+  verified_solution: string;
+  keywords: string[];
+  embedding?: number[] | null;
+  helpful_count: number;
+  unhelpful_count: number;
+  confidence_score: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiInteractionLog {
+  id: string;
+  user_id: string;
+  user_role: "customer" | "astrologer";
+  query: string;
+  classified_intent: string;
+  classified_category: string;
+  ai_response: string;
+  used_knowledge_ids: string[];
+  learned_knowledge_ids: string[];
+  feedback_rating: -1 | 1 | null;
+  feedback_comment: string | null;
+  escalated_to_ticket: boolean;
+  created_at: string;
+}
+
+export interface MatchLearnedKnowledgeResult {
+  id: string;
+  source_ticket_id: string | null;
+  applicable_role: string;
+  category: SupportTicketCategory;
+  question_pattern: string;
+  verified_solution: string;
+  keywords: string[];
+  helpful_count: number;
+  unhelpful_count: number;
+  confidence_score: number;
+  similarity: number;
+  hybrid_rank: number;
 }

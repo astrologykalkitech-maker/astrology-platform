@@ -139,4 +139,23 @@ test("Performance Benchmark: In-memory lead statistics status aggregation execut
   assert.ok(avgMs < 0.05, `Aggregation of 500 records took ${avgMs.toFixed(4)}ms per pass`);
 });
 
+test("Performance Benchmark: Fast auth cookie presence filter executes in < 0.01ms", () => {
+  const mockCookies = [
+    { name: "_ga", value: "GA1.1.123" },
+    { name: "theme", value: "dark" },
+    { name: "locale", value: "en" },
+  ];
+
+  const start = performance.now();
+  for (let i = 0; i < 5000; i++) {
+    const hasMain = mockCookies.some((c) => c.name.includes("sb-main-auth-token") || (c.name.startsWith("sb-") && !c.name.includes("admin")));
+    const hasAdmin = mockCookies.some((c) => c.name.includes("sb-admin-auth-token") || (c.name.startsWith("sb-") && c.name.includes("admin")));
+    assert.equal(hasMain || hasAdmin, false);
+  }
+  const duration = performance.now() - start;
+  const avgMs = duration / 5000;
+  assert.ok(avgMs < 0.01, `Anonymous visitor cookie evaluation took ${avgMs.toFixed(5)}ms`);
+});
+
+
 

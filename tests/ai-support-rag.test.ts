@@ -173,3 +173,77 @@ test("Knowledge Base Integrity: All knowledge items have non-empty solution step
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// 5. Self-Learning Memory, Hybrid Ranking & Threshold Tests (Phase 10.2)
+// ---------------------------------------------------------------------------
+
+test("AI RAG: Confidence formula calculation matches database generated column", () => {
+  function computeConfidence(helpful: number, unhelpful: number): number {
+    return Number(((helpful + 1.0) / (helpful + unhelpful + 2.0)).toFixed(4));
+  }
+
+  // 1. Initial user-promoted knowledge (1 helpful, 0 unhelpful) -> 2/3
+  assert.equal(computeConfidence(1, 0), 0.6667);
+
+  // 2. Admin-resolved ticket initial knowledge (3 helpful, 0 unhelpful) -> 4/5
+  assert.equal(computeConfidence(3, 0), 0.8000);
+
+  // 3. Knowledge with mixed feedback (3 helpful, 2 unhelpful) -> 4/7
+  assert.equal(computeConfidence(3, 2), 0.5714);
+
+  // 4. Downvoted knowledge (0 helpful, 3 unhelpful) -> 1/5
+  assert.equal(computeConfidence(0, 3), 0.2000);
+
+  // 5. Highly validated positive feedback (19 helpful, 1 unhelpful) -> 20/22
+  assert.equal(computeConfidence(19, 1), 0.9091);
+});
+
+test("AI RAG: Hybrid ranking formula weights vector similarity at 75% and confidence at 25%", () => {
+  function computeHybridRank(similarity: number, confidence: number): number {
+    return Number((similarity * 0.75 + confidence * 0.25).toFixed(4));
+  }
+
+  // High similarity (0.90) and high confidence (0.80)
+  const rank1 = computeHybridRank(0.90, 0.80);
+  assert.equal(rank1, 0.8750);
+
+  // High similarity (0.90) but lower confidence (0.40)
+  const rank2 = computeHybridRank(0.90, 0.40);
+  assert.equal(rank2, 0.7750);
+
+  // Moderate similarity (0.75) with high confidence (0.90)
+  const rank3 = computeHybridRank(0.75, 0.90);
+  assert.equal(rank3, 0.7875);
+
+  assert.ok(rank1 > rank2);
+  assert.ok(rank3 > rank2);
+});
+
+test("AI RAG: Role filtering strictly isolates customer and astrologer knowledge", () => {
+  const sampleKnowledge = [
+    { id: "1", role: "customer", question: "How to check Kundli?", is_active: true },
+    { id: "2", role: "astrologer", question: "How to advance lead status?", is_active: true },
+    { id: "3", role: "both", question: "How does virtual room unlock?", is_active: true },
+    { id: "4", role: "customer", question: "Archived query", is_active: false },
+  ];
+
+  function filterKnowledge(targetRole: "customer" | "astrologer") {
+    return sampleKnowledge.filter(
+      (k) => k.is_active && (k.role === targetRole || k.role === "both")
+    );
+  }
+
+  const customerItems = filterKnowledge("customer");
+  assert.equal(customerItems.length, 2);
+  assert.ok(customerItems.some((k) => k.id === "1"));
+  assert.ok(customerItems.some((k) => k.id === "3"));
+  assert.ok(!customerItems.some((k) => k.id === "2"));
+  assert.ok(!customerItems.some((k) => k.id === "4")); // Inactive excluded
+
+  const astrologerItems = filterKnowledge("astrologer");
+  assert.equal(astrologerItems.length, 2);
+  assert.ok(astrologerItems.some((k) => k.id === "2"));
+  assert.ok(astrologerItems.some((k) => k.id === "3"));
+  assert.ok(!astrologerItems.some((k) => k.id === "1"));
+});

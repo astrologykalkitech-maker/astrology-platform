@@ -580,3 +580,185 @@ export async function compareAstrologers(slug1: string, slug2: string): Promise<
     cards: [card1, card2],
   };
 }
+
+/**
+ * Retrieves the authenticated customer's Vedic birth details and Kundli readiness summary.
+ */
+export async function getCustomerBirthDetailsSummary(userId: string): Promise<string> {
+  try {
+    const admin = await createAdminClient("main");
+    const { data: profile, error } = await admin
+      .from("profiles")
+      .select("full_name, date_of_birth, time_of_birth, birthplace, gender")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error || !profile) {
+      return "Unable to retrieve your birth details at this time. Please check your Kundli Profile directly.";
+    }
+
+    const { full_name, date_of_birth, time_of_birth, birthplace, gender } = profile;
+    const missing: string[] = [];
+    if (!date_of_birth) missing.push("Date of Birth");
+    if (!time_of_birth) missing.push("Time of Birth");
+    if (!birthplace) missing.push("Birth Place");
+
+    const readiness = Math.round(((3 - missing.length) / 3) * 100);
+
+    const lines: string[] = [
+      `🌟 **Vedic Birth & Kundli Details for ${full_name || "Seeker"}**:`,
+      `• **Date of Birth**: ${date_of_birth || "Not provided yet"}`,
+      `• **Time of Birth**: ${time_of_birth || "Not provided yet"}`,
+      `• **Place of Birth**: ${birthplace || "Not provided yet"}`,
+      `• **Gender**: ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "Not specified"}`,
+      `• **Kundli Readiness**: ${readiness}% Complete`,
+    ];
+
+    if (missing.length > 0) {
+      lines.push(
+        `\n💡 *Next Step*: To calculate your exact Lagna, Moon sign (Rashi), and planetary Dashas, please add your **${missing.join(" and ")}** in your [Kundli Profile](/customer/profile).`
+      );
+    } else {
+      lines.push(
+        `\n✅ *Chart Status*: Your Vedic birth record is complete and ready for instant Kundli, planetary chart, and transit analysis by our mentors.`
+      );
+    }
+
+    return lines.join("\n");
+  } catch (err) {
+    return "An error occurred while loading your birth details. Please visit your Kundli Profile.";
+  }
+}
+
+/**
+ * Retrieves comprehensive live astrological & enquiry context for an authenticated customer.
+ */
+export async function getCustomerAstrologicalContext(userId: string): Promise<string> {
+  try {
+    const admin = await createAdminClient("main");
+
+    const [profileRes, leadsRes] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("full_name, date_of_birth, time_of_birth, birthplace, gender")
+        .eq("id", userId)
+        .maybeSingle(),
+      admin
+        .from("leads")
+        .select("id, subject, status, created_at")
+        .eq("customer_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(3),
+    ]);
+
+    if (profileRes.error || !profileRes.data) {
+      return "[CUSTOMER CONTEXT: Profile details unavailable or not found]";
+    }
+
+    const { full_name, date_of_birth, time_of_birth, birthplace, gender } = profileRes.data;
+    const missing: string[] = [];
+    if (!date_of_birth) missing.push("Date of Birth");
+    if (!time_of_birth) missing.push("Time of Birth");
+    if (!birthplace) missing.push("Birth Place");
+
+    const readiness = Math.round(((3 - missing.length) / 3) * 100);
+    const leads = leadsRes.data || [];
+
+    const lines: string[] = [
+      `[CUSTOMER ASTROLOGICAL & ENQUIRY CONTEXT]`,
+      `Seeker Name: ${full_name || "Seeker"}`,
+      `Saved Birth Coordinates:`,
+      `  • Date of Birth: ${date_of_birth || "Missing"}`,
+      `  • Time of Birth: ${time_of_birth || "Missing"}`,
+      `  • Birth Place: ${birthplace || "Missing"}`,
+      `  • Gender: ${gender || "Not specified"}`,
+      `Kundli Readiness: ${readiness}% complete (${readiness === 100 ? "Ready for chart calculation" : "Incomplete — missing " + missing.join(", ")})`,
+    ];
+
+    if (missing.length > 0) {
+      lines.push(`Note for Seeker: Guide seeker to complete birth coordinates at /customer/profile to calculate Lagna, Rashi & Dashas.`);
+    } else {
+      lines.push(`Status: Complete birth data is available for instant planetary chart calculation.`);
+    }
+
+    if (leads.length > 0) {
+      lines.push(`Recent Enquiries:`);
+      for (const lead of leads) {
+        lines.push(`  • ${lead.subject} (Status: ${lead.status}, Date: ${new Date(lead.created_at).toLocaleDateString()})`);
+      }
+    } else {
+      lines.push(`Recent Enquiries: None submitted yet.`);
+    }
+
+    return lines.join("\n");
+  } catch (err) {
+    return "[CUSTOMER CONTEXT: Retrieval error occurred]";
+  }
+}
+
+/**
+ * Retrieves comprehensive live operational context for an authenticated astrologer.
+ */
+export async function getAstrologerOperationalSnapshot(userId: string): Promise<string> {
+  try {
+    const admin = await createAdminClient("main");
+
+    const { data: astroProfile, error: astroErr } = await admin
+      .from("astrologer_profiles")
+      .select("id, display_name, approval_status, consultation_fee, specializations, experience_years, bio, city, state")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (astroErr || !astroProfile) {
+      return "[ASTROLOGER CONTEXT: Astrologer profile not found]";
+    }
+
+    const [reviewsRes, leadsRes, bookingsRes] = await Promise.all([
+      admin
+        .from("consultation_reviews")
+        .select("rating")
+        .eq("astrologer_id", astroProfile.id),
+      admin
+        .from("lead_assignments")
+        .select("id, status")
+        .eq("astrologer_id", astroProfile.id)
+        .neq("status", "closed"),
+      admin
+        .from("customer_bookings")
+        .select("id, status, scheduled_at")
+        .eq("astrologer_id", astroProfile.id)
+        .eq("status", "confirmed"),
+    ]);
+
+    const reviews = reviewsRes.data || [];
+    const avgRating = reviews.length > 0
+      ? (reviews.reduce((acc, r) => acc + (r.rating || 5), 0) / reviews.length).toFixed(1)
+      : "No reviews yet";
+
+    const activeLeads = leadsRes.data || [];
+    const confirmedBookings = bookingsRes.data || [];
+
+    const lines: string[] = [
+      `[ASTROLOGER OPERATIONAL SNAPSHOT]`,
+      `Mentor Name: ${astroProfile.display_name}`,
+      `Approval Status: ${astroProfile.approval_status}`,
+      `Consultation Fee: ₹${astroProfile.consultation_fee || 0}`,
+      `Specializations: ${(astroProfile.specializations || []).join(", ") || "General Vedic Astrology"}`,
+      `Experience: ${astroProfile.experience_years ?? 1} years`,
+      `Location: ${astroProfile.city || "Not specified"}${astroProfile.state ? ", " + astroProfile.state : ""}`,
+      `Reviews: Rating ${avgRating} (${reviews.length} reviews)`,
+      `Active Assigned Enquiries: ${activeLeads.length}`,
+      `Upcoming Confirmed Bookings: ${confirmedBookings.length}`,
+    ];
+
+    if (astroProfile.approval_status !== "approved") {
+      lines.push(
+        `Moderation Notice: Profile is currently "${astroProfile.approval_status}". It must be approved before public listing and customer booking activation. Advise updating profile at /astrologer/profile/edit.`
+      );
+    }
+
+    return lines.join("\n");
+  } catch (err) {
+    return "[ASTROLOGER CONTEXT: Operational snapshot retrieval error occurred]";
+  }
+}

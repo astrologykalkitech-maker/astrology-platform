@@ -70,15 +70,15 @@ export function CustomerHeader({
     }
 
     window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
-    // Poll every 15 seconds for live notifications
-    const interval = setInterval(loadCount, 15_000);
+    // Poll gently every 60 seconds for live notifications without competing with navigation
+    const interval = setInterval(loadCount, 60_000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
     };
-  }, [pathname, isLoggedIn]);
+  }, [isLoggedIn]);
 
   const displayCount = unreadCount > 9 ? "9+" : unreadCount.toString();
 

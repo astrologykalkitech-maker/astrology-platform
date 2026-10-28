@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { createAstrologerProfile, updateAstrologerProfile } from "@/app/actions/astrologer-profile";
 import { ChipInput } from "@/components/astrologer/profile/ChipInput";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
+import { ProfilePhotoUploader } from "@/components/profile/ProfilePhotoUploader";
 import { Button } from "@/components/astrologer/ui/Button";
 import { Card } from "@/components/astrologer/ui/Card";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
@@ -186,10 +187,20 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
               <h2 className="font-display text-2xl font-semibold text-midnight">Consultation Details</h2>
               <FormField label="Consultation fee (₹ per session)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} error={errors.fee} />
               <FormField label="Address (private)" value={address} onChange={(e) => setAddress(e.target.value)} hint="Only you can see this." />
-              <div className="flex items-end gap-4">
-                <Avatar name={displayName || "A"} src={photoUrl || null} size="lg" />
-                <div className="flex-1">
-                  <FormField label="Profile photo URL" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://…" hint="Paste a link to your photo. Direct uploads will come later." />
+              <div className="rounded-xl border border-gold/30 bg-parchment/40 p-4">
+                <span className="text-xs font-semibold text-midnight block mb-2">Mentor Profile Photo</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <ProfilePhotoUploader
+                    initialPhotoUrl={photoUrl || null}
+                    name={displayName || "Astrologer"}
+                    onPhotoUpdated={(url) => setPhotoUrl(url || "")}
+                  />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-midnight">Upload High-Resolution Portrait</p>
+                    <p className="text-[11px] text-muted mt-0.5">
+                      Accepts JPEG, PNG, or WebP under 5 MB. A verified Vedic mentor portrait enhances seeker confidence and consultation request rates.
+                    </p>
+                  </div>
                 </div>
               </div>
               <FormField label="Profile link (slug)" value={slug} onChange={(e) => setSlug(e.target.value)} error={errors.slug} hint="Leave blank to generate one from your name." />
