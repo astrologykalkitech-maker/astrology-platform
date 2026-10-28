@@ -28,7 +28,19 @@ const COPY: Record<Role, { subtitle: string; wrongRole: string; redirect: string
   },
 };
 
-export function LoginForm({ role = "astrologer", showRoleNotice = false }: { role?: Role; showRoleNotice?: boolean }) {
+interface LoginFormProps {
+  role?: Role;
+  showRoleNotice?: boolean;
+  reason?: string;
+  error?: string;
+}
+
+export function LoginForm({
+  role = "astrologer",
+  showRoleNotice = false,
+  reason,
+  error,
+}: LoginFormProps) {
   const router = useRouter();
   const copy = COPY[role];
   const [isPending, startTransition] = useTransition();
@@ -36,6 +48,63 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Derive meaningful notice for reasons and errors
+  let alertMessage: string | null = null;
+  let alertTone: "info" | "error" = "info";
+
+  if (error) {
+    alertTone = "error";
+    if (error === "oauth_cancelled" || error === "access_denied") {
+      alertTone = "info";
+      alertMessage = "Google authentication was cancelled. Please try again when you are ready.";
+    } else if (error === "session_exchange_failed" || error === "auth_callback_failed") {
+      alertMessage = "Unable to complete Google authentication. Please try again or log in with email and password.";
+    } else if (error === "database_error") {
+      alertMessage = "A temporary database error occurred while signing in. Please try again in a few moments.";
+    } else if (error === "profile_setup_required") {
+      alertTone = "info";
+      alertMessage = "Profile setup is required. Please sign in to complete your account configuration.";
+    } else {
+      alertMessage = "Authentication failed. Please try again.";
+    }
+  } else if (reason) {
+    if (reason === "role" || showRoleNotice) {
+      alertTone = "info";
+      alertMessage =
+        role === "astrologer"
+          ? "This area is for astrologer accounts only. Customers, please choose the Customer option above."
+          : "This area is for customer accounts only. Astrologers, please choose the Astrologer option above.";
+    } else if (reason === "customer_account") {
+      alertTone = "info";
+      alertMessage =
+        "This account is registered as a customer. Please choose the Customer option above to log in, or contact support if you need an astrologer account.";
+    } else if (reason === "suspended") {
+      alertTone = "error";
+      alertMessage =
+        "Your astrologer account has been suspended by administration. Please contact platform support for assistance.";
+    } else if (reason === "rejected") {
+      alertTone = "error";
+      alertMessage =
+        "Your astrologer application was not approved. Please contact platform support for further details.";
+    } else if (reason === "pending") {
+      alertTone = "info";
+      alertMessage =
+        "Your astrologer profile is currently awaiting review. You will be able to receive consultations once approved.";
+    }
+  } else if (showRoleNotice) {
+    alertTone = "info";
+    alertMessage =
+      role === "astrologer"
+        ? "This area is for astrologer accounts only. Please log in with an astrologer account."
+        : "This area is for customer accounts only. Astrologers, please choose the Astrologer option above.";
+  }
+
+  async function handleSwitchSignOut() {
+    await signOut();
+    router.replace(`/${role}/login`);
+    router.refresh();
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,9 +169,22 @@ export function LoginForm({ role = "astrologer", showRoleNotice = false }: { rol
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-3">
-        {showRoleNotice && !formError && (
-          <FormAlert tone="info">
-            This area is for astrologer accounts only. Please log in with an astrologer account.
+        {alertMessage && !formError && (
+          <FormAlert tone={alertTone}>
+            <div>
+              <p>{alertMessage}</p>
+              {(reason === "role" || reason === "customer_account") && (
+                <div className="mt-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleSwitchSignOut}
+                    className="font-semibold underline hover:text-midnight cursor-pointer"
+                  >
+                    Sign out of current account
+                  </button>
+                </div>
+              )}
+            </div>
           </FormAlert>
         )}
         {formError && <FormAlert>{formError}</FormAlert>}

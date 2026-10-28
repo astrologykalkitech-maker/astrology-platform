@@ -6,15 +6,21 @@ import { getCurrentProfile } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Astrologer Sign Up" };
 
-export default async function AstrologerSignupPage() {
+export default async function AstrologerSignupPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string; reason?: string }>;
+}) {
   const profile = await getCurrentProfile();
   if (profile?.role === "astrologer") {
     redirect("/astrologer/dashboard");
   }
 
+  const { error, reason } = searchParams ? await searchParams : {};
+
   return (
     <AuthShell mode="signup">
-      <SignupForm />
+      <SignupForm error={error} reason={reason} />
     </AuthShell>
   );
 }

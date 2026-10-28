@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       scheduled_at,
       duration_minutes = 30,
       notes,
-    } = payload as any;
+    } = (payload ?? {}) as Record<string, unknown>;
 
     if (!customer_id || !service_type || !consultation_mode || !scheduled_at) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

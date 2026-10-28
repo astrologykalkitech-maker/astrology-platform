@@ -30,7 +30,13 @@ const COPY: Record<Role, { title: string; subtitle: string; redirect: string; af
   },
 };
 
-export function SignupForm({ role = "astrologer" }: { role?: Role }) {
+interface SignupFormProps {
+  role?: Role;
+  reason?: string;
+  error?: string;
+}
+
+export function SignupForm({ role = "astrologer", reason, error }: SignupFormProps) {
   const router = useRouter();
   const copy = COPY[role];
   const [isPending, startTransition] = useTransition();
@@ -40,6 +46,27 @@ export function SignupForm({ role = "astrologer" }: { role?: Role }) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+
+  // Derive meaningful notice for errors
+  let alertMessage: string | null = null;
+  let alertTone: "info" | "error" = "info";
+
+  if (error) {
+    alertTone = "error";
+    if (error === "oauth_cancelled" || error === "access_denied") {
+      alertTone = "info";
+      alertMessage = "Google authentication was cancelled. Please try again when ready.";
+    } else if (error === "session_exchange_failed" || error === "auth_callback_failed") {
+      alertMessage = "Unable to complete Google registration. Please try again or sign up with email.";
+    } else if (error === "database_error") {
+      alertMessage = "A temporary database error occurred. Please try again in a moment.";
+    } else {
+      alertMessage = "Registration error encountered. Please try again.";
+    }
+  } else if (reason === "customer_account") {
+    alertTone = "info";
+    alertMessage = "This email is already registered as a customer. Please use Customer login.";
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,6 +138,7 @@ export function SignupForm({ role = "astrologer" }: { role?: Role }) {
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-3">
+        {alertMessage && !formError && <FormAlert tone={alertTone}>{alertMessage}</FormAlert>}
         {formError && <FormAlert>{formError}</FormAlert>}
 
         <FormField

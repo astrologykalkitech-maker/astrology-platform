@@ -36,6 +36,7 @@ export function GoogleAuthButton({
 
       const callbackUrl = new URL("/auth/callback", origin);
       if (role) callbackUrl.searchParams.set("role", role);
+      if (mode) callbackUrl.searchParams.set("mode", mode);
       if (next) callbackUrl.searchParams.set("next", next);
 
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
