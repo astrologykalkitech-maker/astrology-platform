@@ -4,6 +4,7 @@
 
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { decodeJwt } from "jose";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -32,6 +33,47 @@ export class ForbiddenRoleError extends Error {
     this.requiredRole = requiredRole;
     this.actualRole = actualRole;
   }
+}
+
+function extractJwtClaimsFromCookies(
+  allCookies: { name: string; value: string }[],
+  prefix: string
+): { sub: string; exp: number; email?: string; user_metadata?: Record<string, unknown>; iat?: number } | null {
+  try {
+    const parts = allCookies
+      .filter((c) => c.name === prefix || c.name.startsWith(`${prefix}.`))
+      .sort((a, b) => {
+        const numA = parseInt(a.name.split(".")[1] || "0", 10);
+        const numB = parseInt(b.name.split(".")[1] || "0", 10);
+        return numA - numB;
+      });
+
+    if (parts.length === 0) return null;
+
+    let combined = parts.map((p) => p.value).join("");
+    if (combined.startsWith("base64-")) {
+      combined = Buffer.from(combined.slice(7), "base64").toString("utf-8");
+    }
+
+    const parsed = JSON.parse(combined);
+    const token = Array.isArray(parsed) ? parsed[0] : parsed?.access_token || parsed;
+
+    if (typeof token === "string") {
+      const claims = decodeJwt(token);
+      if (claims?.sub && typeof claims.exp === "number") {
+        return {
+          sub: claims.sub,
+          exp: claims.exp,
+          email: claims.email as string | undefined,
+          user_metadata: claims.user_metadata as Record<string, unknown> | undefined,
+          iat: typeof claims.iat === "number" ? claims.iat : undefined,
+        };
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -68,10 +110,49 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
     return null;
   }
 
+  let cookieList: { name: string; value: string }[] = [];
+  try {
+    const cookieStore = await cookies();
+    cookieList = cookieStore.getAll();
+  } catch {
+    // Outside request context
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+
   // Try main client (DB1) first
   if (hasMain) {
     try {
       const mainClient = await createClient("main");
+      const mainClaims = extractJwtClaimsFromCookies(cookieList, "sb-main-auth-token");
+
+      // Fast Path: If valid JWT claims exist in cookie, query profile directly with RLS
+      if (mainClaims && mainClaims.exp - nowSec > 30) {
+        const { data: profile } = await mainClient
+          .from("profiles")
+          .select("id, full_name, role, created_at, updated_at")
+          .eq("id", mainClaims.sub)
+          .maybeSingle();
+
+        if (profile) {
+          const fastUser: User = {
+            id: mainClaims.sub,
+            app_metadata: {},
+            user_metadata: mainClaims.user_metadata || {},
+            aud: "authenticated",
+            created_at: new Date((mainClaims.iat || nowSec) * 1000).toISOString(),
+            email: mainClaims.email,
+          };
+
+          return {
+            user: fastUser,
+            profile: profile as Profile,
+            target: "main",
+          };
+        }
+      }
+
+      // Standard / Fallback Path: full getUser() call
       const {
         data: { user },
         error,
@@ -146,6 +227,36 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
   if (hasAdmin) {
     try {
       const adminClient = await createClient("admin");
+      const adminClaims = extractJwtClaimsFromCookies(cookieList, "sb-admin-auth-token");
+
+      // Fast Path for DB2: Direct profile lookup via admin client
+      if (adminClaims && adminClaims.exp - nowSec > 30) {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const privileged = await createAdminClient();
+        const { data: adminProf } = await privileged
+          .from("profiles")
+          .select("id, full_name, role, created_at, updated_at")
+          .eq("id", adminClaims.sub)
+          .maybeSingle();
+
+        if (adminProf) {
+          const fastAdminUser: User = {
+            id: adminClaims.sub,
+            app_metadata: {},
+            user_metadata: adminClaims.user_metadata || {},
+            aud: "authenticated",
+            created_at: new Date((adminClaims.iat || nowSec) * 1000).toISOString(),
+            email: adminClaims.email,
+          };
+
+          return {
+            user: fastAdminUser,
+            profile: adminProf as Profile,
+            target: "admin",
+          };
+        }
+      }
+
       const {
         data: { user: adminUser },
         error: adminError,

@@ -376,32 +376,34 @@ export async function signIn(
         process.env.ADMIN_SUPABASE_ANON_KEY;
 
       if (adminUrl && adminKey) {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const privileged = await createAdminClient();
-        const { data: adminUsers } = await privileged.auth.admin.listUsers();
-        const matchingAdminUser = adminUsers?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase()
-        );
+        try {
+          const adminClient = await createClient("admin");
+          const { data: adminAuthData } = await adminClient.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-        if (matchingAdminUser) {
-          const { data: adminProf } = await privileged
-            .from("profiles")
-            .select("id, full_name, role")
-            .eq("id", matchingAdminUser.id)
-            .maybeSingle();
+          if (adminAuthData?.user) {
+            const { createAdminClient } = await import("@/lib/supabase/admin");
+            const privileged = await createAdminClient();
+            const { data: adminProf } = await privileged
+              .from("profiles")
+              .select("id, full_name, role")
+              .eq("id", adminAuthData.user.id)
+              .maybeSingle();
 
-          if (adminProf && (adminProf.role === "super_admin" || adminProf.role === "consultant_admin" || adminProf.role === "admin")) {
-            resolvedRole = adminProf.role;
-            resolvedFullName = adminProf.full_name || resolvedFullName;
-
-            // Also authenticate session in DB2 so admin client cookies are established
-            try {
-              const adminClient = await createClient("admin");
-              await adminClient.auth.signInWithPassword({ email, password });
-            } catch {
-              // Ignore secondary sign in error if cookie is already present
+            if (
+              adminProf &&
+              (adminProf.role === "super_admin" ||
+                adminProf.role === "consultant_admin" ||
+                adminProf.role === "admin")
+            ) {
+              resolvedRole = adminProf.role;
+              resolvedFullName = adminProf.full_name || resolvedFullName;
             }
           }
+        } catch {
+          // Ignore secondary sign in error
         }
       }
     } catch {

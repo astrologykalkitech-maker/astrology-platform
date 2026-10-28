@@ -36,6 +36,7 @@ export function CustomerBottomNav({ menuOpen, onMore }: BottomNavProps) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch={true}
             aria-current={active ? "page" : undefined}
             className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[11px] font-medium transition-colors ${
               active ? "text-champagne font-semibold" : "hover:text-white"
