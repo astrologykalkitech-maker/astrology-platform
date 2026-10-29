@@ -93,22 +93,44 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Query multiple ultra-fast geo-IP providers in parallel (Promise.any race)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const fetchWithTimeout = async (url: string) => {
+    const fetchWithTimeout = async (url: string, ms = 5000) => {
       const res = await fetch(url, {
         headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; JyotishSetu/1.0)" },
-        signal: controller.signal,
+        signal: AbortSignal.timeout(ms),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     };
 
     const providers = [
-      // Provider 1: ipwho.is (Tested: <500ms, accurate city, region, lat, lng)
+      // Provider 1: BigDataCloud (Ultra-fast, high-uptime in India, client & IP lookup)
       async (): Promise<NormalizedReverseGeocode> => {
-        const data = await fetchWithTimeout(clientIp ? `https://ipwho.is/${clientIp}` : `https://ipwho.is/`);
+        const url = clientIp
+          ? `https://api.bigdatacloud.net/data/reverse-geocode-client?ip=${clientIp}&localityLanguage=en`
+          : `https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en`;
+        const data = await fetchWithTimeout(url, 4500);
+        if (!data || (!data.city && !data.locality)) {
+          throw new Error("bigdatacloud failed");
+        }
+        const city = (data.city || data.locality || "").trim();
+        const state = (data.principalSubdivision || "").trim();
+        const country = (data.countryName || "India").trim();
+        return {
+          formatted_address: [city, state, country].filter(Boolean).join(", "),
+          name: city,
+          city,
+          state,
+          country,
+          postal_code: data.postcode || undefined,
+          latitude: Number(data.latitude) || 28.6139,
+          longitude: Number(data.longitude) || 77.209,
+          source: "geolocation",
+        };
+      },
+
+      // Provider 2: ipwho.is (Accurate city, region, lat, lng)
+      async (): Promise<NormalizedReverseGeocode> => {
+        const data = await fetchWithTimeout(clientIp ? `https://ipwho.is/${clientIp}` : `https://ipwho.is/`, 4500);
         if (!data || data.success === false || !data.city) {
           throw new Error("ipwho.is failed");
         }
@@ -128,9 +150,9 @@ export async function GET(request: NextRequest) {
         };
       },
 
-      // Provider 2: ip-api.com (Tested: <500ms)
+      // Provider 3: ip-api.com
       async (): Promise<NormalizedReverseGeocode> => {
-        const data = await fetchWithTimeout(clientIp ? `http://ip-api.com/json/${clientIp}` : `http://ip-api.com/json`);
+        const data = await fetchWithTimeout(clientIp ? `http://ip-api.com/json/${clientIp}` : `http://ip-api.com/json`, 4500);
         if (!data || data.status !== "success" || !data.city) {
           throw new Error("ip-api failed");
         }
@@ -150,9 +172,9 @@ export async function GET(request: NextRequest) {
         };
       },
 
-      // Provider 3: freeipapi.com
+      // Provider 4: freeipapi.com
       async (): Promise<NormalizedReverseGeocode> => {
-        const data = await fetchWithTimeout(clientIp ? `https://freeipapi.com/api/json/${clientIp}` : `https://freeipapi.com/api/json`);
+        const data = await fetchWithTimeout(clientIp ? `https://freeipapi.com/api/json/${clientIp}` : `https://freeipapi.com/api/json`, 4500);
         if (!data || !data.cityName) {
           throw new Error("freeipapi failed");
         }
@@ -172,9 +194,9 @@ export async function GET(request: NextRequest) {
         };
       },
 
-      // Provider 4: ipapi.co (fallback)
+      // Provider 5: ipapi.co (fallback)
       async (): Promise<NormalizedReverseGeocode> => {
-        const data = await fetchWithTimeout(clientIp ? `https://ipapi.co/${clientIp}/json/` : `https://ipapi.co/json/`);
+        const data = await fetchWithTimeout(clientIp ? `https://ipapi.co/${clientIp}/json/` : `https://ipapi.co/json/`, 4500);
         if (!data || data.error || !data.city) {
           throw new Error("ipapi.co failed");
         }
@@ -197,7 +219,6 @@ export async function GET(request: NextRequest) {
 
     try {
       const result = await Promise.any(providers.map((p) => p()));
-      clearTimeout(timeoutId);
 
       // Save in cache
       ipCache.set(cacheKey, { result, timestamp: Date.now() });
@@ -207,7 +228,7 @@ export async function GET(request: NextRequest) {
         { headers: { "Cache-Control": "private, max-age=600" } }
       );
     } catch {
-      clearTimeout(timeoutId);
+      // All providers failed or timed out
     }
 
     return NextResponse.json(
