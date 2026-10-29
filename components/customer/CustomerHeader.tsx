@@ -47,6 +47,9 @@ export function CustomerHeader({
 
     let mounted = true;
     async function loadCount() {
+      // Pause network requests if the user is in another tab
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
         const res = await fetch("/api/notifications/unread-count");
         if (res.ok) {
@@ -72,7 +75,14 @@ export function CustomerHeader({
       }
     }
 
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        loadCount();
+      }
+    }
+
     window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     // Poll gently every 60 seconds for live notifications without competing with navigation
     const interval = setInterval(loadCount, 60_000);
 
@@ -80,6 +90,7 @@ export function CustomerHeader({
       mounted = false;
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isLoggedIn]);
 

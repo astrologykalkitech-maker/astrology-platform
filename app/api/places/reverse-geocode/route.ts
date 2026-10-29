@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   validateCoordinates,
   normalizeReverseGeocodeResult,
+  reverseGeocodeCache,
   type OlaReverseGeocodeResult,
 } from "@/lib/location/ola-maps";
 
@@ -62,6 +63,25 @@ export async function GET(request: NextRequest) {
     }
 
     const { lat, lng } = validation;
+
+    // High-performance Bounded LRU Cache lookup (~11m spatial bucket)
+    const coordKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    const cached = reverseGeocodeCache.get(coordKey);
+    if (cached) {
+      return NextResponse.json(
+        {
+          success: true,
+          result: cached,
+        },
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "public, max-age=600, stale-while-revalidate=1200",
+            "X-Cache": "HIT",
+          },
+        }
+      );
+    }
 
     const apiKey = process.env.OLA_MAPS_API_KEY?.trim();
     if (!apiKey) {
@@ -196,6 +216,9 @@ export async function GET(request: NextRequest) {
 
     const normalized = normalizeReverseGeocodeResult(firstResult, lat, lng);
 
+    // Populate bounded LRU cache
+    reverseGeocodeCache.set(coordKey, normalized);
+
     return NextResponse.json(
       {
         success: true,
@@ -204,7 +227,8 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Cache-Control": "public, max-age=600, stale-while-revalidate=1200",
+          "X-Cache": "MISS",
         },
       }
     );

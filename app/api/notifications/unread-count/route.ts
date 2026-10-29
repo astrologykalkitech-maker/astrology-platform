@@ -26,7 +26,14 @@ export async function GET() {
       return NextResponse.json({ count: 0 });
     }
 
-    return NextResponse.json({ count: count ?? 0 });
+    return NextResponse.json(
+      { count: count ?? 0 },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=15, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch {
     return NextResponse.json({ count: 0 });
   }

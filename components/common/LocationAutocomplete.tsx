@@ -73,8 +73,30 @@ export function LocationAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastRequestIdRef = useRef<number>(0);
+  const clientQueryCacheRef = useRef<Map<string, LocationSuggestion[]>>(new Map());
   const listboxId = `${id}-listbox`;
+
+  const clearTemporaryError = useCallback(() => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = null;
+    }
+    setFetchError(null);
+  }, []);
+
+  const showTemporaryError = useCallback((msg: string) => {
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+    }
+    setFetchError(msg);
+    // Auto-dismiss transient location notices after 6 seconds
+    errorTimerRef.current = setTimeout(() => {
+      setFetchError(null);
+      errorTimerRef.current = null;
+    }, 6000);
+  }, []);
 
   // Debounced search logic with request cancellation and sequence ID checks
   const fetchSuggestions = useCallback(async (query: string) => {
@@ -85,6 +107,19 @@ export function LocationAutocomplete({
       setLoading(false);
       setHasSearched(false);
       setFetchError(null);
+      return;
+    }
+
+    // Instant zero-latency render for previously typed prefixes
+    const cacheKey = trimmed.toLowerCase();
+    const cached = clientQueryCacheRef.current.get(cacheKey);
+    if (cached) {
+      setSuggestions(cached);
+      setIsOpen(true);
+      setLoading(false);
+      setHasSearched(true);
+      setFetchError(null);
+      setActiveIndex(-1);
       return;
     }
 
@@ -145,6 +180,13 @@ export function LocationAutocomplete({
         setSuggestions(results);
         setIsOpen(true);
         setActiveIndex(-1);
+
+        // Store up to 50 entries in client memory for instant backspacing and typing
+        if (clientQueryCacheRef.current.size >= 50) {
+          const oldest = clientQueryCacheRef.current.keys().next().value;
+          if (oldest) clientQueryCacheRef.current.delete(oldest);
+        }
+        clientQueryCacheRef.current.set(cacheKey, results);
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -164,6 +206,7 @@ export function LocationAutocomplete({
   // Handle typing with clean 300ms debounce
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;
+    clearTemporaryError();
     onChange(newVal);
 
     if (debounceTimerRef.current) {
@@ -178,7 +221,6 @@ export function LocationAutocomplete({
       setSuggestions([]);
       setIsOpen(false);
       setLoading(false);
-      setFetchError(null);
     }
   };
 
@@ -200,6 +242,9 @@ export function LocationAutocomplete({
       document.removeEventListener("touchstart", handleClickOutside);
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+      }
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -261,11 +306,11 @@ export function LocationAutocomplete({
   };
 
   const handleClear = () => {
+    clearTemporaryError();
     onChange("");
     setSuggestions([]);
     setIsOpen(false);
     setActiveIndex(-1);
-    setFetchError(null);
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -278,12 +323,12 @@ export function LocationAutocomplete({
     e.stopPropagation();
 
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      setFetchError("Geolocation is not supported by your browser.");
+      showTemporaryError("Geolocation is not supported by your browser.");
       return;
     }
 
     setDetectingLocation(true);
-    setFetchError(null);
+    clearTemporaryError();
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -355,7 +400,43 @@ export function LocationAutocomplete({
           inputRef.current?.focus();
         }
       },
-      (geoError) => {
+      async (geoError) => {
+        // Attempt fast IP-based approximate location fallback if device GPS times out or is unavailable
+        try {
+          const ipRes = await fetch("/api/places/ip-location");
+          if (ipRes.ok) {
+            const ipData = (await ipRes.json()) as {
+              success?: boolean;
+              result?: NormalizedReverseGeocode;
+            };
+            if (ipData.success && ipData.result) {
+              const loc = ipData.result;
+              const suggestion: LocationSuggestion = {
+                id: `geo-ip-${loc.latitude.toFixed(4)}-${loc.longitude.toFixed(4)}`,
+                name: loc.name || loc.city,
+                state: loc.state,
+                country: loc.country,
+                formatted: loc.formatted_address,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                source: "geolocation",
+              };
+
+              onChange(loc.formatted_address, suggestion);
+              if (onSelectSuggestion) {
+                onSelectSuggestion(suggestion);
+              }
+              setIsOpen(false);
+              setSuggestions([]);
+              clearTemporaryError();
+              setDetectingLocation(false);
+              return;
+            }
+          }
+        } catch {
+          // Fall through to error messaging below
+        }
+
         setDetectingLocation(false);
         let msg = "Could not detect your current location.";
         if (geoError.code === 1) {
@@ -365,12 +446,12 @@ export function LocationAutocomplete({
         } else if (geoError.code === 3) {
           msg = "Location request timed out. Please try again or type manually.";
         }
-        setFetchError(msg);
+        showTemporaryError(msg);
       },
       {
         enableHighAccuracy: false,
-        timeout: 10000,
-        maximumAge: 60000,
+        timeout: 12000,
+        maximumAge: 300000,
       }
     );
   };
@@ -429,12 +510,13 @@ export function LocationAutocomplete({
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onFocus={() => {
+            clearTemporaryError();
             if (suggestions.length > 0) setIsOpen(true);
             else if (value.trim().length >= 2) void fetchSuggestions(value);
           }}
           placeholder={placeholder}
           className={`w-full rounded-xl border border-gold/30 bg-parchment/30 py-2.5 pl-3.5 pr-14 text-xs text-midnight placeholder:text-muted/60 transition-colors focus:border-gold focus:bg-white focus:outline-none focus:ring-1 focus:ring-gold disabled:opacity-50 ${
-            displayError ? "!border-red-400 focus:!ring-red-400" : ""
+            error || (fetchError && !value) ? "!border-red-400 focus:!ring-red-400" : ""
           } ${inputClassName}`}
         />
 
@@ -457,10 +539,20 @@ export function LocationAutocomplete({
       </div>
 
       {displayError && (
-        <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1">
-          <AlertCircle className="h-3 w-3 shrink-0" />
-          <span>{displayError}</span>
-        </p>
+        <div className="text-[11px] text-red-500 mt-1 flex items-center justify-between gap-1">
+          <div className="flex items-center gap-1 min-w-0">
+            <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
+            <span className="truncate">{displayError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={clearTemporaryError}
+            className="text-muted hover:text-midnight p-0.5 rounded cursor-pointer shrink-0"
+            aria-label="Dismiss notice"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       )}
 
       {/* Autocomplete Suggestions Dropdown */}

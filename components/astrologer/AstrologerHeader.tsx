@@ -37,6 +37,8 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
   useEffect(() => {
     let mounted = true;
     async function loadCount() {
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
         const res = await fetch("/api/notifications/unread-count");
         if (res.ok) {
@@ -61,13 +63,21 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
       }
     }
 
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        loadCount();
+      }
+    }
+
     window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
-    const interval = setInterval(loadCount, 15_000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = setInterval(loadCount, 30_000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [pathname]);
 

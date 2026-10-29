@@ -51,10 +51,13 @@ export default function CustomerNotificationsClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll for live incoming customer notifications
+  // Poll for live incoming customer notifications with background tab pausing
   useEffect(() => {
     let mounted = true;
     async function refresh() {
+      // Pause network requests when the tab is in background / minimized
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
         const res = await getCustomerNotifications();
         if (mounted && res.success && Array.isArray(res.data)) {
@@ -75,9 +78,19 @@ export default function CustomerNotificationsClient({
     }
 
     const interval = setInterval(refresh, 8000);
+
+    // Refresh immediately when returning to the tab
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        refresh();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       mounted = false;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 

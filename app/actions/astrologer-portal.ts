@@ -160,7 +160,7 @@ export async function getAstrologerEarningsAction(): Promise<
 
     const { data: bookings, error } = await supabase
       .from("customer_bookings")
-      .select("*")
+      .select("*, customer:customer_id(full_name)")
       .eq("astrologer_id", profile.id)
       .order("created_at", { ascending: false });
 
@@ -168,17 +168,36 @@ export async function getAstrologerEarningsAction(): Promise<
       return { success: false, error: error.message };
     }
 
-    const allBookings = (bookings || []) as CustomerBooking[];
-    const customerIds = Array.from(new Set(allBookings.map((b) => b.customer_id)));
-    let customerMap: Record<string, string> = {};
+    const allBookings = (bookings || []) as Array<
+      CustomerBooking & {
+        customer?: { full_name?: string | null } | null;
+      }
+    >;
+    const customerMap: Record<string, string> = {};
 
-    if (customerIds.length > 0) {
+    // First populate names from the joined customer relation
+    const missingCustomerIds: string[] = [];
+    for (const b of allBookings) {
+      if (b.customer?.full_name) {
+        customerMap[b.customer_id] = b.customer.full_name;
+      } else if (b.customer_id && !customerMap[b.customer_id]) {
+        missingCustomerIds.push(b.customer_id);
+      }
+    }
+
+    // Only fallback query for customer profiles if any were missing from join
+    if (missingCustomerIds.length > 0) {
+      const uniqueMissing = Array.from(new Set(missingCustomerIds));
       const { data: customers } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .in("id", customerIds);
+        .in("id", uniqueMissing);
       if (customers) {
-        customerMap = Object.fromEntries(customers.map((c) => [c.id, c.full_name || "Customer"]));
+        for (const c of customers) {
+          if (c.id && c.full_name) {
+            customerMap[c.id] = c.full_name;
+          }
+        }
       }
     }
 

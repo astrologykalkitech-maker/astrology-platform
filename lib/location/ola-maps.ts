@@ -202,3 +202,82 @@ export function normalizeReverseGeocodeResult(
     source: "geolocation",
   };
 }
+
+// =====================================================
+// BOUNDED HIGH-PERFORMANCE IN-MEMORY LRU / TTL CACHE
+// =====================================================
+
+export interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+export class BoundedLRUCache<T> {
+  private cache = new Map<string, CacheEntry<T>>();
+  constructor(
+    private maxEntries: number = 300,
+    private defaultTtlMs: number = 300_000 // 5 minutes
+  ) {}
+
+  get(key: string): T | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return undefined;
+    }
+    // Re-insert to refresh LRU recency
+    this.cache.delete(key);
+    this.cache.set(key, entry);
+    return entry.data;
+  }
+
+  set(key: string, data: T, ttlMs?: number): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxEntries) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+      }
+    }
+    this.cache.set(key, {
+      data,
+      expiresAt: Date.now() + (ttlMs ?? this.defaultTtlMs),
+    });
+  }
+
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  delete(key: string): boolean {
+    return this.cache.delete(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+}
+
+// Bounded server-side cache instances
+export const autocompleteCache = new BoundedLRUCache<{
+  predictions: OlaPrediction[];
+  suggestions: NormalizedPlaceSuggestion[];
+}>(300, 300_000); // 5 min TTL, max 300 entries
+
+export const reverseGeocodeCache = new BoundedLRUCache<NormalizedReverseGeocode>(
+  300,
+  600_000 // 10 min TTL, max 300 entries
+);
+

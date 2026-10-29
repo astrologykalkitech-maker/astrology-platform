@@ -4,6 +4,7 @@ import {
   type NormalizedPlaceSuggestion,
   validateInput,
   normalizeOlaPrediction,
+  autocompleteCache,
 } from "@/lib/location/ola-maps";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,26 @@ export async function GET(request: NextRequest) {
         {
           headers: {
             "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          },
+        }
+      );
+    }
+
+    // High-performance Bounded LRU Cache lookup (< 1ms latency for popular queries)
+    const cacheKey = trimmed.toLowerCase();
+    const cached = autocompleteCache.get(cacheKey);
+    if (cached) {
+      return NextResponse.json(
+        {
+          success: true,
+          predictions: cached.predictions,
+          suggestions: cached.suggestions,
+        },
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+            "X-Cache": "HIT",
           },
         }
       );
@@ -215,6 +236,11 @@ export async function GET(request: NextRequest) {
       normalizeOlaPrediction(p, index)
     );
 
+    // Populate bounded LRU cache for future instant responses
+    if (predictions.length > 0) {
+      autocompleteCache.set(cacheKey, { predictions, suggestions });
+    }
+
     return NextResponse.json(
       {
         success: true,
@@ -224,7 +250,8 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          "Cache-Control": "private, no-cache, no-store, must-revalidate",
+          "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+          "X-Cache": "MISS",
         },
       }
     );

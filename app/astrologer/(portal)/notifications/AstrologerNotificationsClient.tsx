@@ -49,10 +49,13 @@ export default function AstrologerNotificationsClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll for live incoming notifications
+  // Poll for live incoming notifications with background tab pausing
   useEffect(() => {
     let mounted = true;
     async function refresh() {
+      // Pause polling when the browser tab is hidden / minimized
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
         const res = await getAstrologerNotificationsAction();
         if (mounted && res.success && Array.isArray(res.data)) {
@@ -73,9 +76,18 @@ export default function AstrologerNotificationsClient({
     }
 
     const interval = setInterval(refresh, 8000);
+
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        refresh();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       mounted = false;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
