@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Ornament } from "@/components/astrologer/ui/Ornament";
 
 type NavItem = {
@@ -163,10 +164,12 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
         </nav>
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">
-          <SignOutButton
-            variant="goldLight"
-            className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
-          />
+          <ComponentErrorBoundary name="AstrologerSignOutSidebar">
+            <SignOutButton
+              variant="goldLight"
+              className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
+            />
+          </ComponentErrorBoundary>
         </div>
       </div>
     </aside>

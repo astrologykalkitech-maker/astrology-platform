@@ -38,6 +38,9 @@ export interface AdminCustomerDetailedView {
   leads: Lead[];
 }
 
+// In-memory 60-second memoized auth email map for high-speed admin customer browsing
+let cachedAuthEmailMap: { map: Map<string, string>; expiresAt: number } | null = null;
+
 /**
  * Fetch registered customer seekers with search and pagination (Admin only).
  */
@@ -72,19 +75,24 @@ export async function getAdminCustomers(
     const customerProfiles = (profiles as Profile[]) ?? [];
     const customerIds = customerProfiles.map((p) => p.id);
 
-    // Resolve emails from auth.admin
-    const emailMap = new Map<string, string>();
-    try {
-      const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      if (authUsers?.users) {
-        for (const u of authUsers.users) {
-          if (u.id && u.email) {
-            emailMap.set(u.id, u.email);
+    // Resolve emails from auth.admin (with 60-second in-memory memoization)
+    let emailMap = new Map<string, string>();
+    if (cachedAuthEmailMap && Date.now() < cachedAuthEmailMap.expiresAt) {
+      emailMap = cachedAuthEmailMap.map;
+    } else {
+      try {
+        const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        if (authUsers?.users) {
+          for (const u of authUsers.users) {
+            if (u.id && u.email) {
+              emailMap.set(u.id, u.email);
+            }
           }
+          cachedAuthEmailMap = { map: emailMap, expiresAt: Date.now() + 60_000 };
         }
+      } catch {
+        // Graceful fallback if auth listing is restricted
       }
-    } catch {
-      // Graceful fallback if auth listing is restricted
     }
 
     // Fetch booking counts

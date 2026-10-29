@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, Bell } from "lucide-react";
 import { Logo } from "@/components/astrologer/Logo";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
-import { getAstrologerUnreadNotificationCount } from "@/app/actions/astrologer-portal";
 
 type HeaderProps = {
   displayName: string;
@@ -37,10 +37,15 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
   useEffect(() => {
     let mounted = true;
     async function loadCount() {
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
-        const res = await getAstrologerUnreadNotificationCount();
-        if (mounted && res.success && typeof res.data === "number") {
-          setUnreadCount(res.data);
+        const res = await fetch("/api/notifications/unread-count");
+        if (res.ok) {
+          const data = (await res.json()) as { count?: number };
+          if (mounted && typeof data.count === "number") {
+            setUnreadCount(data.count);
+          }
         }
       } catch {
         // Non-blocking
@@ -58,13 +63,21 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
       }
     }
 
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        loadCount();
+      }
+    }
+
     window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
-    const interval = setInterval(loadCount, 15_000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = setInterval(loadCount, 30_000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [pathname]);
 
@@ -142,7 +155,9 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
             </div>
           </Link>
 
-          <SignOutButton />
+          <ComponentErrorBoundary name="AstrologerSignOutHeader">
+            <SignOutButton />
+          </ComponentErrorBoundary>
         </div>
       </header>
     </>

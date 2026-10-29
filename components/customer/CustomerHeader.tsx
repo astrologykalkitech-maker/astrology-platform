@@ -7,7 +7,7 @@ import { Menu, Bell } from "lucide-react";
 import { Logo } from "@/components/astrologer/Logo";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
-import { getCustomerUnreadNotificationCount } from "@/app/actions/customer";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 
 type CustomerHeaderProps = {
   customerName: string;
@@ -47,10 +47,16 @@ export function CustomerHeader({
 
     let mounted = true;
     async function loadCount() {
+      // Pause network requests if the user is in another tab
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
-        const res = await getCustomerUnreadNotificationCount();
-        if (mounted && res.success && typeof res.data === "number") {
-          setUnreadCount(res.data);
+        const res = await fetch("/api/notifications/unread-count");
+        if (res.ok) {
+          const data = (await res.json()) as { count?: number };
+          if (mounted && typeof data.count === "number") {
+            setUnreadCount(data.count);
+          }
         }
       } catch {
         // Non-blocking
@@ -69,7 +75,14 @@ export function CustomerHeader({
       }
     }
 
+    function onVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden && mounted) {
+        loadCount();
+      }
+    }
+
     window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     // Poll gently every 60 seconds for live notifications without competing with navigation
     const interval = setInterval(loadCount, 60_000);
 
@@ -77,6 +90,7 @@ export function CustomerHeader({
       mounted = false;
       clearInterval(interval);
       window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isLoggedIn]);
 
@@ -165,7 +179,9 @@ export function CustomerHeader({
                 </div>
               </Link>
 
-              <CustomerSignOutButton />
+              <ComponentErrorBoundary name="CustomerSignOutHeader">
+                <CustomerSignOutButton />
+              </ComponentErrorBoundary>
             </>
           ) : (
             <div className="flex items-center gap-3">

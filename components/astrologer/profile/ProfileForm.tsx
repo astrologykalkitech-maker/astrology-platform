@@ -11,6 +11,7 @@ import { Card } from "@/components/astrologer/ui/Card";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
 import { FormField } from "@/components/astrologer/ui/FormField";
 import { Tags } from "@/components/astrologer/ui/Tags";
+import { LocationAutocomplete } from "@/components/common/LocationAutocomplete";
 import { formatExperience, formatFee, formatLocation } from "@/lib/astrologer/format";
 import type { AstrologerProfile } from "@/lib/types/database.types";
 
@@ -155,9 +156,34 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
               <h2 className="font-display text-2xl font-semibold text-midnight">Basic Information</h2>
               <FormField label="Full name *" value={displayName} onChange={(e) => setDisplayName(e.target.value)} error={errors.displayName} maxLength={100} />
               <FormField label="Experience (in years)" inputMode="numeric" value={experience} onChange={(e) => setExperience(e.target.value)} error={errors.experience} />
-              <div className="grid gap-5 sm:grid-cols-2">
-                <FormField label="City" value={city} onChange={(e) => setCity(e.target.value)} />
-                <FormField label="State" value={state} onChange={(e) => setState(e.target.value)} />
+              <div className="grid gap-5 sm:grid-cols-2 items-start">
+                <LocationAutocomplete
+                  id="city"
+                  label="City"
+                  value={city}
+                  onChange={(val, suggestion) => {
+                    setCity(suggestion ? suggestion.name : val);
+                    if (suggestion?.state) {
+                      setState(suggestion.state);
+                    }
+                  }}
+                  onSelectSuggestion={(suggestion) => {
+                    setCity(suggestion.name);
+                    if (suggestion.state) {
+                      setState(suggestion.state);
+                    }
+                  }}
+                  placeholder="e.g. Varanasi, Jaipur, Mumbai"
+                  inputClassName="!bg-ivory/70 !border-line hover:!border-gold/50 focus-visible:!bg-white focus-visible:!outline-gold"
+                  enableCurrentLocation={true}
+                  currentLocationLabel="Use current city"
+                />
+                <FormField
+                  label="State"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="e.g. Uttar Pradesh, Rajasthan"
+                />
               </div>
               <div>
                 <label htmlFor="bio" className="mb-1.5 block text-sm font-medium text-midnight">About me</label>
@@ -185,7 +211,16 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
             <>
               <h2 className="font-display text-2xl font-semibold text-midnight">Consultation Details</h2>
               <FormField label="Consultation fee (₹ per session)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} error={errors.fee} />
-              <FormField label="Address (private)" value={address} onChange={(e) => setAddress(e.target.value)} hint="Only you can see this." />
+              <LocationAutocomplete
+                id="address"
+                label="Address (private)"
+                value={address}
+                onChange={(val) => setAddress(val)}
+                placeholder="Enter clinic, ashram, or residential address..."
+                enableCurrentLocation={true}
+                currentLocationLabel="Locate current address"
+                inputClassName="!bg-ivory/70 !border-line hover:!border-gold/50 focus-visible:!bg-white focus-visible:!outline-gold"
+              />
               <div className="rounded-xl border border-gold/30 bg-parchment/40 p-4">
                 <span className="text-xs font-semibold text-midnight block mb-2">Mentor Profile Photo</span>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">

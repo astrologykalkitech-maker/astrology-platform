@@ -796,3 +796,68 @@ export async function submitAiFeedbackAction(payload: {
     return { success: false, error: errorMsg };
   }
 }
+
+export interface PersistedAiConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  interactionId?: string;
+  feedbackGiven?: 1 | -1;
+  createdAt: string;
+  category?: SupportTicketCategory;
+}
+
+/**
+ * Loads the authenticated user's persisted AI conversation history from database.
+ * Retains history across route navigation, tab switching, and page refreshes.
+ * Orders chronologically (oldest first, newest last) with stable unique IDs.
+ */
+export async function getAiConversationHistoryAction(): Promise<
+  SupportActionResult<PersistedAiConversationMessage[]>
+> {
+  try {
+    const { user, role } = await requireSupportUser();
+    const adminSupabase = await createAdminClient("main");
+
+    const { data: logs, error } = await adminSupabase
+      .from("ai_interaction_logs")
+      .select("id, query, ai_response, classified_category, feedback_rating, created_at")
+      .eq("user_id", user.id)
+      .eq("user_role", role)
+      .order("created_at", { ascending: true })
+      .limit(50);
+
+    if (error) {
+      console.warn("[getAiConversationHistoryAction Warning]", error.message);
+      return { success: true, data: [] };
+    }
+
+    const messages: PersistedAiConversationMessage[] = [];
+    for (const log of logs || []) {
+      // User message
+      messages.push({
+        id: `user-${log.id}`,
+        role: "user",
+        content: log.query,
+        category: (log.classified_category as SupportTicketCategory) || "general",
+        createdAt: log.created_at,
+      });
+
+      // Assistant response
+      messages.push({
+        id: `assistant-${log.id}`,
+        role: "assistant",
+        content: log.ai_response,
+        interactionId: log.id,
+        feedbackGiven: log.feedback_rating as 1 | -1 | undefined,
+        category: (log.classified_category as SupportTicketCategory) || "general",
+        createdAt: log.created_at,
+      });
+    }
+
+    return { success: true, data: messages };
+  } catch (err: unknown) {
+    const errorMsg = (err as Error)?.message || "Failed to load conversation history.";
+    return { success: false, error: errorMsg };
+  }
+}

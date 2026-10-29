@@ -7,7 +7,6 @@ import {
   User,
   Calendar,
   Clock,
-  MapPin,
   Phone,
   Mail,
   Shield,
@@ -22,6 +21,7 @@ import { updateCustomerProfileAction } from "@/app/actions/customer";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { ProfilePhotoUploader } from "@/components/profile/ProfilePhotoUploader";
+import { LocationAutocomplete } from "@/components/common/LocationAutocomplete";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
@@ -284,20 +284,15 @@ export default function CustomerProfileClient({ initialProfile }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-midnight mb-1.5" htmlFor="birthplace">
-              Place of Birth (City, State)
-            </label>
-            <div className="relative">
-              <input
-                id="birthplace"
-                type="text"
-                value={birthplace}
-                onChange={(e) => setBirthplace(e.target.value)}
-                className="w-full rounded-xl border border-gold/30 bg-parchment/30 px-3.5 py-2.5 text-xs text-midnight placeholder:text-muted/60 focus:border-gold focus:bg-white focus:outline-none focus:ring-1 focus:ring-gold"
-                placeholder="e.g. Varanasi, Uttar Pradesh"
-              />
-              <MapPin className="absolute right-3.5 top-2.5 h-4 w-4 text-gold-deep" />
-            </div>
+            <LocationAutocomplete
+              id="birthplace"
+              label="Place of Birth (City, State)"
+              value={birthplace}
+              onChange={(val) => setBirthplace(val)}
+              placeholder="e.g. Varanasi, Uttar Pradesh"
+              enableCurrentLocation={true}
+              currentLocationLabel="Use current location"
+            />
           </div>
         </div>
 

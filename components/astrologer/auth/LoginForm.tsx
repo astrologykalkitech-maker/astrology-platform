@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
-import { signIn, signOut } from "@/app/actions/auth";
+import { signIn } from "@/app/actions/auth";
 import { Button } from "@/components/astrologer/ui/Button";
 import { FormAlert } from "@/components/astrologer/ui/FormAlert";
 import { FormField } from "@/components/astrologer/ui/FormField";
@@ -103,7 +103,7 @@ export function LoginForm({
   }
 
   async function handleSwitchSignOut() {
-    await signOut();
+    await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
     router.replace(`/${role}/login`);
     router.refresh();
   }
@@ -142,7 +142,7 @@ export function LoginForm({
 
       // The role comes from public.profiles. An account of the wrong type must not stay signed in here.
       if (result.data.role !== role) {
-        await signOut();
+        await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
         setFormError(copy.wrongRole);
         setSubmitting(false);
         return;

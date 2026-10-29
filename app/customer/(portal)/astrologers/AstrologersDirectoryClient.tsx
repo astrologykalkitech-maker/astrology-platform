@@ -9,6 +9,8 @@ import {
   Search,
   X,
   ExternalLink,
+  Navigation,
+  Loader2,
 } from "lucide-react";
 import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
@@ -26,7 +28,51 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"experience" | "fee_asc" | "fee_desc">("experience");
   const [currentPage, setCurrentPage] = useState(1);
+  const [detectingNearMe, setDetectingNearMe] = useState(false);
+  const [nearMeNotice, setNearMeNotice] = useState<string | null>(null);
   const pageSize = 12;
+
+  const handleNearMe = () => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      setNearMeNotice("Geolocation is not supported by your browser.");
+      return;
+    }
+    setDetectingNearMe(true);
+    setNearMeNotice(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch(
+            `/api/places/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.result?.city) {
+              setSearchQuery(data.result.city);
+              setNearMeNotice(`Showing astrologers near ${data.result.city}`);
+            } else if (data.result?.state) {
+              setSearchQuery(data.result.state);
+              setNearMeNotice(`Showing astrologers near ${data.result.state}`);
+            }
+          }
+        } catch {
+          // Graceful fallback
+        } finally {
+          setDetectingNearMe(false);
+        }
+      },
+      (err) => {
+        setDetectingNearMe(false);
+        if (err.code === 1) {
+          setNearMeNotice("Location permission denied. Search by city instead.");
+        } else {
+          setNearMeNotice("Could not detect location.");
+        }
+      },
+      { timeout: 10000, enableHighAccuracy: false }
+    );
+  };
 
   // Reset page when filters change
   React.useEffect(() => {
@@ -86,26 +132,46 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
     <div className="space-y-4">
       {/* Search and Filters Bar */}
       <div className={`${CARD} p-4 sm:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
-        {/* Search Input */}
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by astrologer name, city, or specialty..."
-            className="w-full rounded-xl border border-gold/30 bg-parchment/30 pl-10 pr-9 py-2 text-xs text-midnight placeholder:text-muted focus:border-gold focus:bg-white focus:outline-none transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-midnight"
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+        {/* Search Input & Near Me */}
+        <div className="flex items-center gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by astrologer name, city, or specialty..."
+              className="w-full rounded-xl border border-gold/30 bg-parchment/30 pl-10 pr-9 py-2 text-xs text-midnight placeholder:text-muted focus:border-gold focus:bg-white focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setNearMeNotice(null);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-midnight"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNearMe}
+            disabled={detectingNearMe}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2 text-xs font-semibold text-midnight hover:bg-gold/20 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
+            title="Find astrologers near your current location"
+          >
+            {detectingNearMe ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-gold-deep" />
+            ) : (
+              <Navigation className="h-3.5 w-3.5 text-gold-deep" />
+            )}
+            <span>{detectingNearMe ? "Locating..." : "Near Me"}</span>
+          </button>
         </div>
 
         {/* Filter dropdowns */}
@@ -140,6 +206,22 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
           </select>
         </div>
       </div>
+
+      {nearMeNotice && (
+        <div className="flex items-center justify-between rounded-xl border border-gold/30 bg-amber-50/60 px-3.5 py-2 text-xs text-midnight">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Navigation className="h-3.5 w-3.5 text-gold-deep" />
+            {nearMeNotice}
+          </span>
+          <button
+            type="button"
+            onClick={() => setNearMeNotice(null)}
+            className="text-muted hover:text-midnight text-[11px] font-semibold underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Results Count */}
       <div className="flex items-center justify-between text-xs text-muted px-1">

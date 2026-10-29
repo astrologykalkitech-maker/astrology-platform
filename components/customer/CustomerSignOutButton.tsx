@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/astrologer/ui/Button";
 
 interface CustomerSignOutButtonProps {
@@ -33,14 +32,32 @@ export function CustomerSignOutButton({
   function handleSignOut() {
     setError(null);
     setShowConfirm(false);
+
     startTransition(async () => {
-      const result = await signOut();
-      if (!result.success) {
-        setError("Could not sign out. Please try again.");
-        return;
+      try {
+        // Robust REST-based session invalidation.
+        // Avoids fragile Next.js Server Action hash mismatches across client reloads/deployments.
+        const res = await fetch("/api/auth/signout", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to sign out.");
+        }
+
+        if (typeof window !== "undefined") {
+          window.location.href = redirectTo;
+        } else {
+          router.replace(redirectTo);
+          router.refresh();
+        }
+      } catch (err) {
+        console.warn("[CustomerSignOutButton] Signout error:", err);
+        // Fallback: force navigation to redirect destination even if fetch failed
+        if (typeof window !== "undefined") {
+          window.location.href = redirectTo;
+        } else {
+          setError(err instanceof Error ? err.message : "Failed to sign out.");
+        }
       }
-      router.replace(redirectTo);
-      router.refresh();
     });
   }
 

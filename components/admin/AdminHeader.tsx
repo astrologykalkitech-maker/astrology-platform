@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
-import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/astrologer/ui/Button";
 
 interface AdminHeaderProps {
@@ -30,13 +29,28 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
     setError(null);
     setShowConfirm(false);
     startTransition(async () => {
-      const result = await signOut();
-      if (!result.success) {
-        setError("Could not sign out. Please try again.");
-        return;
+      try {
+        const res = await fetch("/api/auth/signout", { method: "POST" });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to sign out.");
+        }
+        if (typeof window !== "undefined") {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.href = "/";
+        } else {
+          router.push("/");
+          router.refresh();
+        }
+      } catch (err) {
+        console.warn("[AdminHeader] Signout error:", err);
+        if (typeof window !== "undefined") {
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.href = "/";
+        } else {
+          setError(err instanceof Error ? err.message : "Failed to sign out.");
+        }
       }
-      router.push("/");
-      router.refresh();
     });
   };
 
