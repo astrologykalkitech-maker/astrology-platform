@@ -12,10 +12,23 @@ export default function AstrologerPortalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const isStale =
+    typeof error?.message === "string" &&
+    (error.message.includes("was not found on the server") ||
+      error.message.includes("failed-to-find-server-action") ||
+      error.message.includes("UnrecognizedActionError"));
+
   useEffect(() => {
-    // Log non-sensitive error message for monitoring
     console.error("[AstrologerPortalError]", error.message);
   }, [error]);
+
+  const handleReload = () => {
+    if (typeof window !== "undefined" && isStale) {
+      window.location.reload();
+    } else {
+      reset();
+    }
+  };
 
   return (
     <div className="py-16 px-4 max-w-lg mx-auto text-center space-y-5">
@@ -25,21 +38,22 @@ export default function AstrologerPortalError({
 
       <div className="space-y-2">
         <h2 className="text-xl font-display font-bold text-midnight">
-          Unable to Load Section
+          {isStale ? "Portal Update Available" : "Unable to Load Section"}
         </h2>
         <p className="text-xs text-muted leading-relaxed max-w-md mx-auto">
-          A temporary network delay or connection timeout occurred while retrieving your details.
-          Your account data remains completely safe.
+          {isStale
+            ? "A newer platform update has been published. Please reload to sync your session with the latest release."
+            : "A temporary network delay or connection timeout occurred while retrieving your details. Your account data remains completely safe."}
         </p>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
         <button
           type="button"
-          onClick={() => reset()}
+          onClick={handleReload}
           className={buttonStyles({ variant: "gold", size: "sm" })}
         >
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Try Again
+          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> {isStale ? "Update & Reload" : "Try Again"}
         </button>
 
         <Link
@@ -52,4 +66,3 @@ export default function AstrologerPortalError({
     </div>
   );
 }
-

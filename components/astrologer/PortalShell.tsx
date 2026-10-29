@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AstrologerHeader } from "@/components/astrologer/AstrologerHeader";
 import { AstrologerSidebar } from "@/components/astrologer/AstrologerSidebar";
 import { BottomNav } from "@/components/astrologer/BottomNav";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 
 type PortalShellProps = {
   displayName: string;
@@ -52,12 +53,14 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
       />
 
       <div className="flex flex-1 flex-col lg:pl-64 h-full overflow-hidden min-w-0">
-        <AstrologerHeader
-          displayName={displayName}
-          photoUrl={photoUrl}
-          menuOpen={menuOpen}
-          onMenuClick={() => setMenuOpen(true)}
-        />
+        <ComponentErrorBoundary name="AstrologerHeaderShell">
+          <AstrologerHeader
+            displayName={displayName}
+            photoUrl={photoUrl}
+            menuOpen={menuOpen}
+            onMenuClick={() => setMenuOpen(true)}
+          />
+        </ComponentErrorBoundary>
         <main
           id="main-content"
           tabIndex={-1}

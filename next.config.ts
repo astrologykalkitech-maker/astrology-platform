@@ -34,7 +34,7 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(self), microphone=(self), geolocation=(), browsing-topics=()",
+    value: "camera=(self), microphone=(self), geolocation=(self), browsing-topics=()",
   },
   {
     key: "Strict-Transport-Security",
@@ -49,6 +49,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
+  deploymentId:
+    process.env.NEXT_DEPLOYMENT_ID ||
+    process.env.VERCEL_DEPLOYMENT_ID ||
+    undefined,
   experimental: {
     optimizePackageImports: ["lucide-react", "@google/genai", "date-fns"],
   },
@@ -64,7 +68,15 @@ const nextConfig: NextConfig = {
   },
   allowedDevOrigins: [
     "*.trycloudflare.com",
-    ...(process.env.ALLOWED_DEV_ORIGINS ? process.env.ALLOWED_DEV_ORIGINS.split(",") : []),
+    "192.168.1.17",
+    "192.168.137.1",
+    "192.168.1.1",
+    "192.168.0.1",
+    "10.0.2.2",
+    "localhost",
+    ...(process.env.ALLOWED_DEV_ORIGINS
+      ? process.env.ALLOWED_DEV_ORIGINS.split(",").map((s) => s.trim())
+      : []),
   ],
   async headers() {
     return [

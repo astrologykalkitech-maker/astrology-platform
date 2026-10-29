@@ -5,6 +5,7 @@ import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerBottomNav } from "@/components/customer/CustomerBottomNav";
 import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologerSync";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 
 interface CustomerShellProps {
   customerName: string;
@@ -62,13 +63,15 @@ export function CustomerShell({
       />
 
       <div className="flex flex-1 flex-col lg:pl-64 h-full overflow-hidden min-w-0">
-        <CustomerHeader
-          customerName={customerName}
-          userInitial={userInitial}
-          isLoggedIn={isLoggedIn}
-          menuOpen={menuOpen}
-          onMenuClick={() => setMenuOpen(true)}
-        />
+        <ComponentErrorBoundary name="CustomerHeaderShell">
+          <CustomerHeader
+            customerName={customerName}
+            userInitial={userInitial}
+            isLoggedIn={isLoggedIn}
+            menuOpen={menuOpen}
+            onMenuClick={() => setMenuOpen(true)}
+          />
+        </ComponentErrorBoundary>
         <main
           id="customer-main-content"
           tabIndex={-1}

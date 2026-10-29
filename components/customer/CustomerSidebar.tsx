@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Ornament } from "@/components/astrologer/ui/Ornament";
 
 type NavItem = {
@@ -157,10 +158,12 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">
           {isLoggedIn ? (
-            <CustomerSignOutButton
-              variant="goldLight"
-              className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
-            />
+            <ComponentErrorBoundary name="CustomerSignOutSidebar">
+              <CustomerSignOutButton
+                variant="goldLight"
+                className="w-full justify-center !text-midnight font-bold tracking-wide shadow-[0_4px_16px_rgba(232,197,119,0.4)]"
+              />
+            </ComponentErrorBoundary>
           ) : (
             <Link
               href="/customer/login"

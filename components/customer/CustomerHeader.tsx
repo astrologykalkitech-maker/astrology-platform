@@ -7,7 +7,7 @@ import { Menu, Bell } from "lucide-react";
 import { Logo } from "@/components/astrologer/Logo";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
-import { getCustomerUnreadNotificationCount } from "@/app/actions/customer";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 
 type CustomerHeaderProps = {
   customerName: string;
@@ -48,9 +48,12 @@ export function CustomerHeader({
     let mounted = true;
     async function loadCount() {
       try {
-        const res = await getCustomerUnreadNotificationCount();
-        if (mounted && res.success && typeof res.data === "number") {
-          setUnreadCount(res.data);
+        const res = await fetch("/api/notifications/unread-count");
+        if (res.ok) {
+          const data = (await res.json()) as { count?: number };
+          if (mounted && typeof data.count === "number") {
+            setUnreadCount(data.count);
+          }
         }
       } catch {
         // Non-blocking
@@ -165,7 +168,9 @@ export function CustomerHeader({
                 </div>
               </Link>
 
-              <CustomerSignOutButton />
+              <ComponentErrorBoundary name="CustomerSignOutHeader">
+                <CustomerSignOutButton />
+              </ComponentErrorBoundary>
             </>
           ) : (
             <div className="flex items-center gap-3">

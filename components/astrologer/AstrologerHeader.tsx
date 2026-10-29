@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, Bell } from "lucide-react";
 import { Logo } from "@/components/astrologer/Logo";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
+import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
-import { getAstrologerUnreadNotificationCount } from "@/app/actions/astrologer-portal";
 
 type HeaderProps = {
   displayName: string;
@@ -38,9 +38,12 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
     let mounted = true;
     async function loadCount() {
       try {
-        const res = await getAstrologerUnreadNotificationCount();
-        if (mounted && res.success && typeof res.data === "number") {
-          setUnreadCount(res.data);
+        const res = await fetch("/api/notifications/unread-count");
+        if (res.ok) {
+          const data = (await res.json()) as { count?: number };
+          if (mounted && typeof data.count === "number") {
+            setUnreadCount(data.count);
+          }
         }
       } catch {
         // Non-blocking
@@ -142,7 +145,9 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
             </div>
           </Link>
 
-          <SignOutButton />
+          <ComponentErrorBoundary name="AstrologerSignOutHeader">
+            <SignOutButton />
+          </ComponentErrorBoundary>
         </div>
       </header>
     </>
