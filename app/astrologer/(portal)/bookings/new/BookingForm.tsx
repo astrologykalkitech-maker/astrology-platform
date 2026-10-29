@@ -11,6 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { toUtcIsoString, formatExactDateTime } from "@/lib/astrologer/format";
 
 interface BookingFormProps {
   initialCustomerId?: string;
@@ -64,17 +65,36 @@ export default function BookingForm({
       return;
     }
 
+    const canonicalScheduledAt = toUtcIsoString(form.scheduled_at);
+    if (!canonicalScheduledAt) {
+      setError("Please select a valid scheduled date and time.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/astrologer/create-booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          scheduled_at: canonicalScheduledAt,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to create booking");
       }
+
+      // Notify realtime sync & bust Next.js client router cache immediately
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("jyotishsetu:booking-created"));
+      }
+      router.refresh();
       router.replace("/astrologer/bookings");
+      setTimeout(() => {
+        router.refresh();
+      }, 50);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -164,7 +184,10 @@ export default function BookingForm({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-midnight">Scheduled Date & Time *</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-midnight">Scheduled Date & Time (IST) *</span>
+            <span className="text-[11px] font-medium text-gold-deep">Asia/Kolkata</span>
+          </div>
           <input
             name="scheduled_at"
             type="datetime-local"
@@ -173,6 +196,14 @@ export default function BookingForm({
             onChange={handleChange}
             className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           />
+          {form.scheduled_at && (
+            <p className="text-[11px] text-muted">
+              Scheduled for:{" "}
+              <span className="font-semibold text-midnight">
+                {formatExactDateTime(form.scheduled_at)} IST
+              </span>
+            </p>
+          )}
         </label>
 
         <label className="flex flex-col gap-1.5">

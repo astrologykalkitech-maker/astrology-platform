@@ -317,21 +317,122 @@ export function LocationAutocomplete({
     inputRef.current?.focus();
   };
 
+  // Helper to apply detected location to form inputs seamlessly
+  const applyDetectedLocation = (loc: NormalizedReverseGeocode) => {
+    const isCityField =
+      (currentLocationLabel && currentLocationLabel.toLowerCase().includes("city")) ||
+      (id && id.toLowerCase().includes("city"));
+    const cityName = loc.city || loc.name || loc.formatted_address.split(",")[0].trim();
+    const primaryValue = isCityField ? cityName : loc.formatted_address;
+
+    const suggestion: LocationSuggestion = {
+      id: `geo-${loc.latitude.toFixed(4)}-${loc.longitude.toFixed(4)}`,
+      name: cityName,
+      state: loc.state,
+      country: loc.country,
+      formatted: loc.formatted_address,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      source: "geolocation",
+    };
+
+    onChange(primaryValue, suggestion);
+    if (onSelectSuggestion) {
+      onSelectSuggestion(suggestion);
+    }
+    setIsOpen(false);
+    setSuggestions([]);
+    clearTemporaryError();
+    setDetectingLocation(false);
+  };
+
+  // Resilient multi-layer IP location fallback
+  const tryFallbackIpLocation = async (): Promise<boolean> => {
+    // 1. Try internal server API route with multi-provider pool
+    try {
+      const ipRes = await fetch("/api/places/ip-location");
+      if (ipRes.ok) {
+        const ipData = (await ipRes.json()) as {
+          success?: boolean;
+          result?: NormalizedReverseGeocode;
+        };
+        if (ipData.success && ipData.result) {
+          applyDetectedLocation(ipData.result);
+          return true;
+        }
+      }
+    } catch {
+      // Continue to direct CORS fallback
+    }
+
+    // 2. Direct browser CORS fallback to ipwho.is (0ms server latency)
+    try {
+      const directRes = await fetch("https://ipwho.is/", {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (directRes.ok) {
+        const d = await directRes.json();
+        if (d && d.city) {
+          const city = String(d.city).trim();
+          const state = String(d.region || "").trim();
+          const country = String(d.country || "India").trim();
+          const loc: NormalizedReverseGeocode = {
+            formatted_address: [city, state, country].filter(Boolean).join(", "),
+            name: city,
+            city,
+            state,
+            country,
+            postal_code: d.postal,
+            latitude: Number(d.latitude) || 28.6139,
+            longitude: Number(d.longitude) || 77.209,
+            source: "geolocation",
+          };
+          applyDetectedLocation(loc);
+          return true;
+        }
+      }
+    } catch {
+      // Fall through
+    }
+
+    return false;
+  };
+
   // "Use my current location" Geolocation Handler
   const handleCurrentLocation = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      showTemporaryError("Geolocation is not supported by your browser.");
-      return;
-    }
-
     setDetectingLocation(true);
     clearTemporaryError();
 
+    if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      const resolved = await tryFallbackIpLocation();
+      if (!resolved) {
+        setDetectingLocation(false);
+        showTemporaryError("Geolocation is not supported by your browser.");
+      }
+      return;
+    }
+
+    let finished = false;
+
+    // Fast-fallback timer: if device GPS takes longer than 3.5 seconds on desktop/laptops,
+    // seamlessly resolve approximate city via IP location so the user never waits or sees a timeout.
+    const fallbackTimer = setTimeout(async () => {
+      if (!finished) {
+        const resolved = await tryFallbackIpLocation();
+        if (resolved) {
+          finished = true;
+        }
+      }
+    }, 3500);
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(fallbackTimer);
         const { latitude, longitude } = position.coords;
 
         try {
@@ -350,43 +451,19 @@ export function LocationAutocomplete({
           };
 
           if (data.success && data.result) {
-            const loc = data.result;
-            const suggestion: LocationSuggestion = {
-              id: `geo-${latitude.toFixed(4)}-${longitude.toFixed(4)}`,
-              name: loc.name || loc.city,
-              state: loc.state,
-              country: loc.country,
-              formatted: loc.formatted_address,
-              latitude: loc.latitude,
-              longitude: loc.longitude,
-              source: "geolocation",
-            };
-
-            onChange(loc.formatted_address, suggestion);
-            if (onSelectSuggestion) {
-              onSelectSuggestion(suggestion);
-            }
-          } else {
-            // Graceful fallback to coordinate label if reverse geocoding is unavailable
-            const fallbackStr = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
-            onChange(fallbackStr, {
-              id: `geo-coords`,
-              name: "Current Location",
-              country: "India",
-              formatted: fallbackStr,
-              latitude,
-              longitude,
-              source: "geolocation",
-            });
+            applyDetectedLocation(data.result);
+            return;
           }
-
-          setIsOpen(false);
-          setSuggestions([]);
         } catch {
           // Fallback if reverse geocode endpoint experiences an issue
+        }
+
+        const ipResolved = await tryFallbackIpLocation();
+        if (!ipResolved) {
+          // Fallback to coordinate label if reverse geocoding is unavailable
           const fallbackStr = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
           onChange(fallbackStr, {
-            id: `geo-fallback`,
+            id: `geo-coords`,
             name: "Current Location",
             country: "India",
             formatted: fallbackStr,
@@ -394,49 +471,21 @@ export function LocationAutocomplete({
             longitude,
             source: "geolocation",
           });
-          setIsOpen(false);
-        } finally {
           setDetectingLocation(false);
-          inputRef.current?.focus();
         }
       },
       async (geoError) => {
-        // Attempt fast IP-based approximate location fallback if device GPS times out or is unavailable
-        try {
-          const ipRes = await fetch("/api/places/ip-location");
-          if (ipRes.ok) {
-            const ipData = (await ipRes.json()) as {
-              success?: boolean;
-              result?: NormalizedReverseGeocode;
-            };
-            if (ipData.success && ipData.result) {
-              const loc = ipData.result;
-              const suggestion: LocationSuggestion = {
-                id: `geo-ip-${loc.latitude.toFixed(4)}-${loc.longitude.toFixed(4)}`,
-                name: loc.name || loc.city,
-                state: loc.state,
-                country: loc.country,
-                formatted: loc.formatted_address,
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-                source: "geolocation",
-              };
+        if (finished) return;
+        clearTimeout(fallbackTimer);
 
-              onChange(loc.formatted_address, suggestion);
-              if (onSelectSuggestion) {
-                onSelectSuggestion(suggestion);
-              }
-              setIsOpen(false);
-              setSuggestions([]);
-              clearTemporaryError();
-              setDetectingLocation(false);
-              return;
-            }
-          }
-        } catch {
-          // Fall through to error messaging below
+        // Attempt fast IP-based approximate location fallback if device GPS times out or is unavailable
+        const ipResolved = await tryFallbackIpLocation();
+        if (ipResolved) {
+          finished = true;
+          return;
         }
 
+        finished = true;
         setDetectingLocation(false);
         let msg = "Could not detect your current location.";
         if (geoError.code === 1) {
@@ -450,7 +499,7 @@ export function LocationAutocomplete({
       },
       {
         enableHighAccuracy: false,
-        timeout: 12000,
+        timeout: 4000,
         maximumAge: 300000,
       }
     );

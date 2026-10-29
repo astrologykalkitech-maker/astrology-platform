@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { parseSchedulingDateTime } from "@/lib/astrologer/format";
 import type {
   LeadStatus,
   CustomerBooking,
@@ -714,6 +715,15 @@ export async function createCustomerBookingAction(payload: {
       };
     }
 
+    const parsedScheduledDate = parseSchedulingDateTime(payload.scheduled_at);
+    if (!parsedScheduledDate || isNaN(parsedScheduledDate.getTime())) {
+      return {
+        success: false,
+        error: "Invalid scheduled date and time.",
+      };
+    }
+    const canonicalScheduledAt = parsedScheduledDate.toISOString();
+
     const supabase = await createClient(target);
 
     // Call book_astrologer_consultation RPC
@@ -724,7 +734,7 @@ export async function createCustomerBookingAction(payload: {
         p_astrologer_id: payload.astrologer_id,
         p_service_type: payload.service_type,
         p_consultation_mode: payload.consultation_mode,
-        p_scheduled_at: payload.scheduled_at,
+        p_scheduled_at: canonicalScheduledAt,
         p_duration_minutes: payload.duration_minutes || 30,
         p_notes: payload.notes || null,
       }
