@@ -2,14 +2,17 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, ZoomIn, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { X, ZoomIn, AlertCircle, Camera, Upload } from "lucide-react";
 
 export interface ProfileImageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  src: string | null | undefined;
+  src?: string | null;
   name: string;
   roleTitle?: string;
+  fallbackInitials?: string;
+  uploadHref?: string;
 }
 
 export function ProfileImageModal({
@@ -18,6 +21,8 @@ export function ProfileImageModal({
   src,
   name,
   roleTitle,
+  fallbackInitials,
+  uploadHref,
 }: ProfileImageModalProps) {
   const [mounted, setMounted] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -62,13 +67,15 @@ export function ProfileImageModal({
     };
   }, [isOpen, handleKeyDown]);
 
-  if (!mounted || !isOpen || !src) return null;
+  if (!mounted || !isOpen) return null;
+
+  const hasImage = Boolean(src) && !imageError;
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Profile photo of ${name}`}
+      aria-label={`Profile picture of ${name}`}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
       {/* Backdrop */}
@@ -103,23 +110,38 @@ export function ProfileImageModal({
           </button>
         </div>
 
-        {/* Image Container */}
-        <div className="relative flex items-center justify-center w-full min-h-[220px] max-h-[70vh] rounded-xl bg-midnight/5 overflow-hidden border border-gold/20">
-          {!imageError ? (
+        {/* Content Body: Image or Elegant Fallback */}
+        <div className="relative flex items-center justify-center w-full min-h-[220px] max-h-[70vh] rounded-xl bg-midnight/5 overflow-hidden border border-gold/20 p-2">
+          {hasImage ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={src}
+              src={src ?? ""}
               alt={`Profile picture of ${name}`}
               className="max-h-[65vh] w-auto max-w-full object-contain rounded-lg shadow-sm select-none"
               onError={() => setImageError(true)}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center p-8 text-center text-muted">
-              <AlertCircle className="h-10 w-10 text-red-500 mb-2" />
-              <p className="text-sm font-medium text-midnight">Image unavailable</p>
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+              <div className="relative mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep text-3xl font-bold text-midnight shadow-md ring-4 ring-white">
+                {fallbackInitials || "U"}
+                <div className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-midnight text-champagne border border-gold/40 shadow">
+                  <Camera className="h-3.5 w-3.5" />
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-midnight">No custom photo uploaded</p>
               <p className="text-xs text-muted mt-1 max-w-xs">
-                The high-resolution photo could not be loaded.
+                Displaying your personalized Vedic initial avatar. You can upload a high-resolution portrait anytime.
               </p>
+              {uploadHref && (
+                <Link
+                  href={uploadHref}
+                  onClick={onClose}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gold-deep px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-gold transition-colors"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload Profile Photo
+                </Link>
+              )}
             </div>
           )}
         </div>
@@ -127,7 +149,7 @@ export function ProfileImageModal({
         {/* Footer info */}
         <div className="flex items-center justify-between w-full pt-3 mt-1 text-[11px] text-muted">
           <span className="flex items-center gap-1">
-            <ZoomIn className="h-3 w-3 text-gold-deep" /> Verified Profile Photo
+            <ZoomIn className="h-3 w-3 text-gold-deep" /> {hasImage ? "Full-Resolution Photo" : "Default Avatar"}
           </span>
           <span>Press <kbd className="px-1.5 py-0.5 rounded bg-midnight/10 text-midnight font-mono text-[10px]">Esc</kbd> to close</span>
         </div>
@@ -136,4 +158,3 @@ export function ProfileImageModal({
     document.body
   );
 }
-

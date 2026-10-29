@@ -115,7 +115,7 @@ export default async function DashboardPage() {
           <CardTitle id="status-title">Profile Status</CardTitle>
           <div className="mt-4 flex items-center gap-4 sm:gap-6">
             <span className="shrink-0 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep p-[3px] shadow-lg">
-              <Avatar name={profile.display_name} src={profile.profile_photo_url} size="xl" className="!h-20 !w-20 ring-2 !ring-white sm:!h-24 sm:!w-24" />
+              <Avatar name={profile.display_name} src={profile.profile_photo_url} size="xl" roleTitle="Astrologer Profile" uploadHref="/astrologer/profile/edit" className="!h-20 !w-20 ring-2 !ring-white sm:!h-24 sm:!w-24" />
             </span>
             <div className="min-w-0 space-y-2.5">
               <ApprovalBadge status={profile.approval_status} />

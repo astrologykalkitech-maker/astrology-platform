@@ -28,6 +28,7 @@ export type AvatarProps = {
   className?: string;
   allowPreview?: boolean;
   roleTitle?: string;
+  uploadHref?: string;
 };
 
 export function Avatar({
@@ -37,12 +38,14 @@ export function Avatar({
   className = "",
   allowPreview = true,
   roleTitle,
+  uploadHref,
 }: AvatarProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const showImage = Boolean(src) && failedSrc !== src;
-  const canPreview = allowPreview && showImage;
+  const canPreview = allowPreview !== false;
+  const initials = getInitials(name);
 
   const handleClick = (e: React.MouseEvent) => {
     if (canPreview) {
@@ -67,8 +70,8 @@ export function Avatar({
         tabIndex={canPreview ? 0 : undefined}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        aria-label={canPreview ? `View full photo of ${name}` : undefined}
-        title={canPreview ? `Click to view full photo of ${name}` : undefined}
+        aria-label={canPreview ? `View profile photo of ${name}` : undefined}
+        title={canPreview ? `Click to view profile photo of ${name}` : undefined}
         className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-parchment font-semibold text-gold-deep ring-2 ring-gold/60 ${
           SIZES[size]
         } ${
@@ -85,7 +88,7 @@ export function Avatar({
             onError={() => setFailedSrc(src ?? null)}
           />
         ) : (
-          <span aria-hidden="true">{getInitials(name)}</span>
+          <span aria-hidden="true">{initials}</span>
         )}
       </span>
 
@@ -93,9 +96,11 @@ export function Avatar({
         <ProfileImageModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          src={src}
+          src={showImage ? src : null}
           name={name}
           roleTitle={roleTitle}
+          fallbackInitials={initials}
+          uploadHref={uploadHref}
         />
       )}
     </>

@@ -133,7 +133,7 @@ export function CustomerHeader({
               )}
             </Link>
             <Link href="/customer/profile" aria-label="My Profile">
-              <Avatar name={customerName} src={photoUrl} size="sm" />
+              <Avatar name={customerName} src={photoUrl} size="sm" roleTitle="Customer Profile" uploadHref="/customer/profile" />
             </Link>
           </div>
         ) : (
@@ -174,7 +174,7 @@ export function CustomerHeader({
                 className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity"
                 aria-label="View Customer Profile"
               >
-                <Avatar name={customerName} src={photoUrl} size="sm" />
+                <Avatar name={customerName} src={photoUrl} size="sm" roleTitle="Customer Profile" uploadHref="/customer/profile" />
                 <div className="leading-tight">
                   <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{customerName}</p>
                   <p className="text-xs text-muted">Customer Profile</p>
