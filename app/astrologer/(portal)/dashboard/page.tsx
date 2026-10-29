@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { getMyAssignedLeads } from "@/app/actions/astrologer-leads";
+import { getAstrologerBookingsAction } from "@/app/actions/astrologer-portal";
 import { HeroArt } from "@/components/astrologer/art/HeroArt";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
@@ -64,12 +65,17 @@ export default async function DashboardPage() {
     );
   }
 
-  const [counts, recent] = await Promise.all([
+  const [counts, recent, bookingsRes] = await Promise.all([
     getLeadCounts(profile.id),
     getMyAssignedLeads({ status: "all", limit: 4 }),
+    getAstrologerBookingsAction(),
   ]);
   const completion = getProfileCompletion(profile);
   const leads = recent.success ? recent.data.leads : [];
+  const bookings = bookingsRes.success ? bookingsRes.data : [];
+  const confirmedUpcomingBookings = bookings.filter(
+    (b) => b.status === "confirmed" && new Date(b.scheduled_at).getTime() >= Date.now() - 3600000
+  );
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -148,7 +154,7 @@ export default async function DashboardPage() {
           <CardTitle id="qa-title">Quick Actions</CardTitle>
           <nav aria-label="Quick actions" className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
             {[
-              { href: "/astrologer/bookings", title: "Bookings", note: "Scheduled sessions", icon: CalendarClock, tone: "from-emerald-100 to-emerald-200 text-emerald-700" },
+              { href: "/astrologer/bookings", title: "Bookings", note: confirmedUpcomingBookings.length > 0 ? `${confirmedUpcomingBookings.length} confirmed upcoming` : "Scheduled sessions", icon: CalendarClock, tone: "from-emerald-100 to-emerald-200 text-emerald-700" },
               { href: "/astrologer/leads", title: "My Leads", note: "View all enquiries", icon: ClipboardList, tone: "from-sky-100 to-sky-200 text-sky-700" },
               { href: "/astrologer/reviews", title: "Client Reviews", note: "Ratings & feedback", icon: Star, tone: "from-amber-100 to-amber-200 text-amber-700" },
               { href: "/astrologer/earnings", title: "Earnings", note: "Consultation fees", icon: Wallet, tone: "from-teal-100 to-teal-200 text-teal-700" },
@@ -166,7 +172,41 @@ export default async function DashboardPage() {
           </nav>
         </section>
 
-        <section aria-labelledby="recent-title" className={`${CARD} xl:order-1`}>
+        <div className="space-y-4 sm:space-y-5 xl:order-1">
+          {confirmedUpcomingBookings.length > 0 && (
+            <section aria-labelledby="upcoming-bookings-title" className={`${CARD} bg-gradient-to-br from-emerald-50/40 via-white to-white`}>
+              <div className="flex items-center justify-between border-b border-line px-5 py-3.5 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald text-white">
+                    <CalendarClock className="h-4 w-4" />
+                  </span>
+                  <CardTitle id="upcoming-bookings-title">Upcoming Consultations</CardTitle>
+                  <span className="rounded-full bg-emerald/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    {confirmedUpcomingBookings.length} confirmed
+                  </span>
+                </div>
+                <Link href="/astrologer/bookings" className="inline-flex items-center gap-1 text-sm font-semibold text-gold-deep hover:underline">
+                  View Bookings <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+              <ul className="divide-y divide-line">
+                {confirmedUpcomingBookings.slice(0, 3).map((b) => (
+                  <li key={b.id} className="flex items-center justify-between p-4 transition-colors hover:bg-parchment/30">
+                    <div className="min-w-0">
+                      <p className="font-medium text-midnight">{b.customer_name || "Customer"}</p>
+                      <p className="text-xs text-muted">
+                        {formatDateTime(b.scheduled_at)} · {b.service_type || "Consultation"}
+                      </p>
+                    </div>
+                    <Link href="/astrologer/bookings" className={buttonStyles({ variant: "outline", size: "sm" })}>
+                      Details
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        <section aria-labelledby="recent-title" className={`${CARD} `}>
           <div className="flex items-center justify-between px-5 pb-3 pt-5 sm:px-6">
             <CardTitle id="recent-title">Recent Assigned Leads</CardTitle>
             <Link href="/astrologer/leads" className="inline-flex items-center gap-1 text-sm font-semibold text-gold-deep hover:underline">
@@ -236,6 +276,7 @@ export default async function DashboardPage() {
             </>
           )}
         </section>
+        </div>
       </div>
     </div>
   );

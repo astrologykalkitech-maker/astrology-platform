@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   Clock,
@@ -13,8 +14,14 @@ import {
   Search,
   CalendarPlus,
   ShieldAlert,
+  Check,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
-import type { CustomerBooking } from "@/lib/types/database.types";
+import type { CustomerBooking, BookingStatus } from "@/lib/types/database.types";
+import { updateAstrologerBookingStatusAction } from "@/app/actions/astrologer-portal";
+import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatExactDateTime } from "@/lib/astrologer/format";
@@ -41,25 +48,123 @@ function isJoinWindowActive(scheduledAt: string, durationMinutes: number, now: D
 }
 
 export default function AstrologerBookingsClient({ initialBookings }: Props) {
+  const router = useRouter();
+  const [bookings, setBookings] = useState<CustomerBooking[]>(initialBookings);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const now = useMemo(() => new Date(), []);
+
+  // Sync state whenever initialBookings prop changes (e.g. from RSC revalidation)
+  useEffect(() => {
+    setBookings(initialBookings);
+  }, [initialBookings]);
+
+  // Real-time synchronization: subscribe to customer_bookings changes & local events
+  useEffect(() => {
+    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    try {
+      const supabase = createClient();
+      channel = supabase
+        .channel("astrologer-bookings-live-sync")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_bookings",
+          },
+          (payload) => {
+            if (payload.eventType === "INSERT") {
+              const newBooking = payload.new as CustomerBooking;
+              setBookings((prev) => {
+                if (prev.some((b) => b.id === newBooking.id)) return prev;
+                return [newBooking, ...prev];
+              });
+              router.refresh();
+            } else if (payload.eventType === "UPDATE") {
+              const updated = payload.new as CustomerBooking;
+              setBookings((prev) =>
+                prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+              );
+              router.refresh();
+            } else if (payload.eventType === "DELETE") {
+              const deletedId = (payload.old as { id?: string }).id;
+              if (deletedId) {
+                setBookings((prev) => prev.filter((b) => b.id !== deletedId));
+              }
+              router.refresh();
+            }
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn("[AstrologerBookingsClient] realtime notice:", err);
+    }
+
+    const handleLocalSync = () => {
+      router.refresh();
+    };
+    window.addEventListener("jyotishsetu:booking-created", handleLocalSync);
+    window.addEventListener("jyotishsetu:booking-updated", handleLocalSync);
+
+    return () => {
+      window.removeEventListener("jyotishsetu:booking-created", handleLocalSync);
+      window.removeEventListener("jyotishsetu:booking-updated", handleLocalSync);
+      if (channel) {
+        createClient().removeChannel(channel);
+      }
+    };
+  }, [router]);
+
+  // Handler for astrologer status transitions
+  const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) => {
+    const confirmMsg =
+      newStatus === "completed"
+        ? "Mark this consultation as completed?"
+        : newStatus === "cancelled"
+        ? "Are you sure you want to cancel this consultation?"
+        : `Confirm this consultation session?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setUpdatingId(bookingId);
+    // Optimistic UI update (instant 0ms response)
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, status: newStatus } : b))
+    );
+    window.dispatchEvent(new CustomEvent("jyotishsetu:booking-updated"));
+
+    const res = await updateAstrologerBookingStatusAction({
+      bookingId,
+      status: newStatus,
+    });
+    setUpdatingId(null);
+
+    if (!res.success) {
+      // Revert if error
+      setBookings(initialBookings);
+      alert(res.error || "Failed to update booking status.");
+    } else {
+      router.refresh();
+    }
+  };
 
   // Compute counts for tabs
   const tabCounts = useMemo(() => {
-    const counts = { all: initialBookings.length, confirmed: 0, pending: 0, completed: 0, cancelled: 0 };
-    for (const b of initialBookings) {
+    const counts = { all: bookings.length, confirmed: 0, pending: 0, completed: 0, cancelled: 0 };
+    for (const b of bookings) {
       if (b.status === "confirmed") counts.confirmed++;
       else if (b.status === "pending") counts.pending++;
       else if (b.status === "completed") counts.completed++;
       else if (b.status === "cancelled") counts.cancelled++;
     }
     return counts;
-  }, [initialBookings]);
+  }, [bookings]);
 
   // Filtered list
   const filteredBookings = useMemo(() => {
-    return initialBookings.filter((b) => {
+    return bookings.filter((b) => {
       if (activeTab !== "all" && b.status !== activeTab) {
         return false;
       }
@@ -71,7 +176,7 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
       }
       return true;
     });
-  }, [initialBookings, activeTab, searchQuery]);
+  }, [bookings, activeTab, searchQuery]);
 
   return (
     <div className="space-y-5">
@@ -230,13 +335,48 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-2.5 w-full md:w-auto justify-end border-t border-line md:border-0 pt-3 md:pt-0 shrink-0">
+                <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end border-t border-line md:border-0 pt-3 md:pt-0 shrink-0">
                   <Link
                     href={`/astrologer/customers/${booking.customer_id}`}
                     className={buttonStyles({ variant: "outline", size: "sm" })}
                   >
                     View Seeker
                   </Link>
+
+                  {/* Status transition: Pending -> Confirm */}
+                  {booking.status === "pending" && (
+                    <button
+                      type="button"
+                      disabled={updatingId === booking.id}
+                      onClick={() => handleUpdateStatus(booking.id, "confirmed")}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                    >
+                      {updatingId === booking.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      Confirm
+                    </button>
+                  )}
+
+                  {/* Status transition: Confirmed -> Mark Completed */}
+                  {isConfirmed && (
+                    <button
+                      type="button"
+                      disabled={updatingId === booking.id}
+                      onClick={() => handleUpdateStatus(booking.id, "completed")}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/40 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                      title="Mark consultation as completed"
+                    >
+                      {updatingId === booking.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      )}
+                      Mark Completed
+                    </button>
+                  )}
 
                   {isConfirmed && booking.consultation_mode !== "Chat" && (
                     joinActive ? (

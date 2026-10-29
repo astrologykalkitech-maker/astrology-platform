@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAstrologer } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { parseSchedulingDateTime, formatExactDateTime } from "@/lib/astrologer/format";
 
 export const runtime = "nodejs";
 
@@ -53,8 +54,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const scheduledDate = new Date(String(scheduled_at));
-    if (isNaN(scheduledDate.getTime())) {
+    const scheduledDate = parseSchedulingDateTime(String(scheduled_at));
+    if (!scheduledDate || isNaN(scheduledDate.getTime())) {
       return NextResponse.json({ error: "Invalid scheduled_at date" }, { status: 400 });
     }
 
@@ -118,9 +119,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Revalidate relevant pages
+    // Automatically send notification to customer with precise local appointment time
+    try {
+      const formattedSlot = formatExactDateTime(scheduledDate);
+      await adminClient.from("customer_notifications").insert({
+        customer_id: customerProfile.id,
+        title: "New Consultation Scheduled",
+        message: `Your astrologer scheduled a ${mode} consultation with you for ${formattedSlot}.`,
+        link_url: "/customer/bookings",
+        event_type: "booking_confirmed",
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (notifErr) {
+      console.warn("[create-booking] customer notification notice:", notifErr);
+    }
+
+    // Revalidate relevant pages and portal layouts
     revalidatePath("/astrologer/bookings", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/astrologer/earnings", "page");
+    revalidatePath("/astrologer", "layout");
     revalidatePath("/customer/bookings", "page");
+    revalidatePath("/customer", "layout");
 
     return NextResponse.json({ success: true, booking }, { status: 201 });
   } catch (err) {

@@ -33,9 +33,16 @@ export function RealtimeAstrologerSync() {
         }
       };
 
-      // Subscribe to postgres_changes on astrologer_profiles
+      // 1. Local custom window events
+      const handleLocalEvent = () => {
+        triggerRefresh();
+      };
+      window.addEventListener("jyotishsetu:booking-created", handleLocalEvent);
+      window.addEventListener("jyotishsetu:booking-updated", handleLocalEvent);
+
+      // 2. Subscribe to postgres_changes on astrologer_profiles & customer_bookings
       channel = supabase
-        .channel("realtime-astrologer-directory-sync")
+        .channel("realtime-customer-portal-sync")
         .on(
           "postgres_changes",
           {
@@ -47,11 +54,18 @@ export function RealtimeAstrologerSync() {
             triggerRefresh();
           }
         )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            // Successfully connected to real-time stream
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_bookings",
+          },
+          () => {
+            triggerRefresh();
           }
-        });
+        )
+        .subscribe();
 
       // Window focus / reconnection listener: only re-syncs if user was away for over 5 minutes
       const handleVisibilityChange = () => {
@@ -66,6 +80,8 @@ export function RealtimeAstrologerSync() {
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
       return () => {
+        window.removeEventListener("jyotishsetu:booking-created", handleLocalEvent);
+        window.removeEventListener("jyotishsetu:booking-updated", handleLocalEvent);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
         if (channel) {
           supabase.removeChannel(channel);

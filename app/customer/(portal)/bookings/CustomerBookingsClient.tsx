@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   CalendarX2,
   Compass,
@@ -30,11 +32,74 @@ interface Props {
 }
 
 export default function CustomerBookingsClient({ initialBookings = [] }: Props) {
+  const router = useRouter();
   const [bookings, setBookings] = useState<CustomerBooking[]>(initialBookings);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
+
+  // Sync state whenever initialBookings prop updates
+  React.useEffect(() => {
+    setBookings(initialBookings);
+  }, [initialBookings]);
+
+  // Real-time synchronization: subscribe to customer_bookings changes & local events
+  React.useEffect(() => {
+    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    try {
+      const supabase = createClient();
+      channel = supabase
+        .channel("customer-bookings-live-sync")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_bookings",
+          },
+          (payload) => {
+            if (payload.eventType === "INSERT") {
+              const newBooking = payload.new as CustomerBooking;
+              setBookings((prev) => {
+                if (prev.some((b) => b.id === newBooking.id)) return prev;
+                return [newBooking, ...prev];
+              });
+              router.refresh();
+            } else if (payload.eventType === "UPDATE") {
+              const updated = payload.new as CustomerBooking;
+              setBookings((prev) =>
+                prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+              );
+              router.refresh();
+            } else if (payload.eventType === "DELETE") {
+              const deletedId = (payload.old as { id?: string }).id;
+              if (deletedId) {
+                setBookings((prev) => prev.filter((b) => b.id !== deletedId));
+              }
+              router.refresh();
+            }
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn("[CustomerBookingsClient] realtime notice:", err);
+    }
+
+    const handleLocalSync = () => {
+      router.refresh();
+    };
+    window.addEventListener("jyotishsetu:booking-created", handleLocalSync);
+    window.addEventListener("jyotishsetu:booking-updated", handleLocalSync);
+
+    return () => {
+      window.removeEventListener("jyotishsetu:booking-created", handleLocalSync);
+      window.removeEventListener("jyotishsetu:booking-updated", handleLocalSync);
+      if (channel) {
+        createClient().removeChannel(channel);
+      }
+    };
+  }, [router]);
 
   React.useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -58,14 +123,20 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
     setCancellingId(id);
     setErrorMessage(null);
 
+    // Optimistic UI update (instant 0ms response)
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b))
+    );
+    window.dispatchEvent(new CustomEvent("jyotishsetu:booking-updated"));
+
     const res = await cancelCustomerBookingAction(id, "Cancelled by user via dashboard");
     setCancellingId(null);
 
     if (res.success) {
-      setBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b))
-      );
+      router.refresh();
     } else {
+      // Revert if error
+      setBookings(initialBookings);
       setErrorMessage(res.error || "Failed to cancel booking. Please try again.");
     }
   }

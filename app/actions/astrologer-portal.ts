@@ -15,6 +15,7 @@ import type {
   CustomerBooking,
   CustomerNotification,
   ConsultationReview,
+  BookingStatus,
 } from "@/lib/types/database.types";
 
 export interface AstrologerEarningsRecord {
@@ -89,6 +90,106 @@ export async function getAstrologerBookingsAction(): Promise<
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to load bookings.",
+    };
+  }
+}
+
+/**
+ * Updates the status of a booking assigned to the authenticated astrologer.
+ * Allows confirming, completing, or cancelling a consultation.
+ */
+export async function updateAstrologerBookingStatusAction(params: {
+  bookingId: string;
+  status: BookingStatus;
+  cancellationReason?: string;
+}): Promise<AuthResult<CustomerBooking>> {
+  try {
+    const { profile } = await getAuthenticatedAstrologerProfile();
+    const admin = await createAdminClient("main");
+
+    const validStatuses: BookingStatus[] = ["pending", "confirmed", "completed", "cancelled", "no_show"];
+    if (!validStatuses.includes(params.status)) {
+      return { success: false, error: "Invalid booking status." };
+    }
+
+    // Verify ownership
+    const { data: beforeBooking, error: fetchErr } = await admin
+      .from("customer_bookings")
+      .select("*, customer:customer_id(full_name)")
+      .eq("id", params.bookingId)
+      .eq("astrologer_id", profile.id)
+      .single();
+
+    if (fetchErr || !beforeBooking) {
+      return { success: false, error: "Booking record not found or unauthorized." };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      status: params.status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (params.status === "cancelled") {
+      updatePayload.cancellation_reason = params.cancellationReason || "Cancelled by astrologer";
+      updatePayload.cancelled_at = new Date().toISOString();
+    }
+
+    const { data: updatedBooking, error: updateErr } = await admin
+      .from("customer_bookings")
+      .update(updatePayload)
+      .eq("id", params.bookingId)
+      .select("*")
+      .single();
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    // Notify customer on status update
+    try {
+      let notifTitle = "";
+      let notifMessage = "";
+      if (params.status === "confirmed") {
+        notifTitle = "Consultation Confirmed";
+        notifMessage = `${profile.display_name} confirmed your ${beforeBooking.service_type || "consultation"} session.`;
+      } else if (params.status === "completed") {
+        notifTitle = "Consultation Completed";
+        notifMessage = `Your session with ${profile.display_name} has concluded. You can leave a review.`;
+      } else if (params.status === "cancelled") {
+        notifTitle = "Consultation Cancelled";
+        notifMessage = `Your consultation with ${profile.display_name} was cancelled: ${params.cancellationReason || "Session cancelled"}.`;
+      }
+
+      if (notifTitle) {
+        await admin.from("customer_notifications").insert({
+          customer_id: beforeBooking.customer_id,
+          title: notifTitle,
+          message: notifMessage,
+          link_url: "/customer/bookings",
+          event_type: `booking_${params.status}`,
+          is_read: false,
+          created_at: new Date().toISOString(),
+        });
+      }
+    } catch (notifErr) {
+      console.warn("[updateAstrologerBookingStatusAction] customer notification notice:", notifErr);
+    }
+
+    // Invalidate caches across both astrologer and customer portals
+    revalidatePath("/astrologer/dashboard");
+    revalidatePath("/astrologer/bookings");
+    revalidatePath("/astrologer/earnings");
+    revalidatePath("/customer/bookings");
+    revalidatePath("/customer");
+
+    return {
+      success: true,
+      data: updatedBooking as CustomerBooking,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update booking status.",
     };
   }
 }

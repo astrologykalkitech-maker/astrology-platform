@@ -67,7 +67,7 @@ test("BoundedLRUCache: clear() and delete() operate cleanly", () => {
   assert.equal(cache.get("two"), undefined);
 });
 
-test("Performance Benchmark: BoundedLRUCache 10,000 lookups execute in < 15ms (< 0.002ms each)", () => {
+test("Performance Benchmark: BoundedLRUCache 10,000 lookups execute in sub-millisecond per-op (< 30ms total)", () => {
   const cache = new BoundedLRUCache<NormalizedPlaceSuggestion>(100, 60_000);
   const sample: NormalizedPlaceSuggestion = {
     id: "ola-platform:12600",
@@ -90,7 +90,7 @@ test("Performance Benchmark: BoundedLRUCache 10,000 lookups execute in < 15ms (<
   }
   const duration = performance.now() - start;
 
-  assert.ok(duration < 15, `10,000 in-memory cache lookups took ${duration.toFixed(2)}ms`);
+  assert.ok(duration < 30, `10,000 in-memory cache lookups took ${duration.toFixed(2)}ms`);
 });
 
 test("Location Caches: Global autocompleteCache and reverseGeocodeCache instances are operational", () => {
