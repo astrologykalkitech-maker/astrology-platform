@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { ProfileImageModal } from "@/components/common/ProfileImageModal";
 
 const SIZES = {
   sm: "h-9 w-9 text-xs",
@@ -20,31 +21,83 @@ function getInitials(name: string) {
   return letters.join("") || "A";
 }
 
-type AvatarProps = {
+export type AvatarProps = {
   name: string;
   src?: string | null;
   size?: keyof typeof SIZES;
   className?: string;
+  allowPreview?: boolean;
+  roleTitle?: string;
 };
 
-export function Avatar({ name, src, size = "md", className = "" }: AvatarProps) {
+export function Avatar({
+  name,
+  src,
+  size = "md",
+  className = "",
+  allowPreview = true,
+  roleTitle,
+}: AvatarProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const showImage = Boolean(src) && failedSrc !== src;
+  const canPreview = allowPreview && showImage;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (canPreview) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (canPreview && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsModalOpen(true);
+    }
+  };
 
   return (
-    <span
-      className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-parchment font-semibold text-gold-deep ring-2 ring-gold/60 ${SIZES[size]} ${className}`}
-    >
-      {showImage ? (
-        <img
-          src={src ?? ""}
-          alt={name}
-          className="h-full w-full object-cover"
-          onError={() => setFailedSrc(src ?? null)}
+    <>
+      <span
+        role={canPreview ? "button" : undefined}
+        tabIndex={canPreview ? 0 : undefined}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        aria-label={canPreview ? `View full photo of ${name}` : undefined}
+        title={canPreview ? `Click to view full photo of ${name}` : undefined}
+        className={`relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-parchment font-semibold text-gold-deep ring-2 ring-gold/60 ${
+          SIZES[size]
+        } ${
+          canPreview
+            ? "cursor-pointer hover:ring-gold hover:scale-105 active:scale-95 transition-all focus-visible:outline-2 focus-visible:outline-gold focus-visible:ring-gold"
+            : ""
+        } ${className}`}
+      >
+        {showImage ? (
+          <img
+            src={src ?? ""}
+            alt={name}
+            className="h-full w-full object-cover"
+            onError={() => setFailedSrc(src ?? null)}
+          />
+        ) : (
+          <span aria-hidden="true">{getInitials(name)}</span>
+        )}
+      </span>
+
+      {canPreview && (
+        <ProfileImageModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          src={src}
+          name={name}
+          roleTitle={roleTitle}
         />
-      ) : (
-        <span aria-hidden="true">{getInitials(name)}</span>
       )}
-    </span>
+    </>
   );
 }

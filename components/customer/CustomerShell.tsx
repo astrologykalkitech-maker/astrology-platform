@@ -10,6 +10,7 @@ import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBounda
 interface CustomerShellProps {
   customerName: string;
   userInitial: string;
+  photoUrl?: string | null;
   isLoggedIn?: boolean;
   children: ReactNode;
 }
@@ -17,6 +18,7 @@ interface CustomerShellProps {
 export function CustomerShell({
   customerName,
   userInitial,
+  photoUrl,
   isLoggedIn = true,
   children,
 }: CustomerShellProps) {
@@ -67,6 +69,7 @@ export function CustomerShell({
           <CustomerHeader
             customerName={customerName}
             userInitial={userInitial}
+            photoUrl={photoUrl}
             isLoggedIn={isLoggedIn}
             menuOpen={menuOpen}
             onMenuClick={() => setMenuOpen(true)}

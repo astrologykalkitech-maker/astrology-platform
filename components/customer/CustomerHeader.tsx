@@ -12,6 +12,7 @@ import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBounda
 type CustomerHeaderProps = {
   customerName: string;
   userInitial?: string;
+  photoUrl?: string | null;
   isLoggedIn?: boolean;
   menuOpen: boolean;
   onMenuClick: () => void;
@@ -33,6 +34,7 @@ function pageTitleFor(pathname: string) {
 
 export function CustomerHeader({
   customerName,
+  photoUrl,
   isLoggedIn = true,
   menuOpen,
   onMenuClick,
@@ -131,7 +133,7 @@ export function CustomerHeader({
               )}
             </Link>
             <Link href="/customer/profile" aria-label="My Profile">
-              <Avatar name={customerName} size="sm" />
+              <Avatar name={customerName} src={photoUrl} size="sm" />
             </Link>
           </div>
         ) : (
@@ -172,7 +174,7 @@ export function CustomerHeader({
                 className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity"
                 aria-label="View Customer Profile"
               >
-                <Avatar name={customerName} size="sm" />
+                <Avatar name={customerName} src={photoUrl} size="sm" />
                 <div className="leading-tight">
                   <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{customerName}</p>
                   <p className="text-xs text-muted">Customer Profile</p>
