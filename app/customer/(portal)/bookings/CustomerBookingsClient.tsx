@@ -1,4 +1,5 @@
 "use client";
+import { getBookingConsultationUrl } from "@/lib/consultation/provider";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -18,6 +19,7 @@ import {
   MessageSquare,
   ExternalLink,
   ShieldAlert,
+  CheckCircle2,
 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
@@ -182,6 +184,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
               const displayDate = formatExactDateTime(booking.scheduled_at);
               const isCancelled = booking.status === "cancelled";
               const isConfirmed = booking.status === "confirmed";
+              const isCompleted = booking.status === "completed";
 
               return (
                 <div key={booking.id} className="p-4 space-y-3">
@@ -199,8 +202,10 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                         isCancelled
                           ? "border-red-200 bg-red-50 text-red-700"
+                          : isCompleted
+                          ? "border-emerald/40 bg-emerald/10 text-emerald-800"
                           : isConfirmed
-                          ? "border-emerald/30 bg-emerald/10 text-emerald-800"
+                          ? "border-sky-200 bg-sky-50 text-sky-800"
                           : "border-amber-200 bg-amber-50 text-amber-800"
                       }`}
                     >
@@ -218,32 +223,48 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
 
                   {/* Mobile actions row: Join + Cancel */}
                   <div className="flex items-center justify-between pt-1 gap-2">
+                    {/* Completed indicator */}
+                    {isCompleted && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-emerald/10 text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Completed</span>
+                      </span>
+                    )}
+
                     {/* Join button in mobile card view (F-08 fix) */}
                     {isConfirmed && booking.consultation_mode !== "Chat" && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveJoinBooking(booking)}
-                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                          isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
-                            ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
-                            : "bg-gold/15 text-gold-deep hover:bg-gold/25"
-                        }`}
-                      >
-                        {booking.consultation_mode === "Video" ? (
-                          <Video className="h-3.5 w-3.5" />
-                        ) : (
-                          <PhoneCall className="h-3.5 w-3.5" />
-                        )}
-                        {isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
-                          ? `Join ${booking.consultation_mode}`
-                          : `${booking.consultation_mode}`}
-                      </button>
+                      isJoinWindowActive(booking.scheduled_at, booking.duration_minutes) ? (
+                        <Link
+                          href={`/consultation/${booking.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors"
+                        >
+                          {booking.consultation_mode === "Video" ? (
+                            <Video className="h-3.5 w-3.5" />
+                          ) : (
+                            <PhoneCall className="h-3.5 w-3.5" />
+                          )}
+                          <span>Join {booking.consultation_mode}</span>
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setActiveJoinBooking(booking)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gold/15 text-gold-deep hover:bg-gold/25 transition-colors"
+                        >
+                          {booking.consultation_mode === "Video" ? (
+                            <Video className="h-3.5 w-3.5" />
+                          ) : (
+                            <PhoneCall className="h-3.5 w-3.5" />
+                          )}
+                          <span>{booking.consultation_mode} Details</span>
+                        </button>
+                      )
                     )}
                     <div className="flex items-center gap-2 ml-auto">
                       <span className="font-mono text-[10px] text-muted truncate max-w-[100px]">
                         {booking.id.slice(0, 8)}
                       </span>
-                      {!isCancelled && (
+                      {!isCancelled && !isCompleted && (
                         <button
                           type="button"
                           disabled={cancellingId === booking.id}
@@ -284,6 +305,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                   const displayDate = formatExactDateTime(booking.scheduled_at);
                   const isCancelled = booking.status === "cancelled";
                   const isConfirmed = booking.status === "confirmed";
+                  const isCompleted = booking.status === "completed";
 
                   return (
                     <tr key={booking.id} className="hover:bg-parchment/30 transition-colors">
@@ -318,8 +340,10 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                           className={`inline-block rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
                             isCancelled
                               ? "border-red-200 bg-red-50 text-red-700"
+                              : isCompleted
+                              ? "border-emerald/40 bg-emerald/10 text-emerald-800"
                               : isConfirmed
-                              ? "border-emerald/30 bg-emerald/10 text-emerald-800"
+                              ? "border-sky-200 bg-sky-50 text-sky-800"
                               : "border-amber-200 bg-amber-50 text-amber-800"
                           }`}
                         >
@@ -328,32 +352,47 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {isConfirmed && (
-                            <button
-                              type="button"
-                              onClick={() => setActiveJoinBooking(booking)}
-                              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                                isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
-                                  : "bg-gold/15 text-gold-deep hover:bg-gold/25"
-                              }`}
-                            >
-                              {booking.consultation_mode === "Video" ? (
-                                <Video className="h-3.5 w-3.5" />
-                              ) : booking.consultation_mode === "Call" ? (
-                                <PhoneCall className="h-3.5 w-3.5" />
-                              ) : (
-                                <MessageSquare className="h-3.5 w-3.5" />
-                              )}
-                              <span>
-                                {isJoinWindowActive(booking.scheduled_at, booking.duration_minutes)
-                                  ? `Join ${booking.consultation_mode}`
-                                  : `${booking.consultation_mode} Details`}
-                              </span>
-                            </button>
+                          {isCompleted && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald/10 text-emerald-700">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span>Completed</span>
+                            </span>
                           )}
 
-                          {!isCancelled && (
+                          {isConfirmed && (
+                            isJoinWindowActive(booking.scheduled_at, booking.duration_minutes) ? (
+                              <Link
+                                href={`/consultation/${booking.id}`}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors"
+                              >
+                                {booking.consultation_mode === "Video" ? (
+                                  <Video className="h-3.5 w-3.5" />
+                                ) : booking.consultation_mode === "Call" ? (
+                                  <PhoneCall className="h-3.5 w-3.5" />
+                                ) : (
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                )}
+                                <span>Join {booking.consultation_mode}</span>
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setActiveJoinBooking(booking)}
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gold/15 text-gold-deep hover:bg-gold/25 transition-colors"
+                              >
+                                {booking.consultation_mode === "Video" ? (
+                                  <Video className="h-3.5 w-3.5" />
+                                ) : booking.consultation_mode === "Call" ? (
+                                  <PhoneCall className="h-3.5 w-3.5" />
+                                ) : (
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                )}
+                                <span>{booking.consultation_mode} Details</span>
+                              </button>
+                            )
+                          )}
+
+                          {!isCancelled && !isCompleted && (
                             <button
                               type="button"
                               disabled={cancellingId === booking.id}
@@ -425,28 +464,28 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
               <div className="space-y-3 pt-2">
                 <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs">
                   <Clock className="h-4 w-4 shrink-0 text-emerald-600" />
-                  <span>
-                    Your consultation window is active! Your astrologer is ready to connect.
-                  </span>
+                  <div>
+                    <p className="font-semibold text-emerald-900">Your consultation room is ready.</p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                      Your astrologer can now join your private consultation.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <a
-                    href={`https://meet.jit.si/jyotishsetu-${activeJoinBooking.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={`/consultation/${activeJoinBooking.id}`}
                     className={buttonStyles({
                       variant: "gold",
                       size: "md",
                       fullWidth: true,
-                      className: "justify-center shadow-md",
+                      className: "justify-center shadow-md font-semibold gap-2",
                     })}
                   >
-                    <ExternalLink className="h-4 w-4" /> Enter Consultation Room
-                  </a>
+                    <Video className="h-4 w-4 text-midnight" /> Join Consultation
+                  </Link>
                   <p className="text-[11px] text-muted text-center">
-                    Browser-based video/audio room via Jit.si. Share the room link only with your
-                    scheduled astrologer. For highest privacy, connect on a private network.
+                    Private, encrypted in-house WebRTC session with real-time video, audio, and consultation notes.
                   </p>
                 </div>
               </div>
