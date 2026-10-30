@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
-import { getAstrologerConversationsAction } from "@/app/actions/direct-chat";
+import {
+  getAstrologerConversationsAction,
+  getEligibleSeekersAction,
+} from "@/app/actions/direct-chat";
 import { AstrologerChatClient } from "@/components/astrologer/chat/AstrologerChatClient";
 import { ErrorState } from "@/components/astrologer/ui/feedback";
 
@@ -11,12 +14,16 @@ export const metadata: Metadata = {
 
 export default async function AstrologerChatPage() {
   await requireAstrologerPage();
-  const convosRes = await getAstrologerConversationsAction();
 
-  if (!convosRes.success) {
+  const [convosRes, seekersRes] = await Promise.all([
+    getAstrologerConversationsAction(),
+    getEligibleSeekersAction(),
+  ]);
+
+  if (!convosRes.success && !seekersRes.success) {
     return (
       <ErrorState
-        title="We couldn't load your conversations"
+        title="We couldn't load your consultation chat"
         description="Please refresh the page to try again."
       />
     );
@@ -33,8 +40,10 @@ export default async function AstrologerChatPage() {
         </div>
       </div>
 
-      <AstrologerChatClient initialConversations={convosRes.data || []} />
+      <AstrologerChatClient
+        initialConversations={convosRes.data || []}
+        initialSeekers={seekersRes.data || []}
+      />
     </div>
   );
 }
-

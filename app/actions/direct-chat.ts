@@ -28,6 +28,181 @@ export interface ConversationSummary {
   unread_count: number;
 }
 
+export interface EligibleSeeker {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  created_at: string;
+  conversation_id: string | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_count: number;
+  has_active_conversation: boolean;
+}
+
+/**
+ * Retrieves all registered seekers/customers eligible for consultation chat,
+ * merged with any existing conversation status for the authenticated astrologer.
+ */
+export async function getEligibleSeekersAction(): Promise<{
+  success: boolean;
+  data?: EligibleSeeker[];
+  error?: string;
+}> {
+  try {
+    const { user } = await requireAstrologer();
+    const admin = await createAdminClient("main");
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!astroProfile) {
+      return { success: false, error: "Astrologer profile not found" };
+    }
+
+    // 1. Fetch all registered customer profiles from DB1
+    const { data: customers, error: custErr } = await admin
+      .from("profiles")
+      .select("id, full_name, avatar_url, created_at")
+      .eq("role", "customer")
+      .order("created_at", { ascending: false });
+
+    if (custErr) {
+      return { success: false, error: custErr.message };
+    }
+
+    // 2. Fetch existing conversations for this astrologer
+    const { data: convos, error: convoErr } = await admin
+      .from("conversations")
+      .select("id, customer_id, last_message_at, last_message_preview, astrologer_unread_count")
+      .eq("astrologer_id", astroProfile.id);
+
+    if (convoErr) {
+      return { success: false, error: convoErr.message };
+    }
+
+    type ConvoMapItem = {
+      id: string;
+      last_message_at: string | null;
+      last_message_preview: string | null;
+      astrologer_unread_count: number;
+    };
+    const convoMap = new Map<string, ConvoMapItem>();
+    (convos || []).forEach((c) => {
+      convoMap.set(c.customer_id, {
+        id: c.id,
+        last_message_at: c.last_message_at,
+        last_message_preview: c.last_message_preview,
+        astrologer_unread_count: c.astrologer_unread_count || 0,
+      });
+    });
+
+    const seekers: EligibleSeeker[] = (customers || []).map((c) => {
+      const existingConvo = convoMap.get(c.id);
+      const name = c.full_name?.trim() || `Seeker #${c.id.slice(0, 5)}`;
+      return {
+        id: c.id,
+        full_name: name,
+        avatar_url: c.avatar_url || null,
+        created_at: c.created_at,
+        conversation_id: existingConvo ? existingConvo.id : null,
+        last_message_at: existingConvo ? existingConvo.last_message_at : null,
+        last_message_preview: existingConvo ? existingConvo.last_message_preview : null,
+        unread_count: existingConvo ? existingConvo.astrologer_unread_count : 0,
+        has_active_conversation: Boolean(existingConvo),
+      };
+    });
+
+    // Sort: Seekers with active conversations first, then newest seekers
+    seekers.sort((a, b) => {
+      if (a.last_message_at && b.last_message_at) {
+        return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+      }
+      if (a.last_message_at) return -1;
+      if (b.last_message_at) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return { success: true, data: seekers };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to load seekers";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Astrologer initiates or opens a direct consultation conversation with a specific seeker.
+ * Idempotent and thread-safe.
+ */
+export async function startConversationWithSeekerAction(
+  seekerId: string
+): Promise<{ success: boolean; conversationId?: string; error?: string }> {
+  try {
+    const { user } = await requireAstrologer();
+
+    if (!isValidUUID(seekerId)) {
+      return { success: false, error: "Invalid seeker ID" };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!astroProfile) {
+      return { success: false, error: "Astrologer profile not found" };
+    }
+
+    // Verify seeker exists and is a customer
+    const { data: seeker } = await admin
+      .from("profiles")
+      .select("id, role")
+      .eq("id", seekerId)
+      .maybeSingle();
+
+    if (!seeker || seeker.role !== "customer") {
+      return { success: false, error: "Seeker not found or ineligible" };
+    }
+
+    // Find existing conversation
+    const { data: existing } = await admin
+      .from("conversations")
+      .select("id")
+      .eq("customer_id", seekerId)
+      .eq("astrologer_id", astroProfile.id)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: true, conversationId: existing.id };
+    }
+
+    // Create new conversation
+    const { data: created, error } = await admin
+      .from("conversations")
+      .insert({
+        customer_id: seekerId,
+        astrologer_id: astroProfile.id,
+      })
+      .select("id")
+      .single();
+
+    if (error || !created) {
+      return { success: false, error: error?.message || "Failed to initialize conversation" };
+    }
+
+    return { success: true, conversationId: created.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to start conversation";
+    return { success: false, error: msg };
+  }
+}
+
 export async function getOrCreateConversationAction(
   astrologerId: string
 ): Promise<{ success: boolean; conversationId?: string; error?: string }> {

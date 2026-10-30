@@ -54,18 +54,22 @@ export default async function ConsultationPage({
     );
   }
 
+  const isHost = Boolean(res.isHost);
+  const customerName = res.customerName || "Seeker";
+  const astrologerName = res.astrologerName || "Vedic Astrologer";
+
   return (
     <ConsultationRoomClient
-      bookingId={id}
       meeting={res.meeting}
       tokenResult={res.tokenResult}
-      customerName={res.customerName}
-      astrologerName={res.astrologerName}
-      serviceType={res.serviceType}
-      scheduledAt={res.scheduledAt}
-      durationMinutes={res.durationMinutes}
-      consultationMode={res.consultationMode}
-      isHost={res.isHost}
+      customerName={customerName}
+      astrologerName={astrologerName}
+      serviceType={res.serviceType || "Vedic Consultation"}
+      scheduledAt={res.scheduledAt || new Date().toISOString()}
+      durationMinutes={res.durationMinutes || 30}
+      consultationMode={res.consultationMode || "Video"}
+      isHost={isHost}
+      partnerName={isHost ? customerName : astrologerName}
     />
   );
 }
