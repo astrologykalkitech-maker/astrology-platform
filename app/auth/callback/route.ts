@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
 /**
  * Validates that a redirect path is safe to use as a post-auth destination.
@@ -10,34 +11,7 @@ import { createServerClient } from "@supabase/ssr";
  * - Accepts relative paths beginning with /
  */
 function validateRedirectPath(next: string, fallback: string = "/"): string {
-  if (!next || typeof next !== "string") {
-    return fallback;
-  }
-
-  const trimmed = next.trim();
-
-  // Reject absolute URLs and protocol-relative URLs (open redirect prevention)
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("//") ||
-    trimmed.startsWith("javascript:") ||
-    trimmed.startsWith("data:")
-  ) {
-    return fallback;
-  }
-
-  // Must start with a forward slash (relative path only)
-  if (!trimmed.startsWith("/")) {
-    return fallback;
-  }
-
-  // Reject potential infinite callback loops
-  if (trimmed.startsWith("/auth/callback")) {
-    return fallback;
-  }
-
-  return trimmed;
+  return sanitizeRedirectPath(next, fallback);
 }
 
 /**

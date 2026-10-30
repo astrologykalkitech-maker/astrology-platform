@@ -227,36 +227,11 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
   if (hasAdmin) {
     try {
       const adminClient = await createClient("admin");
-      const adminClaims = extractJwtClaimsFromCookies(cookieList, "sb-admin-auth-token");
 
-      // Fast Path for DB2: Direct profile lookup via admin client
-      if (adminClaims && adminClaims.exp - nowSec > 30) {
-        const { createAdminClient } = await import("@/lib/supabase/admin");
-        const privileged = await createAdminClient();
-        const { data: adminProf } = await privileged
-          .from("profiles")
-          .select("id, full_name, role, avatar_url, created_at, updated_at")
-          .eq("id", adminClaims.sub)
-          .maybeSingle();
-
-        if (adminProf) {
-          const fastAdminUser: User = {
-            id: adminClaims.sub,
-            app_metadata: {},
-            user_metadata: adminClaims.user_metadata || {},
-            aud: "authenticated",
-            created_at: new Date((adminClaims.iat || nowSec) * 1000).toISOString(),
-            email: adminClaims.email,
-          };
-
-          return {
-            user: fastAdminUser,
-            profile: adminProf as Profile,
-            target: "admin",
-          };
-        }
-      }
-
+      // SECURITY: never trust the unsigned cookie JWT here. A previous fast path decoded the
+      // cookie without verifying its signature and then read the profile with the service-role
+      // client, which allowed a forged cookie to impersonate any admin user id. The admin session
+      // is always validated by the Supabase Auth server.
       const {
         data: { user: adminUser },
         error: adminError,

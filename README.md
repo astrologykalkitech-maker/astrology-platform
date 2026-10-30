@@ -116,3 +116,10 @@ The migration sequence (`001` through `016`) establishes:
 - Direct consultation messaging and predictions (`014`)
 - Customer profile expansion and consultation reviews (`015`)
 - Booking integrity hardening, authoritative pricing, and cancellation guard (`016`)
+- Support tickets and hardening (`017`, `018`), AI learning memory (`019`)
+- In-house video conferencing, meeting chat and reminders (`024`)
+- Atomic astrologer-initiated booking + chat-after-end guard (`025`), RLS write-path hardening (`026`)
+
+> `CONSOLIDATED_SETUP.sql` currently ends at migration `019`. After running it, also apply `024`, `025` and `026`
+> from `supabase/migrations/`. Migrations `020`-`023` are not in this repository; see `audit/DATABASE_AUDIT.md`.
+> Review `026` before applying (it restricts direct client writes; rollback notes are in the file).

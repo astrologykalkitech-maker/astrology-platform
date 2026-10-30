@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeOlaPrediction, type OlaPrediction } from "@/lib/location/ola-maps";
+import { checkRateLimit, extractClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -220,6 +221,15 @@ async function fetchOpenMeteo(query: string, limit = 8): Promise<LocationSuggest
 
 export async function GET(request: NextRequest) {
   try {
+    // Protect the server-held Ola Maps key/quota from anonymous abuse
+    const rateCheck = checkRateLimit(`location-autocomplete:${extractClientIp(request)}`, 90, 60_000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many requests. Please slow down.", suggestions: [] },
+        { status: 429, headers: { "Retry-After": String(rateCheck.retryAfterSeconds) } }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const query = (searchParams.get("input") || searchParams.get("q") || "").trim();
 

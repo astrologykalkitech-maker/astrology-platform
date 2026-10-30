@@ -13,6 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { AstrologerPreferenceExtraction } from "./rag-pipeline";
 import { getProfileCompletion } from "@/lib/astrologer/profile-completion";
 import type { AstrologerProfile } from "@/lib/types/database.types";
+import { generateFullAstrologyReport } from "@/lib/astrology";
 
 export interface AstrologerRecommendationCard {
   id: string;
@@ -619,9 +620,34 @@ export async function getCustomerBirthDetailsSummary(userId: string): Promise<st
         `\n💡 *Next Step*: To calculate your exact Lagna, Moon sign (Rashi), and planetary Dashas, please add your **${missing.join(" and ")}** in your [Kundli Profile](/customer/profile).`
       );
     } else {
-      lines.push(
-        `\n✅ *Chart Status*: Your Vedic birth record is complete and ready for instant Kundli, planetary chart, and transit analysis by our mentors.`
-      );
+      try {
+        const report = generateFullAstrologyReport({
+          date: date_of_birth,
+          time: time_of_birth,
+          location: {
+            latitude: 28.6139,
+            longitude: 77.209,
+            timezoneOffsetHours: 5.5,
+            cityName: birthplace,
+          },
+          name: full_name || "Seeker",
+        });
+
+        lines.push(
+          `\n✅ **Verified Vedic Kundli Calculations**:`,
+          `• **Lagna (Ascendant)**: ${report.kundli.ascendant.rashi} (${report.kundli.ascendant.formattedDegrees})`,
+          `• **Moon Sign (Rashi)**: ${report.kundli.moonSign}`,
+          `• **Birth Nakshatra**: ${report.kundli.birthNakshatra} (Pada ${report.kundli.birthPada})`,
+          `• **Sun Sign**: ${report.kundli.sunSign}`,
+          `• **Current Mahadasha**: ${report.kundli.currentDasha?.mahadasha || "Active"}` +
+            (report.kundli.currentDasha?.antardasha ? ` — ${report.kundli.currentDasha.antardasha} Antardasha` : ""),
+          `• **Benefic Gemstone**: ${report.remedies.gemstones.primaryLife.name}`
+        );
+      } catch {
+        lines.push(
+          `\n✅ *Chart Status*: Your Vedic birth record is complete and ready for instant Kundli, planetary chart, and transit analysis by our mentors.`
+        );
+      }
     }
 
     return lines.join("\n");

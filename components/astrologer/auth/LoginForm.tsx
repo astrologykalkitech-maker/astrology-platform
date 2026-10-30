@@ -11,6 +11,7 @@ import { FormField } from "@/components/astrologer/ui/FormField";
 import { PasswordField } from "@/components/astrologer/ui/PasswordField";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { validateEmail, validateLoginPassword } from "@/lib/astrologer/form-validation";
+import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
 type FieldErrors = { email?: string | null; password?: string | null };
 type Role = "astrologer" | "customer";
@@ -148,10 +149,7 @@ export function LoginForm({
         return;
       }
 
-      const destination =
-        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
-          ? redirectTo
-          : copy.redirect;
+      const destination = sanitizeRedirectPath(redirectTo, copy.redirect);
 
       router.replace(destination);
     } catch {

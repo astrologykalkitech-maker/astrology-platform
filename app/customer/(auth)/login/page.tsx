@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/astrologer/auth/AuthShell";
 import { LoginForm } from "@/components/astrologer/auth/LoginForm";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
 export const metadata: Metadata = { title: "Customer Login" };
 
@@ -16,7 +17,7 @@ export default async function CustomerLoginPage({
   // Already signed in: redirect to destination or appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect(redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/customer/astrologers");
+    redirect(sanitizeRedirectPath(redirectTo, "/customer/astrologers"));
   }
   if (profile?.role === "super_admin" || profile?.role === "admin") {
     redirect("/super-admin");
@@ -34,7 +35,7 @@ export default async function CustomerLoginPage({
         role="customer"
         reason={reason}
         error={error}
-        redirectTo={redirectTo}
+        redirectTo={redirectTo ? sanitizeRedirectPath(redirectTo, "") || undefined : undefined}
         showRoleNotice={reason === "role" || reason === "role_unauthorized"}
       />
     </AuthShell>

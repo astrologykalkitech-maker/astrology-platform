@@ -2,7 +2,8 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentProfile, getCurrentUser, AuthRequiredError } from "@/lib/auth/session";
-import { requireAdminAccess } from "@/lib/auth/admin-guard";
+import { requireSuperAdmin } from "@/lib/auth/admin-guard";
+import { sanitizeFilterTerm } from "@/lib/security/postgrest";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { askGeminiSupport, generateAiTicketSummary } from "@/lib/ai/gemini-service";
 import { learnFromResolvedTicket, promoteHighRatedInteractionToKnowledge } from "@/lib/ai/learning-engine";
@@ -296,7 +297,7 @@ export async function getSupportTicketDetailsAction(ticketId: string): Promise<
     // Check authorization: must be ticket owner OR have admin access
     let isStaff = false;
     try {
-      await requireAdminAccess();
+      await requireSuperAdmin();
       isStaff = true;
     } catch {
       isStaff = false;
@@ -440,7 +441,7 @@ export async function getAdminSupportTicketsAction(filters?: {
   }>
 > {
   try {
-    await requireAdminAccess();
+    await requireSuperAdmin();
     const adminSupabase = await createAdminClient("main");
 
     // 1. Compute aggregate live metrics
@@ -478,8 +479,8 @@ export async function getAdminSupportTicketsAction(filters?: {
     if (filters?.category && filters.category !== "all") {
       query = query.eq("category", filters.category);
     }
-    if (filters?.search && filters.search.trim()) {
-      const s = filters.search.trim();
+    const s = filters?.search ? sanitizeFilterTerm(filters.search) : "";
+    if (s) {
       query = query.or(`ticket_number.ilike.%${s}%,subject.ilike.%${s}%,user_name.ilike.%${s}%,user_email.ilike.%${s}%`);
     }
 
@@ -520,7 +521,7 @@ export async function adminReplySupportTicketAction(payload: {
   isInternal?: boolean;
 }): Promise<SupportActionResult<SupportMessage>> {
   try {
-    const { user, profile } = await requireAdminAccess();
+    const { user, profile } = await requireSuperAdmin();
     const message = (payload.message || "").trim();
 
     if (!message) {
@@ -638,7 +639,7 @@ export async function adminUpdateTicketStatusAction(payload: {
   resolutionNotes?: string;
 }): Promise<SupportActionResult<SupportTicket>> {
   try {
-    const { user } = await requireAdminAccess();
+    const { user } = await requireSuperAdmin();
     const adminSupabase = await createAdminClient("main");
 
     const updatePayload: Record<string, unknown> = {

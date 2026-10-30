@@ -1,5 +1,4 @@
 "use client";
-import { getBookingConsultationUrl } from "@/lib/consultation/provider";
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -10,14 +9,12 @@ import {
   Video,
   PhoneCall,
   MessageSquare,
-  ExternalLink,
   User,
   Search,
   CalendarPlus,
   ShieldAlert,
   Check,
   CheckCircle2,
-  XCircle,
   Loader2,
 } from "lucide-react";
 import type { CustomerBooking, BookingStatus } from "@/lib/types/database.types";
@@ -34,10 +31,6 @@ type FilterTab = "all" | "confirmed" | "pending" | "completed" | "cancelled";
 
 interface Props {
   initialBookings: CustomerBooking[];
-}
-
-function getConsultationRoomUrl(bookingId: string): string {
-  return getBookingConsultationUrl(bookingId);
 }
 
 function isJoinWindowActive(scheduledAt: string, durationMinutes: number, now: Date): boolean {
@@ -266,7 +259,6 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
             const joinActive =
               isConfirmed &&
               isJoinWindowActive(booking.scheduled_at, booking.duration_minutes, now);
-            const roomUrl = getConsultationRoomUrl(booking.id);
 
             const ModeIcon =
               booking.consultation_mode === "Video"

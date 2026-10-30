@@ -4,7 +4,7 @@
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { getCurrentProfile, getCurrentUser, requireAuth } from "@/lib/auth/session";
+import { getCurrentProfile, getCurrentUser } from "@/lib/auth/session";
 import { checkPermission } from "@/lib/auth/permissions";
 import type { AdminPermissionKey, Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -54,37 +54,63 @@ export interface AdminAuthContext {
 }
 
 /**
- * Enforces that the caller is authenticated and has the 'super_admin' role.
- * Throws AuthRequiredError or AdminPermissionDeniedError.
+ * Resolves the authenticated administrative context.
+ * Checks the admin authentication database (DB2) first for admin session cookies,
+ * then falls back to main authentication database (DB1).
+ * Strictly requires super_admin or consultant_admin role.
  */
-export async function requireSuperAdmin(): Promise<AdminAuthContext> {
-  const { user, profile } = await requireAuth();
+export const resolveAdminSession = cache(async function resolveAdminSession(): Promise<AdminAuthContext | null> {
+  let user: User | null = null;
+  let profile: Profile | null = null;
 
-  if (profile.role !== "super_admin") {
-    throw new AdminPermissionDeniedError("listing.approve", profile.role, "Super Admin privilege required.");
+  // 1. Check admin client (DB2) first for administrative actions
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    const adminClient = await createClient("admin");
+    const { data: adminAuthData, error: adminAuthError } = await adminClient.auth.getUser();
+    if (!adminAuthError && adminAuthData?.user) {
+      user = adminAuthData.user;
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const privileged = await createAdminClient("admin");
+      const { data: adminProf } = await privileged
+        .from("profiles")
+        .select("id, full_name, role, created_at, updated_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (adminProf) {
+        profile = adminProf as Profile;
+      }
+    }
+  } catch {
+    // Continue to standard fallback
   }
 
-  const permissions = await fetchUserPermissions(user.id);
+  // 2. Fallback to main client (DB1) if not found in DB2
+  if (!user || !profile) {
+    try {
+      const u = await getCurrentUser();
+      if (u) {
+        const p = await getCurrentProfile();
+        if (p) {
+          user = u;
+          profile = p;
+        }
+      }
+    } catch {
+      // Unauthenticated
+    }
+  }
 
-  return {
-    user,
-    profile,
-    permissions,
-    isSuperAdmin: true,
-  };
-}
-
-/**
- * Enforces that the caller has either super_admin or consultant_admin role.
- */
-export async function requireAdminAccess(): Promise<AdminAuthContext> {
-  const { user, profile } = await requireAuth();
+  if (!user || !profile) {
+    return null;
+  }
 
   const isSuper = profile.role === "super_admin";
   const isConsultant = profile.role === "consultant_admin";
 
   if (!isSuper && !isConsultant) {
-    throw new AdminPermissionDeniedError("listing.read", profile.role, "Administrative privileges required.");
+    return null;
   }
 
   const permissions = await fetchUserPermissions(user.id);
@@ -95,6 +121,33 @@ export async function requireAdminAccess(): Promise<AdminAuthContext> {
     permissions,
     isSuperAdmin: isSuper,
   };
+});
+
+/**
+ * Enforces that the caller is authenticated and has the 'super_admin' role.
+ * Throws AuthRequiredError or AdminPermissionDeniedError.
+ */
+export async function requireSuperAdmin(): Promise<AdminAuthContext> {
+  const context = await requireAdminAccess();
+
+  if (!context.isSuperAdmin) {
+    throw new AdminPermissionDeniedError("listing.approve", context.profile.role, "Super Admin privilege required.");
+  }
+
+  return context;
+}
+
+/**
+ * Enforces that the caller has either super_admin or consultant_admin role.
+ */
+export async function requireAdminAccess(): Promise<AdminAuthContext> {
+  const context = await resolveAdminSession();
+
+  if (!context) {
+    throw new AdminPermissionDeniedError("listing.read", "customer" as UserRole, "Administrative privileges required.");
+  }
+
+  return context;
 }
 
 /**
@@ -129,114 +182,28 @@ export const ADMIN_LOGIN_PATH = "/astrologer/login";
  * Page-level guard for Owner Super Admin (/super-admin) routes.
  */
 export const requireSuperAdminPage = cache(async (): Promise<AdminAuthContext> => {
-  // Check admin client (DB2) first for admin routes
-  let user: User | null = null;
-  let profile: Profile | null = null;
+  const context = await resolveAdminSession();
 
-  try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const adminClient = await createClient("admin");
-    const { data: adminAuthData } = await adminClient.auth.getUser();
-    if (adminAuthData?.user) {
-      user = adminAuthData.user;
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const privileged = await createAdminClient();
-      const { data: adminProf } = await privileged
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (adminProf) {
-        profile = adminProf as Profile;
-      }
-    }
-  } catch {
-    // Continue to standard fallback
-  }
-
-  if (!user || !profile) {
-    user = await getCurrentUser();
-    profile = await getCurrentProfile();
-  }
-
-  if (!user) {
+  if (!context) {
     redirect(ADMIN_LOGIN_PATH);
   }
 
-  if (!profile) {
-    redirect(ADMIN_LOGIN_PATH);
-  }
-
-  if (profile.role !== "super_admin") {
+  if (!context.isSuperAdmin) {
     redirect(`${ADMIN_LOGIN_PATH}?reason=role_unauthorized`);
   }
 
-  const permissions = await fetchUserPermissions(user.id);
-
-  return {
-    user,
-    profile,
-    permissions,
-    isSuperAdmin: true,
-  };
+  return context;
 });
 
 /**
  * Page-level guard for Consultant Admin (/admin) routes.
  */
 export const requireConsultantAdminPage = cache(async (): Promise<AdminAuthContext> => {
-  let user: User | null = null;
-  let profile: Profile | null = null;
+  const context = await resolveAdminSession();
 
-  try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const adminClient = await createClient("admin");
-    const { data: adminAuthData } = await adminClient.auth.getUser();
-    if (adminAuthData?.user) {
-      user = adminAuthData.user;
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const privileged = await createAdminClient();
-      const { data: adminProf } = await privileged
-        .from("profiles")
-        .select("id, full_name, role, created_at, updated_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (adminProf) {
-        profile = adminProf as Profile;
-      }
-    }
-  } catch {
-    // Continue to standard fallback
-  }
-
-  if (!user || !profile) {
-    user = await getCurrentUser();
-    profile = await getCurrentProfile();
-  }
-
-  if (!user) {
+  if (!context) {
     redirect(ADMIN_LOGIN_PATH);
   }
 
-  if (!profile) {
-    redirect(ADMIN_LOGIN_PATH);
-  }
-
-  const isSuper = profile.role === "super_admin";
-  const isConsultant = profile.role === "consultant_admin";
-
-  if (!isSuper && !isConsultant) {
-    redirect(`${ADMIN_LOGIN_PATH}?reason=role_unauthorized`);
-  }
-
-  const permissions = await fetchUserPermissions(user.id);
-
-  return {
-    user,
-    profile,
-    permissions,
-    isSuperAdmin: isSuper,
-  };
+  return context;
 });

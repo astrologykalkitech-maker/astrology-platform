@@ -7,6 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPermission, requireAdminAccess } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
+import { sanitizeFilterTerm } from "@/lib/security/postgrest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Lead,
@@ -68,7 +69,7 @@ export async function getAdminLeads(
       return { success: false, error: "Access denied: insufficient lead permissions." };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
@@ -113,8 +114,9 @@ export async function getAdminLeads(
         .not("status", "in", '("closed","converted","invalid")');
     }
 
-    if (filter.search && filter.search.trim()) {
-      const term = `%${filter.search.trim()}%`;
+    const safeSearch = filter.search ? sanitizeFilterTerm(filter.search) : "";
+    if (safeSearch) {
+      const term = `%${safeSearch}%`;
       query = query.or(`subject.ilike.${term},message.ilike.${term},customer_name.ilike.${term},contact_email.ilike.${term}`);
     }
 

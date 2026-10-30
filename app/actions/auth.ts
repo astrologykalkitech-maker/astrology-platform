@@ -4,7 +4,9 @@
 // SHARED AUTHENTICATION SERVER ACTIONS
 // =====================================================
 
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, extractClientIpFromHeaders } from "@/lib/security/rate-limit";
 import type {
   ActiveUserProfile,
   AuthResult,
@@ -17,6 +19,34 @@ import {
   validateSignInInput,
   validateSignUpInput,
 } from "@/lib/validations/auth";
+
+const AUTH_RATE_LIMIT_MESSAGE = "Too many attempts. Please wait a few minutes and try again.";
+
+/**
+ * Abuse protection for credential endpoints. Limits are keyed on client IP (broad) and on
+ * IP + email (narrow) so an attacker cannot lock a victim out by guessing their email.
+ * Returns false when the caller should be rejected. Counters are process-local (see rate-limit.ts).
+ */
+async function allowAuthAttempt(
+  scope: "signin" | "signup" | "reset",
+  email: string,
+  limits: { perIp: number; perIpEmail: number; windowMs: number }
+): Promise<boolean> {
+  let ip = "unknown";
+  try {
+    ip = extractClientIpFromHeaders(await headers());
+  } catch {
+    // Outside a request scope (tests); fall through with a shared bucket
+  }
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  const broad = checkRateLimit(`auth:${scope}:ip:${ip}`, limits.perIp, limits.windowMs);
+  const narrow = checkRateLimit(
+    `auth:${scope}:ip-email:${ip}:${normalizedEmail}`,
+    limits.perIpEmail,
+    limits.windowMs
+  );
+  return broad.allowed && narrow.allowed;
+}
 
 /**
  * Safely extracts diagnostic metadata from Supabase errors without exposing secrets.
@@ -79,6 +109,10 @@ export async function signUp(
   }
 
   const { email, password, full_name, role } = validation.data;
+
+  if (!(await allowAuthAttempt("signup", email, { perIp: 20, perIpEmail: 5, windowMs: 60 * 60_000 }))) {
+    return { success: false, error: AUTH_RATE_LIMIT_MESSAGE };
+  }
 
   try {
     const supabase = await createClient();
@@ -212,6 +246,10 @@ export async function signIn(
   }
 
   const { email, password } = validation.data;
+
+  if (!(await allowAuthAttempt("signin", email, { perIp: 60, perIpEmail: 10, windowMs: 15 * 60_000 }))) {
+    return { success: false, error: AUTH_RATE_LIMIT_MESSAGE };
+  }
 
   try {
     const supabase = await createClient();
@@ -517,6 +555,23 @@ export async function getCurrentProfileAction(): Promise<
 }
 
 /**
+ * The reset link target is client-supplied, so only accept it when it points at this
+ * application's own origin (configured site URL, or localhost during development).
+ */
+function isTrustedResetRedirect(candidate: string | undefined): candidate is string {
+  if (!candidate) return false;
+  try {
+    const url = new URL(candidate);
+    if (url.pathname !== "/auth/callback") return false;
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (site && url.origin === new URL(site).origin) return true;
+    return process.env.NODE_ENV !== "production" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Send password reset link to user email address.
  */
 export async function requestPasswordReset(
@@ -527,10 +582,15 @@ export async function requestPasswordReset(
     return { success: false, error: "Please enter a valid email address." };
   }
 
+  if (!(await allowAuthAttempt("reset", email, { perIp: 15, perIpEmail: 3, windowMs: 15 * 60_000 }))) {
+    return { success: false, error: AUTH_RATE_LIMIT_MESSAGE };
+  }
+
   try {
     const supabase = await createClient();
+    const defaultRedirect = `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=/auth/reset-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: redirectTo || `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=/auth/reset-password`,
+      redirectTo: isTrustedResetRedirect(redirectTo) ? redirectTo : defaultRedirect,
     });
 
     if (error) {

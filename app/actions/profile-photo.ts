@@ -17,8 +17,8 @@ const ALLOWED_MIME_TYPES = new Set([
 /**
  * Validate magic bytes to prevent disguised executable or malicious file uploads.
  */
-function isValidImageMagicBytes(buffer: Buffer): boolean {
-  if (buffer.length < 12) return false;
+function detectImageType(buffer: Buffer): "image/jpeg" | "image/png" | "image/webp" | null {
+  if (buffer.length < 12) return null;
 
   // JPEG: FF D8 FF
   const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
@@ -45,7 +45,10 @@ function isValidImageMagicBytes(buffer: Buffer): boolean {
     buffer[10] === 0x42 && // B
     buffer[11] === 0x50; // P
 
-  return isJpeg || isPng || isWebp;
+  if (isJpeg) return "image/jpeg";
+  if (isPng) return "image/png";
+  if (isWebp) return "image/webp";
+  return null;
 }
 
 /**
@@ -76,7 +79,9 @@ export async function uploadProfilePhotoAction(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    if (!isValidImageMagicBytes(buffer)) {
+    // Trust the file's actual bytes, never the client-declared type, for the stored type/extension
+    const detectedType = detectImageType(buffer);
+    if (!detectedType) {
       return {
         success: false,
         error: "File content validation failed. The uploaded file is not a valid image.",
@@ -84,11 +89,7 @@ export async function uploadProfilePhotoAction(
     }
 
     const admin = await createAdminClient("main");
-    const ext = file.type.includes("png")
-      ? "png"
-      : file.type.includes("webp")
-      ? "webp"
-      : "jpg";
+    const ext = detectedType === "image/png" ? "png" : detectedType === "image/webp" ? "webp" : "jpg";
     const fileName = `${user.id}-${Date.now()}.${ext}`;
     const storagePath = `avatars/${fileName}`;
 
@@ -110,8 +111,8 @@ export async function uploadProfilePhotoAction(
       const { error: uploadError } = await admin.storage
         .from("avatars")
         .upload(storagePath, buffer, {
-          contentType: file.type,
-          upsert: true,
+          contentType: detectedType,
+          upsert: false,
         });
 
       if (uploadError) {
@@ -120,14 +121,21 @@ export async function uploadProfilePhotoAction(
 
       const { data: urlData } = admin.storage.from("avatars").getPublicUrl(storagePath);
       publicUrl = urlData.publicUrl;
-    } catch {
-      // Fallback: If Supabase Storage is not provisioned or offline in test environment,
-      // create safe data URL representation
-      publicUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
+    } catch (storageErr) {
+      console.error("[uploadProfilePhotoAction] storage upload failed:", storageErr);
+      // Embedding up to 5 MB of base64 in database rows is only tolerated outside production
+      // (e.g. local development without Storage). In production fail with a clear error.
+      if (process.env.NODE_ENV === "production") {
+        return {
+          success: false,
+          error: "Photo storage is temporarily unavailable. Please try again later.",
+        };
+      }
+      publicUrl = `data:${detectedType};base64,${buffer.toString("base64")}`;
     }
 
-    // 3. Persist photo URL in profiles
-    await admin
+    // 3. Persist photo URL in profiles (report failures instead of false success)
+    const { error: profileUpdateErr } = await admin
       .from("profiles")
       .update({
         avatar_url: publicUrl,
@@ -135,15 +143,25 @@ export async function uploadProfilePhotoAction(
       })
       .eq("id", user.id);
 
+    if (profileUpdateErr) {
+      console.error("[uploadProfilePhotoAction] profile update failed:", profileUpdateErr.message);
+      return { success: false, error: "Failed to save your photo. Please try again." };
+    }
+
     // 4. If user is an astrologer, also update astrologer_profiles
     if (profile.role === "astrologer") {
-      await admin
+      const { error: astroUpdateErr } = await admin
         .from("astrologer_profiles")
         .update({
           profile_photo_url: publicUrl,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", user.id);
+
+      if (astroUpdateErr) {
+        console.error("[uploadProfilePhotoAction] astrologer photo update failed:", astroUpdateErr.message);
+        return { success: false, error: "Failed to save your photo. Please try again." };
+      }
     }
 
     revalidatePath("/customer/profile");

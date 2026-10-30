@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { calculateReminderTimestamp } from "@/lib/consultation/reminders";
 
 test("Consultation Reminders: Calculates 15-minute advance trigger timestamp accurately", () => {
+  const referenceNow = new Date("2026-10-30T09:00:00.000Z").getTime();
   const appointmentTime = new Date("2026-10-30T10:00:00.000Z").getTime();
   const scheduledIso = new Date(appointmentTime).toISOString();
 
-  const reminderIso = calculateReminderTimestamp(scheduledIso);
+  const reminderIso = calculateReminderTimestamp(scheduledIso, referenceNow);
   const reminderTime = new Date(reminderIso).getTime();
 
   // Exactly 15 minutes before (15 * 60 * 1000 = 900,000 ms)

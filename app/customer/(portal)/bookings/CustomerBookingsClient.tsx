@@ -1,5 +1,4 @@
 "use client";
-import { getBookingConsultationUrl } from "@/lib/consultation/provider";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -17,7 +16,6 @@ import {
   Video,
   PhoneCall,
   MessageSquare,
-  ExternalLink,
   ShieldAlert,
   CheckCircle2,
 } from "lucide-react";

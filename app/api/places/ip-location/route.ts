@@ -1,15 +1,29 @@
+import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import type { NormalizedReverseGeocode } from "@/lib/location/ola-maps";
+import { checkRateLimit, extractClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 // In-memory cache for resolved IP locations to make repeat requests instant (0ms)
 const ipCache = new Map<string, { result: NormalizedReverseGeocode; timestamp: number }>();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_CACHE_ENTRIES = 500;
+
+function cacheResult(key: string, result: NormalizedReverseGeocode): void {
+  if (ipCache.size >= MAX_CACHE_ENTRIES) {
+    // Evict the oldest entry (Map preserves insertion order) to bound memory
+    const oldest = ipCache.keys().next().value;
+    if (oldest !== undefined) ipCache.delete(oldest);
+  }
+  ipCache.set(key, { result, timestamp: Date.now() });
+}
 
 function isPrivateIp(ip: string): boolean {
   if (!ip) return true;
-  const cleanIp = ip.trim();
+  const cleanIp = ip.trim().toLowerCase();
+  if (isIP(cleanIp) === 0) return true; // not a literal IP address: never forward it upstream
+  if (cleanIp.startsWith("fc") || cleanIp.startsWith("fd") || cleanIp.startsWith("fe80")) return true;
   return (
     cleanIp === "127.0.0.1" ||
     cleanIp === "::1" ||
@@ -41,6 +55,14 @@ function isPrivateIp(ip: string): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
+    const limit = checkRateLimit(`ip-location:${extractClientIp(request)}`, 30, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many location lookups. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     // 1. Check native Cloudflare edge geolocation headers (instant, 0ms latency)
     const cfCity = request.headers.get("cf-ipcity");
     const cfRegion = request.headers.get("cf-region");
@@ -221,7 +243,7 @@ export async function GET(request: NextRequest) {
       const result = await Promise.any(providers.map((p) => p()));
 
       // Save in cache
-      ipCache.set(cacheKey, { result, timestamp: Date.now() });
+      cacheResult(cacheKey, result);
 
       return NextResponse.json(
         { success: true, result, source: "ip_service" },

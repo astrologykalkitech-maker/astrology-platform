@@ -15,7 +15,6 @@ import {
   LifeBuoy,
   X,
   MessageSquare,
-  HelpCircle,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +31,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/astrologer/chat", label: "Live Chat", icon: MessageSquare },
   { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
   { href: "/astrologer/leads", label: "My Leads", icon: MessageSquareText },
   { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
@@ -43,16 +43,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
-  {
-    label: "Live Chat",
-    icon: MessageSquare,
-    desc: "Instant one-on-one live messaging with clients launching soon.",
-  },
-  {
-    label: "Kundli Matching",
-    icon: HelpCircle,
-    desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon.",
-  },
   {
     label: "Protection Rituals",
     icon: ShieldCheck,

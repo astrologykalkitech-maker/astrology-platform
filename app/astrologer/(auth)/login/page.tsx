@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/astrologer/auth/AuthShell";
 import { LoginForm } from "@/components/astrologer/auth/LoginForm";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
 export const metadata: Metadata = { title: "Astrologer Login" };
 
@@ -22,11 +23,7 @@ export default async function AstrologerLoginPage({
     redirect("/admin");
   }
   if (profile?.role === "astrologer") {
-    redirect(
-      redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
-        ? redirectTo
-        : "/astrologer/dashboard"
-    );
+    redirect(sanitizeRedirectPath(redirectTo, "/astrologer/dashboard"));
   }
 
   return (
@@ -34,7 +31,7 @@ export default async function AstrologerLoginPage({
       <LoginForm
         reason={reason}
         error={error}
-        redirectTo={redirectTo}
+        redirectTo={redirectTo ? sanitizeRedirectPath(redirectTo, "") || undefined : undefined}
         showRoleNotice={reason === "role" || reason === "customer_account"}
       />
     </AuthShell>
