@@ -130,7 +130,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
       if (mainClaims && mainClaims.exp - nowSec > 30) {
         const { data: profile } = await mainClient
           .from("profiles")
-          .select("id, full_name, role, created_at, updated_at")
+          .select("id, full_name, role, avatar_url, created_at, updated_at")
           .eq("id", mainClaims.sub)
           .maybeSingle();
 
@@ -161,7 +161,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
       if (!error && user) {
         const { data: profile } = await mainClient
           .from("profiles")
-          .select("id, full_name, role, created_at, updated_at")
+          .select("id, full_name, role, avatar_url, created_at, updated_at")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -179,7 +179,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
           const privileged = await createAdminClient("main");
           const { data: privProfile } = await privileged
             .from("profiles")
-            .select("id, full_name, role, created_at, updated_at")
+            .select("id, full_name, role, avatar_url, created_at, updated_at")
             .eq("id", user.id)
             .maybeSingle();
 
@@ -204,7 +204,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
               full_name: metaName,
               role: assignedRole,
             })
-            .select("id, full_name, role, created_at, updated_at")
+            .select("id, full_name, role, avatar_url, created_at, updated_at")
             .maybeSingle();
 
           if (recoveredProfile) {
@@ -235,7 +235,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
         const privileged = await createAdminClient();
         const { data: adminProf } = await privileged
           .from("profiles")
-          .select("id, full_name, role, created_at, updated_at")
+          .select("id, full_name, role, avatar_url, created_at, updated_at")
           .eq("id", adminClaims.sub)
           .maybeSingle();
 
@@ -268,7 +268,7 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
           const privileged = await createAdminClient();
           const { data: adminProfile } = await privileged
             .from("profiles")
-            .select("id, full_name, role, created_at, updated_at")
+            .select("id, full_name, role, avatar_url, created_at, updated_at")
             .eq("id", adminUser.id)
             .maybeSingle();
 

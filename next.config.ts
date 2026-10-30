@@ -1,12 +1,12 @@
-import type { NextConfig } from "next";
-
 const cspHeader = `
   default-src 'self';
   script-src 'self' 'unsafe-inline' 'unsafe-eval';
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src 'self' https://fonts.gstatic.com data:;
   img-src 'self' blob: data: https://images.unsplash.com https://*.supabase.co https://lh3.googleusercontent.com https://*.googleusercontent.com;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+  media-src 'self' blob: data: mediastream:;
+  worker-src 'self' blob:;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://astrosetu-3dx4gffs.livekit.cloud wss://astrosetu-3dx4gffs.livekit.cloud https://*.livekit.cloud wss://*.livekit.cloud;
   frame-ancestors 'none';
   form-action 'self';
   base-uri 'self';
@@ -46,13 +46,12 @@ const securityHeaders = [
   },
 ];
 
+import type { NextConfig } from "next";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
-  deploymentId:
-    process.env.NEXT_DEPLOYMENT_ID ||
-    process.env.VERCEL_DEPLOYMENT_ID ||
-    undefined,
+  deploymentId: "livekit-inhouse-v20261030-final",
   experimental: {
     optimizePackageImports: ["lucide-react", "@google/genai", "date-fns"],
   },
@@ -73,10 +72,8 @@ const nextConfig: NextConfig = {
     "192.168.1.1",
     "192.168.0.1",
     "10.0.2.2",
+    "127.0.0.1",
     "localhost",
-    ...(process.env.ALLOWED_DEV_ORIGINS
-      ? process.env.ALLOWED_DEV_ORIGINS.split(",").map((s) => s.trim())
-      : []),
   ],
   async headers() {
     return [
@@ -85,12 +82,12 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/images/:path*",
+        source: "/(customer|astrologer|consultation)/:path*",
         headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=86400, stale-while-revalidate=604800",
-          },
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" },
+          { key: "Pragma", value: "no-cache" },
+          { key: "Expires", value: "0" },
+          { key: "Surrogate-Control", value: "no-store" },
         ],
       },
     ];

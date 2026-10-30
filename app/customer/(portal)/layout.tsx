@@ -16,9 +16,15 @@ export default async function CustomerLayout({
 
   const customerName = profile.full_name || "Customer";
   const userInitial = (customerName[0] || "C").toUpperCase();
+  const photoUrl = profile.avatar_url ?? null;
 
   return (
-    <CustomerShell customerName={customerName} userInitial={userInitial} isLoggedIn={true}>
+    <CustomerShell
+      customerName={customerName}
+      userInitial={userInitial}
+      photoUrl={photoUrl}
+      isLoggedIn={true}
+    >
       {children}
     </CustomerShell>
   );

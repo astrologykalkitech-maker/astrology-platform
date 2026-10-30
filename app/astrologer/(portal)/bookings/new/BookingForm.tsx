@@ -162,11 +162,20 @@ export default function BookingForm({
             name="service_type"
             type="text"
             required
+            list="common-services"
             value={form.service_type}
             onChange={handleChange}
             placeholder="e.g. Kundli Matching, Career Consultation"
             className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           />
+          <datalist id="common-services">
+            <option value="Vedic Astrology Consultation" />
+            <option value="Kundli Matching & Compatibility" />
+            <option value="Career & Business Astrology" />
+            <option value="Vedic Muhurat Guidance" />
+            <option value="Health & Wellness Astrology" />
+            <option value="Gemstone & Remedial Guidance" />
+          </datalist>
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -177,7 +186,7 @@ export default function BookingForm({
             onChange={handleChange}
             className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           >
-            <option value="Video">Video Session (Jit.si Encrypted)</option>
+            <option value="Video">Video Session (In-House HD Encrypted)</option>
             <option value="Call">Voice Call</option>
             <option value="Chat">Chat Consultation</option>
           </select>

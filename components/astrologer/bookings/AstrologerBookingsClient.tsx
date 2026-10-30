@@ -1,4 +1,5 @@
 "use client";
+import { getBookingConsultationUrl } from "@/lib/consultation/provider";
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -36,7 +37,7 @@ interface Props {
 }
 
 function getConsultationRoomUrl(bookingId: string): string {
-  return `https://meet.jit.si/jyotishsetu-${bookingId}`;
+  return getBookingConsultationUrl(bookingId);
 }
 
 function isJoinWindowActive(scheduledAt: string, durationMinutes: number, now: Date): boolean {
@@ -380,15 +381,13 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
 
                   {isConfirmed && booking.consultation_mode !== "Chat" && (
                     joinActive ? (
-                      <a
-                        href={roomUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold shadow transition-colors animate-pulse"
+                      <Link
+                        href={`/consultation/${booking.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-gold-deep text-midnight hover:bg-gold px-3.5 py-1.5 text-xs font-semibold shadow transition-colors"
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        <Video className="h-3.5 w-3.5" />
                         Join {booking.consultation_mode}
-                      </a>
+                      </Link>
                     ) : (
                       <div className="flex flex-col items-end gap-0.5">
                         <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
@@ -418,9 +417,9 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
         <div className="flex items-start gap-3 text-xs text-muted">
           <ShieldAlert className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
           <div>
-            <p className="font-semibold text-ink/80 mb-0.5">Encrypted Consultation Rooms</p>
+            <p className="font-semibold text-ink/80 mb-0.5">Encrypted In-House Consultation Rooms</p>
             <p>
-              Video and audio sessions are hosted on isolated, encrypted Jit.si rooms. Seeker birth details
+              Video and audio sessions are hosted on secure, isolated, in-house WebRTC rooms. Seeker birth details
               and astrological consultation notes remain strictly confidential between you and the seeker.
             </p>
           </div>

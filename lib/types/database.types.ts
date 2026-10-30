@@ -66,6 +66,7 @@ export interface Profile {
   id: string;
   full_name: string | null;
   role: UserRole;
+  avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -400,4 +401,59 @@ export interface MatchLearnedKnowledgeResult {
   confidence_score: number;
   similarity: number;
   hybrid_rank: number;
+}
+
+// =====================================================
+// IN-HOUSE VIDEO CONFERENCING & CONSULTATION TYPES
+// =====================================================
+
+export type MeetingStatus = "scheduled" | "waiting" | "active" | "ended" | "cancelled";
+export type ParticipantRole = "host" | "customer" | "observer";
+export type ParticipantStatus = "waiting_room" | "in_room" | "left" | "removed";
+
+export interface ConsultationMeeting {
+  id: string;
+  booking_id: string;
+  room_name: string;
+  host_astrologer_id: string;
+  customer_id: string;
+  status: MeetingStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MeetingParticipant {
+  id: string;
+  meeting_id: string;
+  user_id: string;
+  role: ParticipantRole;
+  status: ParticipantStatus;
+  is_muted: boolean;
+  is_screen_sharing: boolean;
+  joined_at: string;
+  left_at: string | null;
+}
+
+export interface MeetingChatMessage {
+  id: string;
+  meeting_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: "host" | "customer";
+  message: string;
+  created_at: string;
+}
+
+export interface ConsultationReminder {
+  id: string;
+  booking_id: string;
+  recipient_id: string;
+  recipient_role: "customer" | "astrologer";
+  scheduled_for: string;
+  status: "pending" | "sent" | "cancelled" | "failed";
+  sent_at: string | null;
+  error_message?: string | null;
+  created_at: string;
 }

@@ -117,7 +117,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
             aria-label="My profile"
             className="shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne hover:opacity-85 transition-opacity"
           >
-            <Avatar name={displayName} src={photoUrl} size="sm" />
+            <Avatar name={displayName} src={photoUrl} size="sm" roleTitle="Astrologer Profile" uploadHref="/astrologer/profile/edit" />
           </Link>
         </div>
       </header>
@@ -148,7 +148,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
             aria-label="View Astrologer Profile"
             className="flex items-center gap-3 border-l border-gold/20 pl-4 hover:opacity-85 transition-opacity cursor-pointer"
           >
-            <Avatar name={displayName} src={photoUrl} size="sm" />
+            <Avatar name={displayName} src={photoUrl} size="sm" roleTitle="Astrologer Profile" uploadHref="/astrologer/profile/edit" />
             <div className="leading-tight">
               <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{displayName}</p>
               <p className="text-xs text-muted">Astrologer Profile</p>

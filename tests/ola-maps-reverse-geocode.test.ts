@@ -192,3 +192,29 @@ test("Current Location Detection: Preserves existing form fields and database co
   assert.equal(formCoordinates.lat, 28.6304);
   assert.equal(formCoordinates.lng, 77.2177);
 });
+
+test("Current Location Detection: Does not render temporary timeout error if field already has a value", () => {
+  function computeDisplayError(propsError?: string | null, fetchError?: string | null, value?: string): string | null {
+    return propsError || (!value ? fetchError || null : null);
+  }
+
+  // When value is already typed or saved (e.g. "Varanasi"), detection timeout error is suppressed
+  const errorWithExistingValue = computeDisplayError(
+    null,
+    "Location request timed out. Please try again or type manually.",
+    "Varanasi"
+  );
+  assert.equal(errorWithExistingValue, null);
+
+  // When value is empty, temporary detection error is shown to inform user
+  const errorWithEmptyValue = computeDisplayError(
+    null,
+    "Location request timed out. Please try again or type manually.",
+    ""
+  );
+  assert.equal(errorWithEmptyValue, "Location request timed out. Please try again or type manually.");
+
+  // Validation error from props always displays regardless of value
+  const validationError = computeDisplayError("City is required.", "Temporary detection error", "Varanasi");
+  assert.equal(validationError, "City is required.");
+});

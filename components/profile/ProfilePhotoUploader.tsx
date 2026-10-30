@@ -2,8 +2,9 @@
 
 import React, { useState, useRef } from "react";
 import Image from "next/image";
-import { Camera, Trash2, Loader2, Upload, AlertCircle } from "lucide-react";
+import { Camera, Trash2, Loader2, Upload, AlertCircle, Eye } from "lucide-react";
 import { uploadProfilePhotoAction, removeProfilePhotoAction } from "@/app/actions/profile-photo";
+import { ProfileImageModal } from "@/components/common/ProfileImageModal";
 
 interface Props {
   initialPhotoUrl?: string | null;
@@ -21,6 +22,7 @@ export function ProfilePhotoUploader({
   const [photoUrl, setPhotoUrl] = useState<string | null>(initialPhotoUrl || null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initials = (name || "U")
@@ -86,7 +88,21 @@ export function ProfilePhotoUploader({
     <div className="flex flex-col items-center sm:items-start gap-2.5">
       <div className="relative group shrink-0">
         <div
-          className={`relative ${dimClass} rounded-full overflow-hidden border-2 border-gold/40 bg-gradient-to-br from-champagne/40 to-parchment shadow-md flex items-center justify-center font-display font-bold text-midnight`}
+          onClick={() => {
+            if (photoUrl && !uploading) setPreviewOpen(true);
+          }}
+          className={`relative ${dimClass} rounded-full overflow-hidden border-2 border-gold/40 bg-gradient-to-br from-champagne/40 to-parchment shadow-md flex items-center justify-center font-display font-bold text-midnight ${
+            photoUrl ? "cursor-pointer hover:ring-2 hover:ring-gold hover:scale-105 active:scale-95 transition-all" : ""
+          }`}
+          title={photoUrl ? "Click to view full photo" : undefined}
+          role={photoUrl ? "button" : undefined}
+          tabIndex={photoUrl ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (photoUrl && !uploading && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              setPreviewOpen(true);
+            }
+          }}
         >
           {photoUrl ? (
             <Image
@@ -129,6 +145,21 @@ export function ProfilePhotoUploader({
 
       {/* Action controls */}
       <div className="flex items-center gap-2">
+        {photoUrl && (
+          <>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(true)}
+              disabled={uploading}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-gold-deep hover:text-midnight transition-colors cursor-pointer"
+            >
+              <Eye className="h-3 w-3" />
+              View
+            </button>
+            <span className="text-muted text-[10px]">•</span>
+          </>
+        )}
+
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -154,6 +185,15 @@ export function ProfilePhotoUploader({
           </>
         )}
       </div>
+
+      {photoUrl && (
+        <ProfileImageModal
+          isOpen={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          src={photoUrl}
+          name={name}
+        />
+      )}
 
       {error && (
         <div className="flex items-center gap-1.5 text-[11px] text-red-600 font-medium">

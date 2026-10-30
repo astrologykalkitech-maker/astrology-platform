@@ -13,7 +13,7 @@ function isJoinWindowActive(scheduledAt: string, durationMinutes: number, nowMs:
 }
 
 function getConsultationRoomUrl(bookingId: string): string {
-  return `https://meet.jit.si/jyotishsetu-${bookingId}`;
+  return `/consultation/${bookingId}`;
 }
 
 interface ParticipantAccess {
@@ -86,8 +86,8 @@ test("Virtual Consultation Room: Customer & Astrologer receive identical room en
 
   assert.equal(customerAccess.canJoin, true);
   assert.equal(astrologerAccess.canJoin, true);
-  assert.equal(customerAccess.roomUrl, `https://meet.jit.si/jyotishsetu-${bookingId}`);
-  assert.equal(astrologerAccess.roomUrl, `https://meet.jit.si/jyotishsetu-${bookingId}`);
+  assert.equal(customerAccess.roomUrl, `/consultation/${bookingId}`);
+  assert.equal(astrologerAccess.roomUrl, `/consultation/${bookingId}`);
   assert.equal(customerAccess.roomUrl, astrologerAccess.roomUrl, "Both participants must enter the identical high-entropy room");
 });
 
