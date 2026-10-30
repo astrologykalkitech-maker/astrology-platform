@@ -22,9 +22,12 @@ const supabase = createClient(url, key);
 async function check() {
   const { data, error, count } = await supabase
     .from('profiles')
-    .select('id, full_name, avatar_url, role, created_at', { count: 'exact' })
-    .eq('role', 'customer');
-  console.log('Customers count:', count);
-  console.log('Sample customers:', data?.slice(0, 5));
+    .select('id, full_name, role');
+  if (error) {
+    console.error('Error fetching profiles:', error);
+  } else {
+    console.log('Profiles count:', data ? data.length : 0);
+    console.log('Profiles:', data);
+  }
 }
 check();

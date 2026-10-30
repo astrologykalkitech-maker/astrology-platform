@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { EligibleSeeker, ConversationSummary, DirectMessage } from "../app/actions/direct-chat";
+import type { EligibleSeeker, DirectMessage } from "../app/actions/direct-chat";
 
 // ============================================================================
 // LIVE CHAT & SEEKER DIRECTORY TEST SUITE

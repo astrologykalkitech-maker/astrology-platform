@@ -25,7 +25,7 @@ const COPY: Record<Role, { subtitle: string; wrongRole: string; redirect: string
   customer: {
     subtitle: "Log in to find and contact astrologers.",
     wrongRole: "This login is for customer accounts only. Astrologers, please choose the Astrologer option above.",
-    redirect: "/customer/astrologers",
+    redirect: "/customer/dashboard",
   },
 };
 
@@ -104,7 +104,7 @@ export function LoginForm({
   }
 
   async function handleSwitchSignOut() {
-    await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
+    await fetch("/api/auth/signout", { method: "POST" }).catch(() => { });
     router.replace(`/${role}/login`);
     router.refresh();
   }
@@ -132,26 +132,25 @@ export function LoginForm({
 
       // Route users to their appropriate dashboard based on their role
       if (result.data.role === "super_admin" || result.data.role === "admin") {
-        router.replace("/super-admin");
+        window.location.href = "/super-admin";
         return;
       }
 
       if (result.data.role === "consultant_admin") {
-        router.replace("/admin");
+        window.location.href = "/admin";
         return;
       }
 
       // The role comes from public.profiles. An account of the wrong type must not stay signed in here.
       if (result.data.role !== role) {
-        await fetch("/api/auth/signout", { method: "POST" }).catch(() => {});
+        await fetch("/api/auth/signout", { method: "POST" }).catch(() => { });
         setFormError(copy.wrongRole);
         setSubmitting(false);
         return;
       }
 
       const destination = sanitizeRedirectPath(redirectTo, copy.redirect);
-
-      router.replace(destination);
+      window.location.href = destination;
     } catch {
       setFormError("An unexpected error occurred during login. Please try again.");
       setSubmitting(false);

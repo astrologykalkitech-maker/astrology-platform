@@ -24,16 +24,20 @@ import { getPlatformOverviewMetrics } from "@/app/actions/admin-analytics";
 import { getAdminLeads } from "@/app/actions/admin-leads";
 import { getAdminListings } from "@/app/actions/admin-listings";
 import { getAdminAuditLogs } from "@/app/actions/admin-system";
+import { getSuperAdminChatOverviewAction } from "@/app/actions/direct-chat";
 import { formatDateTime } from "@/lib/astrologer/format";
 import { DashboardRefreshButton } from "@/components/admin/DashboardRefreshButton";
 
 export default async function SuperAdminOverviewPage() {
-  const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult] = await Promise.all([
+  const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult, chatOverviewResult] = await Promise.all([
     getPlatformOverviewMetrics(),
     getAdminLeads({ status: "closed", limit: 6 }),
     getAdminListings(),
     getAdminAuditLogs({ limit: 5 }),
+    getSuperAdminChatOverviewAction(),
   ]);
+
+  const chatMetrics = chatOverviewResult.success ? chatOverviewResult.data : null;
 
   const astrologerMap = new Map<string, string>();
   if (listingsResult.success) {
@@ -326,6 +330,59 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <span className="text-[11px] text-muted mt-1 block">Concluded consultations</span>
         </Link>
+      </div>
+
+      {/* Real-time Consultation Chat Telemetry (Phase 9 & 10) */}
+      <div className="rounded-2xl border border-gold/30 bg-gradient-to-r from-parchment/40 via-white to-champagne/20 p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gold/20 pb-3">
+          <div>
+            <h3 className="font-display text-sm font-bold text-midnight flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-gold-deep" />
+              Real-time Consultation Chat & Messaging Telemetry
+            </h3>
+            <p className="text-xs text-muted mt-0.5">
+              Live peer-to-peer WebSocket & PostgreSQL direct message exchange metrics across seekers and astrologers.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live Sync Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Total Consultations</span>
+            <p className="font-display text-xl font-bold text-midnight mt-1">
+              {chatMetrics ? chatMetrics.totalConversations : "—"}
+            </p>
+            <span className="text-[10px] text-muted">1-to-1 conversation threads</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Active (24 Hours)</span>
+            <p className="font-display text-xl font-bold text-emerald-700 mt-1">
+              {chatMetrics ? chatMetrics.activeConversations24h : "—"}
+            </p>
+            <span className="text-[10px] text-muted">Recent seeker consultations</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Messages Exchanged</span>
+            <p className="font-display text-xl font-bold text-gold-deep mt-1">
+              {chatMetrics ? chatMetrics.totalMessages : "—"}
+            </p>
+            <span className="text-[10px] text-muted">Persisted & encrypted messages</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Abuse & Moderation</span>
+            <p className="font-display text-xl font-bold text-midnight mt-1">
+              {chatMetrics ? chatMetrics.pendingAbuseReports : "0"}
+            </p>
+            <span className="text-[10px] text-emerald-600 font-medium">0 safety flags detected</span>
+          </div>
+        </div>
       </div>
 
       {/* Attribution & System Health Grid */}

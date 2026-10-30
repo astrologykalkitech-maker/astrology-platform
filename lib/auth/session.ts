@@ -35,24 +35,46 @@ export class ForbiddenRoleError extends Error {
   }
 }
 
+function extractCombinedCookieValue(
+  cookies: { name: string; value: string }[],
+  prefix: string
+): string | null {
+  const hasChunkZero = cookies.some((c) => c.name === `${prefix}.0`);
+  if (hasChunkZero) {
+    const chunks: string[] = [];
+    for (let i = 0; ; i++) {
+      const chunk = cookies.find((c) => c.name === `${prefix}.${i}`);
+      if (!chunk || typeof chunk.value !== "string") break;
+      chunks.push(chunk.value);
+    }
+    return chunks.join("");
+  }
+
+  const single = cookies.find((c) => c.name === prefix);
+  return single?.value || null;
+}
+
 function extractJwtClaimsFromCookies(
   allCookies: { name: string; value: string }[],
   prefix: string
 ): { sub: string; exp: number; email?: string; user_metadata?: Record<string, unknown>; iat?: number } | null {
   try {
-    const parts = allCookies
-      .filter((c) => c.name === prefix || c.name.startsWith(`${prefix}.`))
-      .sort((a, b) => {
-        const numA = parseInt(a.name.split(".")[1] || "0", 10);
-        const numB = parseInt(b.name.split(".")[1] || "0", 10);
-        return numA - numB;
-      });
+    let combined = extractCombinedCookieValue(allCookies, prefix);
+    if (!combined) return null;
 
-    if (parts.length === 0) return null;
+    try {
+      combined = decodeURIComponent(combined);
+    } catch {
+      // Keep as-is if decodeURIComponent fails
+    }
 
-    let combined = parts.map((p) => p.value).join("");
     if (combined.startsWith("base64-")) {
-      combined = Buffer.from(combined.slice(7), "base64").toString("utf-8");
+      const raw = combined.slice(7);
+      try {
+        combined = Buffer.from(raw, "base64url").toString("utf-8");
+      } catch {
+        combined = Buffer.from(raw, "base64").toString("utf-8");
+      }
     }
 
     const parsed = JSON.parse(combined);

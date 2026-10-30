@@ -17,7 +17,7 @@ export default async function CustomerLoginPage({
   // Already signed in: redirect to destination or appropriate dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect(sanitizeRedirectPath(redirectTo, "/customer/astrologers"));
+    redirect(sanitizeRedirectPath(redirectTo, "/customer/dashboard"));
   }
   if (profile?.role === "super_admin" || profile?.role === "admin") {
     redirect("/super-admin");

@@ -29,8 +29,18 @@ export function sanitizeRedirectPath(
     }
   }
 
-  // Avoid redirect loops through the OAuth callback
-  if (trimmed.startsWith("/auth/callback")) return fallback;
+  // Avoid redirect loops through the OAuth callback or login/signup screens
+  if (
+    trimmed.startsWith("/auth/") ||
+    trimmed.startsWith("/customer/login") ||
+    trimmed.startsWith("/customer/signup") ||
+    trimmed.startsWith("/customer/forgot-password") ||
+    trimmed.startsWith("/astrologer/login") ||
+    trimmed.startsWith("/astrologer/signup") ||
+    trimmed.startsWith("/astrologer/forgot-password")
+  ) {
+    return fallback;
+  }
 
   // Final defence: the path must resolve to the same origin
   try {

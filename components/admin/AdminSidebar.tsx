@@ -19,6 +19,7 @@ import {
   Shield,
   Sparkles,
   LifeBuoy,
+  Star,
 } from "lucide-react";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 
@@ -65,6 +66,7 @@ export function AdminSidebar({
       items: [
         { href: "/super-admin/listings", label: "Astrologer Listings", icon: Users2 },
         { href: "/super-admin/listings/ranking", label: "Ranking & Featured", icon: Award },
+        { href: "/super-admin/reviews", label: "Review Moderation", icon: Star },
         { href: "/super-admin/customers", label: "Customer Directory", icon: Users },
         { href: "/super-admin/consultants", label: "Consultants & Access", icon: UserCog },
       ],

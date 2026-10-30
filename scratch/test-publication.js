@@ -24,3 +24,4 @@ async function check() {
   console.log('rpc result:', { data, error });
 }
 check();
+

@@ -15,17 +15,22 @@ function validateRedirectPath(next: string, fallback: string = "/"): string {
 }
 
 /**
- * Derives the canonical application origin from environment configuration.
- * Never trusts Host or X-Forwarded-Host headers.
- * Protects production users from being redirected to localhost.
+ * Derives the canonical application origin from request headers and configuration.
+ * Respects reverse proxies (e.g. Cloudflare tunnel) while preventing localhost redirection in remote sessions.
  */
-function getCanonicalOrigin(requestUrl: URL): string {
+function getCanonicalOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (siteUrl) {
     try {
       const parsed = new URL(siteUrl);
       const isSiteUrlLocal = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-      const isRequestLocal = requestUrl.hostname === "localhost" || requestUrl.hostname === "127.0.0.1";
+      const isRequestLocal = request.nextUrl.hostname === "localhost" || request.nextUrl.hostname === "127.0.0.1";
 
       // If incoming request is remote, never redirect to localhost siteUrl
       if (!isSiteUrlLocal || isRequestLocal) {
@@ -36,7 +41,7 @@ function getCanonicalOrigin(requestUrl: URL): string {
     }
   }
 
-  return requestUrl.origin;
+  return request.nextUrl.origin;
 }
 
 export async function GET(request: NextRequest) {
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest) {
   const oauthRole = requestUrl.searchParams.get("role"); // Hint from signin button (customer or astrologer)
   const oauthMode = requestUrl.searchParams.get("mode"); // Hint from signin button (login or signup)
 
-  const canonicalOrigin = getCanonicalOrigin(requestUrl);
+  const canonicalOrigin = getCanonicalOrigin(request);
   const fallbackLogin = oauthRole === "astrologer" ? "/astrologer/login" : "/customer/login";
 
   // 1. Handle OAuth provider errors or user cancellation
@@ -67,6 +72,7 @@ export async function GET(request: NextRequest) {
 
   // Temporary redirect response; destination may be updated after role inspection
   const response = NextResponse.redirect(new URL("/", canonicalOrigin));
+  const cookiesToSetList: { name: string; value: string; options?: Record<string, unknown> }[] = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -81,7 +87,12 @@ export async function GET(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options ?? {});
+            cookiesToSetList.push({ name, value, options });
+            response.cookies.set(name, value, {
+              path: "/",
+              sameSite: "lax",
+              ...(options ?? {}),
+            });
           });
         },
       },
@@ -197,7 +208,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 4. Determine authoritative destination based strictly on database role
-  let destination = "/customer/astrologers";
+  let destination = "/customer/dashboard";
 
   if (userRole === "super_admin" || userRole === "admin") {
     destination = "/super-admin";
@@ -227,12 +238,34 @@ export async function GET(request: NextRequest) {
     if (oauthRole === "astrologer") {
       destination = "/astrologer/login?reason=customer_account";
     } else {
-      destination = rawNext ? validateRedirectPath(rawNext, "/customer/astrologers") : "/customer/astrologers";
+      destination = rawNext ? validateRedirectPath(rawNext, "/customer/dashboard") : "/customer/dashboard";
     }
   }
 
-  // Update response destination
+  // Update response destination with 303 See Other and all session cookies attached with root path
   const finalUrl = new URL(destination, canonicalOrigin);
-  response.headers.set("Location", finalUrl.toString());
-  return response;
+  const redirectResponse = NextResponse.redirect(finalUrl, 303);
+
+  // Transfer captured session cookies with explicit path: "/" to prevent scoping to /auth/callback
+  if (cookiesToSetList.length > 0) {
+    cookiesToSetList.forEach(({ name, value, options }) => {
+      redirectResponse.cookies.set(name, value, {
+        sameSite: "lax",
+        ...(options ?? {}),
+        path: "/",
+      });
+    });
+  }
+
+  // Fallback sync for any additional cookies set on the temporary response
+  response.cookies.getAll().forEach((c) => {
+    if (!cookiesToSetList.some((item) => item.name === c.name)) {
+      redirectResponse.cookies.set(c.name, c.value, {
+        path: "/",
+        sameSite: "lax",
+      });
+    }
+  });
+
+  return redirectResponse;
 }

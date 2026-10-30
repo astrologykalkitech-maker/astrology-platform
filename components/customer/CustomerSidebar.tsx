@@ -13,9 +13,12 @@ import {
   Bell,
   X,
   MessageSquare,
-  HelpCircle,
   ShieldCheck,
   LifeBuoy,
+  Sun,
+  Moon,
+  Heart,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
@@ -30,7 +33,12 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
+  { href: "/customer/chat", label: "Live Chat", icon: MessageSquare },
+  { href: "/customer/panchang", label: "Daily Panchang", icon: Sun },
+  { href: "/customer/horoscope", label: "Daily Horoscope", icon: Moon },
+  { href: "/customer/kundli-milan", label: "Kundli Milan", icon: Heart },
   { href: "/customer/profile", label: "My Kundli Profile", icon: User },
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
@@ -41,8 +49,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
-  { label: "Live Chat", icon: MessageSquare, desc: "Instant one-on-one live messaging with verified Vedic pandits launching in Phase 2." },
-  { label: "Kundli Matching", icon: HelpCircle, desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon." },
   { label: "Protection Rituals", icon: ShieldCheck, desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon." },
 ];
 
