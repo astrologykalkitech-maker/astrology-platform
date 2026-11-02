@@ -51,7 +51,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
-  deploymentId: "livekit-inhouse-20231102-01",
+  deploymentId: `livekit-inhouse-${Date.now()}`,
+
 
   experimental: {
     optimizePackageImports: ["lucide-react", "@google/genai", "date-fns"],
