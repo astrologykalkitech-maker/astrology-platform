@@ -410,6 +410,35 @@ export interface MatchLearnedKnowledgeResult {
 export type MeetingStatus = "scheduled" | "waiting" | "active" | "ended" | "cancelled";
 export type ParticipantRole = "host" | "customer" | "observer";
 export type ParticipantStatus = "waiting_room" | "in_room" | "left" | "removed";
+export type VoiceCallStatus =
+  | "ringing"
+  | "accepted"
+  | "active"
+  | "declined"
+  | "cancelled"
+  | "missed"
+  | "ended"
+  | "failed";
+
+export interface VoiceCall {
+  id: string;
+  conversation_id: string;
+  caller_id: string;
+  callee_id: string;
+  caller_role: "customer" | "astrologer";
+  callee_role: "customer" | "astrologer";
+  caller_name: string;
+  callee_name: string;
+  room_name: string;
+  status: VoiceCallStatus;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number;
+  ended_by: string | null;
+  end_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface ConsultationMeeting {
   id: string;

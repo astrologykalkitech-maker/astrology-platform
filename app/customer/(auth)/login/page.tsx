@@ -14,10 +14,10 @@ export default async function CustomerLoginPage({
 }) {
   const { reason, error, redirectTo } = searchParams ? await searchParams : {};
 
-  // Already signed in: redirect to destination or appropriate dashboard.
+  // Already signed in: redirect to destination or customer portal entry.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect(sanitizeRedirectPath(redirectTo, "/customer/dashboard"));
+    redirect(sanitizeRedirectPath(redirectTo, "/customer/astrologers"));
   }
   if (profile?.role === "super_admin" || profile?.role === "admin") {
     redirect("/super-admin");

@@ -35,7 +35,7 @@ test("Astrologer Dashboard - Availability and Edit-Profile Feature Integration",
   assert.ok(editSrc.includes('redirect("/astrologer/profile/edit")'), "edit-profile must redirect to /astrologer/profile/edit");
 });
 
-test("Customer Dashboard - Vedic Astrology & Direct Chat Navigation Integration", () => {
+test("Customer Portal - Vedic Astrology & Direct Chat Navigation Integration", () => {
   // 1. Verify CustomerSidebar includes Panchang, Horoscope, and Kundli Milan in active NAV_ITEMS
   const sidebarFile = path.join(rootDir, "components/customer/CustomerSidebar.tsx");
   const sidebarSrc = fs.readFileSync(sidebarFile, "utf-8");
@@ -78,4 +78,3 @@ test("Super Admin Dashboard - Review Moderation & Navigation Integration", () =>
   const astroRedirectSrc = fs.readFileSync(astroRedirectPage, "utf-8");
   assert.ok(astroRedirectSrc.includes('redirect("/super-admin/listings")'), "astrologers must redirect to /super-admin/listings");
 });
-

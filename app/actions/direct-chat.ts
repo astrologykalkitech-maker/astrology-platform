@@ -27,6 +27,7 @@ export interface ConversationSummary {
   customer_name?: string;
   customer_avatar?: string | null;
   astrologer_name?: string;
+  astrologer_user_id?: string;
   astrologer_avatar?: string | null;
   last_message_at: string;
   last_message_preview?: string | null;
@@ -426,7 +427,11 @@ export async function getAstrologerConversationsAction(): Promise<{
 
 export async function getCustomerConversationsAction(): Promise<{
   success: boolean;
-  data?: (ConversationSummary & { astrologer_name?: string; astrologer_photo?: string | null })[];
+  data?: (ConversationSummary & {
+    astrologer_name?: string;
+    astrologer_photo?: string | null;
+    astrologer_user_id?: string;
+  })[];
   error?: string;
 }> {
   try {
@@ -443,6 +448,7 @@ export async function getCustomerConversationsAction(): Promise<{
         last_message_preview,
         customer_unread_count,
         astrologer_profiles:astrologer_id (
+          user_id,
           display_name,
           profile_photo_url
         )
@@ -461,7 +467,7 @@ export async function getCustomerConversationsAction(): Promise<{
       last_message_at: string;
       last_message_preview: string | null;
       customer_unread_count: number;
-      astrologer_profiles: { display_name: string | null; profile_photo_url: string | null } | { display_name: string | null; profile_photo_url: string | null }[] | null;
+      astrologer_profiles: { user_id: string; display_name: string | null; profile_photo_url: string | null } | { user_id: string; display_name: string | null; profile_photo_url: string | null }[] | null;
     };
 
     const summaries = ((data as unknown as CustConvoRow[]) || []).map((row) => {
@@ -472,6 +478,7 @@ export async function getCustomerConversationsAction(): Promise<{
         astrologer_id: row.astrologer_id,
         customer_name: a?.display_name || "Vedic Astrologer",
         astrologer_name: a?.display_name || "Vedic Astrologer",
+        astrologer_user_id: a?.user_id,
         astrologer_photo: a?.profile_photo_url || null,
         last_message_at: row.last_message_at,
         last_message_preview: row.last_message_preview,

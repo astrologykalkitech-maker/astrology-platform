@@ -17,7 +17,11 @@ export default async function AstrologerPortalLayout({
   const displayName = profile?.display_name ?? account.full_name ?? "Astrologer";
 
   return (
-    <PortalShell displayName={displayName} photoUrl={profile?.profile_photo_url ?? null}>
+    <PortalShell
+      userId={account.id}
+      displayName={displayName}
+      photoUrl={profile?.profile_photo_url ?? null}
+    >
       {children}
     </PortalShell>
   );

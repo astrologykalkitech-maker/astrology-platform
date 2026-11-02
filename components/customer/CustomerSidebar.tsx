@@ -18,7 +18,6 @@ import {
   Sun,
   Moon,
   Heart,
-  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
@@ -33,7 +32,6 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/customer/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
   { href: "/customer/chat", label: "Live Chat", icon: MessageSquare },
   { href: "/customer/panchang", label: "Daily Panchang", icon: Sun },

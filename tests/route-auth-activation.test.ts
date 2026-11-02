@@ -34,7 +34,7 @@ test("Route Existence: All previously missing or 404 routes exist with valid pag
     "app/astrologer/(portal)/page.tsx",
     "app/astrologer/(portal)/crm/page.tsx",
     "app/customer/(portal)/page.tsx",
-    "app/customer/(portal)/dashboard/page.tsx",
+    "app/customer/(portal)/astrologers/page.tsx",
     "app/customer/(portal)/chat/page.tsx",
     "app/customer/(portal)/panchang/page.tsx",
     "app/customer/(portal)/kundli/page.tsx",
@@ -51,6 +51,17 @@ test("Route Existence: All previously missing or 404 routes exist with valid pag
       `Page must export default component: ${p}`
     );
   }
+});
+
+test("Customer Portal Root: /customer redirects to the astrologer directory without a dashboard route", () => {
+  const customerRootPath = path.join(process.cwd(), "app/customer/(portal)/page.tsx");
+  const src = fs.readFileSync(customerRootPath, "utf8");
+  assert.ok(src.includes('redirect("/customer/astrologers")'), "Customer portal must open the astrologer directory");
+  assert.equal(
+    fs.existsSync(path.join(process.cwd(), "app/customer/(portal)/dashboard/page.tsx")),
+    false,
+    "The customer dashboard route must be removed"
+  );
 });
 
 test("Astrologer Root Route: /astrologer seamlessly redirects to /astrologer/dashboard", () => {
@@ -99,8 +110,8 @@ test("Google OAuth Callback: Redirects with HTTP 303 and attaches session cookie
     "OAuth callback must redirect with HTTP 303 status"
   );
   assert.ok(
-    src.includes('destination = "/customer/dashboard"'),
-    "Default customer destination must be /customer/dashboard"
+    src.includes('destination = "/customer/astrologers"'),
+    "Default customer destination must be /customer/astrologers"
   );
   assert.ok(
     src.includes('path: "/"'),
@@ -133,4 +144,3 @@ test("Proxy Protection: Retains refreshed cookies during redirect to prevent ses
     "Proxy must use base64url encoding for cookie chunk decoding"
   );
 });
-

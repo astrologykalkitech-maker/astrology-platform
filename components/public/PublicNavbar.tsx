@@ -84,7 +84,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
       ? "/admin"
       : currentRole === "astrologer"
       ? "/astrologer/dashboard"
-      : "/customer/dashboard";
+      : "/customer/astrologers";
 
   const talkToAstrologerUrl = isLoggedIn
     ? currentRole === "customer"
@@ -120,7 +120,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
         >
           <Link
             href="/"
-            className="text-white hover:text-champagne transition-colors focus-visible:outline-2 focus-visible:outline-gold rounded-md px-1 relative after:absolute after:bottom-[-4px] after:left-1 after:right-1 after:h-[2px] after:bg-[#dfba63] after:rounded-full"
+            className="text-white hover:text-champagne transition-colors focus-visible:outline-2 focus-visible:outline-gold rounded-md px-1 relative after:absolute after:-bottom-1 after:left-1 after:right-1 after:h-0.5 after:bg-[#dfba63] after:rounded-full"
           >
             Home
           </Link>
@@ -214,7 +214,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
           {isLoggedIn ? (
             <Link
               href={dashboardUrl}
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#dfba63] to-[#c5963a] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
+              className="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-[#dfba63] to-[#c5963a] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
             >
               <span>Go to Dashboard</span>
               <Sparkles className="h-3.5 w-3.5" />
@@ -230,7 +230,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
               </Link>
               <Link
                 href="/customer/signup"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
               >
                 <span>Get Started</span>
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -243,7 +243,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
         <div className="flex md:hidden items-center gap-2.5">
           <Link
             href="/customer/signup"
-            className="inline-flex items-center gap-1 rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] px-3.5 py-1.5 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all"
+            className="inline-flex items-center gap-1 rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] px-3.5 py-1.5 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all"
           >
             <span>Get Started</span>
             <ArrowRight className="h-3 w-3" />
@@ -305,7 +305,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                 <Link
                   href={dashboardUrl}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full text-center rounded-xl bg-gradient-to-r from-gold to-champagne py-2.5 text-xs font-bold text-midnight shadow-md"
+                  className="w-full text-center rounded-xl bg-linear-to-r from-gold to-champagne py-2.5 text-xs font-bold text-midnight shadow-md"
                 >
                   Go to Dashboard
                 </Link>
@@ -321,7 +321,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                   <Link
                     href="/customer/signup"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="w-full text-center rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] py-2.5 text-xs font-bold text-midnight shadow-md"
+                    className="w-full text-center rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] py-2.5 text-xs font-bold text-midnight shadow-md"
                   >
                     Get Started
                   </Link>
