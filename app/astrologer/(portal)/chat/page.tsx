@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AstrologerChatPage() {
-  await requireAstrologerPage();
+  const profile = await requireAstrologerPage();
 
   const [convosRes, seekersRes] = await Promise.all([
     getAstrologerConversationsAction(),
@@ -30,7 +30,7 @@ export default async function AstrologerChatPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-midnight">Seeker Consultation Chat</h1>
@@ -43,6 +43,7 @@ export default async function AstrologerChatPage() {
       <AstrologerChatClient
         initialConversations={convosRes.data || []}
         initialSeekers={seekersRes.data || []}
+        currentUserId={profile.id}
       />
     </div>
   );

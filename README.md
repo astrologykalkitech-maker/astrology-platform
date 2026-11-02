@@ -5,7 +5,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%26_RLS-3ECF8E?logo=supabase)](https://supabase.com/)
 [![LiveKit](https://img.shields.io/badge/LiveKit-In--House_WebRTC-black?logo=livekit)](https://livekit.io/)
-[![Tests](https://img.shields.io/badge/Tests-422%2F422_Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
+[![Tests](https://img.shields.io/badge/Tests-425%2F425_Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
 [![Build](https://img.shields.io/badge/Build-43_Routes_Production_Ready-success)]()
 
 **JyotishSetu** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, and complete end-to-end booking lifecycles.
@@ -393,7 +393,7 @@ astrology-website/
 │       ├── 024_video_conferencing.sql   # In-house LiveKit consultation records
 │       └── 029_chat_complete.sql        # Full chat suite: edits, reactions, pins, abuse
 │
-├── tests/                               # Comprehensive Automated Test Suites (422 Tests)
+├── tests/                               # Comprehensive Automated Test Suites (425 Tests)
 │   ├── complete-chat-system.test.ts     # Live chat peer delivery, clamping & reactions
 │   ├── live-chat-seeker-directory.test.ts# Astrologer seeker discovery & directory
 │   ├── route-auth-activation.test.ts    # 43 application routes, 404 & redirect tests
@@ -465,7 +465,7 @@ NEXT_PUBLIC_LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
 ```
 
 ### 4. Database Setup
-Apply `supabase/migrations/030_direct_voice_calls.sql` to the DB1/main Supabase project before enabling chat voice calls. It creates the persisted call records, participant-only read access, concurrency protection, and Realtime publication. The browser also needs microphone permission, and the LiveKit URL and server credentials above must be configured.
+Apply `supabase/migrations/030_direct_voice_calls.sql` and `supabase/migrations/031_direct_message_realtime_access.sql` to the DB1/main Supabase project. Migration 031 grants authenticated participants the RLS-protected read access required for instant chat message updates. The browser also needs microphone permission, and the LiveKit URL and server credentials above must be configured.
 
 ### 5. Running the Development Server
 ```bash
@@ -486,7 +486,7 @@ npm start
 JyotishSetu maintains a comprehensive test suite covering security policies, role authorization, RLS enforcement, Vedic calculations, and real-time chat integrity:
 
 ```bash
-# Run all 422 automated unit and regression tests
+# Run all 425 automated unit and regression tests
 npm test -- --run
 
 # Run TypeScript static analysis
@@ -510,9 +510,9 @@ npm run build
 ✔ In-House Video Conferencing Termination & Booking Persistence
 ✔ Universal AI Companion Multi-Turn Ethical Boundaries & Tool Invocations
 
-ℹ tests 422
+ℹ tests 425
 ℹ suites 0
-ℹ pass 422
+ℹ pass 425
 ℹ fail 0
 ```
 

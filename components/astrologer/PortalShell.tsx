@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { AstrologerHeader } from "@/components/astrologer/AstrologerHeader";
 import { AstrologerSidebar } from "@/components/astrologer/AstrologerSidebar";
 import { BottomNav } from "@/components/astrologer/BottomNav";
@@ -18,6 +19,7 @@ type PortalShellProps = {
 
 export function PortalShell({ userId, displayName, photoUrl, children }: PortalShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isChatPage = usePathname() === "/astrologer/chat";
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -71,9 +73,19 @@ export function PortalShell({ userId, displayName, photoUrl, children }: PortalS
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-y-auto px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
+          className={`flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8 ${
+            isChatPage
+              ? "flex min-h-0 flex-col overflow-hidden"
+              : "overflow-y-auto"
+          }`}
         >
-          <div className="rise-in mx-auto w-full max-w-[1200px]">{children}</div>
+          <div
+            className={`rise-in mx-auto w-full max-w-300 min-w-0 ${
+              isChatPage ? "flex min-h-0 flex-1 flex-col" : ""
+            }`}
+          >
+            {children}
+          </div>
         </main>
       </div>
       </div>

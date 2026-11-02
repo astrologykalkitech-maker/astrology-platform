@@ -133,7 +133,7 @@ export const ChatComposer = memo(function ChatComposer({
   };
 
   return (
-    <div className="border-t border-gold/20 bg-white">
+    <div className="shrink-0 border-t border-gold/20 bg-white">
       {/* Replying or Editing Banner */}
       {(replyingTo || editingMessage) && (
         <div className="px-4 py-2 bg-parchment/60 border-b border-gold/20 flex items-center justify-between text-xs">
@@ -170,7 +170,7 @@ export const ChatComposer = memo(function ChatComposer({
               className="flex items-center gap-1.5 bg-white border border-gold/30 rounded-lg px-2.5 py-1 text-xs text-midnight shrink-0 shadow-xs"
             >
               <FileText className="h-3.5 w-3.5 text-gold-deep" />
-              <span className="max-w-[120px] truncate">{att.fileName}</span>
+              <span className="max-w-30 truncate">{att.fileName}</span>
               <button
                 type="button"
                 onClick={() => removeAttachment(idx)}
@@ -237,13 +237,13 @@ export const ChatComposer = memo(function ChatComposer({
               ? "Edit your message… (Press Enter to save)"
               : "Type your consultation message… (Shift+Enter for new line)"
           }
-          className="flex-1 max-h-32 min-h-[42px] py-2.5 px-3.5 rounded-xl border border-gold/30 text-xs text-midnight placeholder:text-muted focus:outline-none focus:border-gold resize-none bg-parchment/15 leading-relaxed"
+          className="flex-1 max-h-32 min-h-10.5 py-2.5 px-3.5 rounded-xl border border-gold/30 text-xs text-midnight placeholder:text-muted focus:outline-none focus:border-gold resize-none bg-parchment/15 leading-relaxed"
         />
 
         <button
           type="submit"
           disabled={isSending || disabled || (!text.trim() && pendingAttachments.length === 0)}
-          className="p-2.5 rounded-xl bg-gradient-to-r from-gold to-gold-deep hover:from-gold-deep hover:to-amber-700 text-midnight font-bold shadow-md hover:shadow-lg transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="p-2.5 rounded-xl bg-linear-to-r from-gold to-gold-deep hover:from-gold-deep hover:to-amber-700 text-midnight font-bold shadow-md hover:shadow-lg transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           title="Send message"
         >
           {isSending ? (
@@ -256,4 +256,3 @@ export const ChatComposer = memo(function ChatComposer({
     </div>
   );
 });
-
