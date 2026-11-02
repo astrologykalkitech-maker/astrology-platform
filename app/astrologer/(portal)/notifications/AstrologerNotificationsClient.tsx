@@ -36,18 +36,15 @@ export default function AstrologerNotificationsClient({
   const [markingAll, setMarkingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // On mount: immediately sync the header badge with the real unread count
+  // Sync the header badge after notification state has committed.
   useEffect(() => {
-    const unread = initialNotifications.filter((n) => !n.is_read).length;
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("jyotishsetu:notifications-updated", {
-          detail: { count: unread },
-        })
-      );
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const unread = notifications.filter((n) => !n.is_read).length;
+    window.dispatchEvent(
+      new CustomEvent("jyotishsetu:notifications-updated", {
+        detail: { count: unread },
+      })
+    );
+  }, [notifications]);
 
   // Poll for live incoming notifications with background tab pausing
   useEffect(() => {
@@ -60,15 +57,6 @@ export default function AstrologerNotificationsClient({
         const res = await getAstrologerNotificationsAction();
         if (mounted && res.success && Array.isArray(res.data)) {
           setNotifications(res.data);
-          // Keep header badge in sync with live poll results
-          const unread = res.data.filter((n) => !n.is_read).length;
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(
-              new CustomEvent("jyotishsetu:notifications-updated", {
-                detail: { count: unread },
-              })
-            );
-          }
         }
       } catch {
         // Non-blocking poll
@@ -91,24 +79,12 @@ export default function AstrologerNotificationsClient({
     };
   }, []);
 
-  function notifyCountChanged(remainingCount?: number) {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("jyotishsetu:notifications-updated", {
-          detail: { count: remainingCount },
-        })
-      );
-    }
-  }
-
   async function handleMarkRead(id: string) {
-    setNotifications((prev) => {
-      const updated = prev.map((n) =>
+    setNotifications((prev) =>
+      prev.map((n) =>
         n.id === id ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
-      );
-      notifyCountChanged(updated.filter((n) => !n.is_read).length);
-      return updated;
-    });
+      )
+    );
     await markAstrologerNotificationReadAction(id);
   }
 
@@ -117,7 +93,6 @@ export default function AstrologerNotificationsClient({
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
     );
-    notifyCountChanged(0);
     try {
       await markAllAstrologerNotificationsReadAction();
     } catch {
@@ -132,17 +107,14 @@ export default function AstrologerNotificationsClient({
     setClearing(true);
     const previous = [...notifications];
     setNotifications([]);
-    notifyCountChanged(0);
     try {
       const res = await clearAllAstrologerNotificationsAction();
       if (!res.success) {
         setNotifications(previous);
-        notifyCountChanged(previous.filter((n) => !n.is_read).length);
         alert(res.error || "Failed to clear notifications.");
       }
     } catch {
       setNotifications(previous);
-      notifyCountChanged(previous.filter((n) => !n.is_read).length);
     } finally {
       setClearing(false);
     }
@@ -151,11 +123,7 @@ export default function AstrologerNotificationsClient({
   async function handleDeleteNotification(e: React.MouseEvent, id: string) {
     e.stopPropagation();
     setDeletingId(id);
-    setNotifications((prev) => {
-      const updated = prev.filter((n) => n.id !== id);
-      notifyCountChanged(updated.filter((n) => !n.is_read).length);
-      return updated;
-    });
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
     try {
       await deleteAstrologerNotificationAction(id);
     } catch {
@@ -225,7 +193,7 @@ export default function AstrologerNotificationsClient({
           </p>
           <Link
             href="/astrologer/dashboard"
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-4 py-2 text-xs font-semibold text-midnight shadow"
+            className="inline-flex items-center justify-center rounded-xl bg-linear-to-b from-[#e0bb6c] to-[#b98a36] px-4 py-2 text-xs font-semibold text-midnight shadow"
           >
             Go to Dashboard
           </Link>
