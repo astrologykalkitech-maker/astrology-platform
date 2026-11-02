@@ -82,7 +82,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/(customer|astrologer|consultation)/:path*",
+        source: "/(customer|astrologer|consultation|admin|super-admin)/:path*",
         headers: [
           { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" },
           { key: "Pragma", value: "no-cache" },

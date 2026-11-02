@@ -11,6 +11,8 @@ import {
   type RemoteTrackPublication,
   ConnectionState,
   DisconnectReason,
+  ConnectionQuality,
+  type Participant,
 } from "livekit-client";
 import {
   Mic,
@@ -20,7 +22,6 @@ import {
   PhoneOff,
   Share2,
   MessageSquare,
-  Users,
   Hand,
   Shield,
   Clock,
@@ -31,10 +32,10 @@ import {
   AlertCircle,
   Loader2,
   ArrowLeft,
-  Volume2,
   RefreshCw,
   CheckCircle2,
-  XCircle,
+  FileDown,
+  Subtitles,
 } from "lucide-react";
 import type { ConsultationTokenResult } from "@/lib/consultation/token";
 import type {
@@ -64,6 +65,19 @@ interface Props {
 }
 
 type DeviceStatus = "ready" | "prompt" | "requesting" | "denied" | "not_found" | "in_use" | "off";
+
+/**
+ * True when the remote participant holds the host role. The role comes from the participant
+ * metadata that the server embeds in the signed LiveKit token, so peers cannot forge it.
+ */
+function isHostParticipant(participant?: RemoteParticipant): boolean {
+  if (!participant?.metadata) return false;
+  try {
+    return JSON.parse(participant.metadata)?.role === "host";
+  } catch {
+    return false;
+  }
+}
 
 export function ConsultationRoomClient({
   meeting,
@@ -111,6 +125,7 @@ export function ConsultationRoomClient({
   const [chatMessages, setChatMessages] = useState<MeetingChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // LiveKit Room & Video Elements
@@ -131,7 +146,115 @@ export function ConsultationRoomClient({
   const [isConcluding, setIsConcluding] = useState(false);
   const [concludedMessage, setConcludedMessage] = useState<string | null>(null);
   const [showEndConfirmModal, setShowEndConfirmModal] = useState(false);
+  const [endError, setEndError] = useState<string | null>(null);
   const isTerminatedRef = useRef(false);
+
+  // Network Quality & Live Transcription
+  const [myQuality, setMyQuality] = useState<ConnectionQuality>(ConnectionQuality.Excellent);
+  const [transcriptionOpen, setTranscriptionOpen] = useState(false);
+  const [transcriptLines, setTranscriptLines] = useState<Array<{ timestamp: string; speaker: string; text: string }>>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+
+  const toggleTranscription = useCallback(() => {
+    if (typeof window === "undefined") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Live speech transcription is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    if (isTranscribing) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      setIsTranscribing(false);
+    } else {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = "en-IN";
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onresult = (event: any) => {
+          const current = event.resultIndex;
+          const transcript = event.results[current][0].transcript;
+          if (transcript.trim()) {
+            setTranscriptLines((prev) => [
+              ...prev,
+              {
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+                speaker: isHost ? "Astrologer" : "Seeker",
+                text: transcript.trim(),
+              },
+            ]);
+          }
+        };
+
+        recognition.onerror = () => {
+          setIsTranscribing(false);
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+        setIsTranscribing(true);
+      } catch (e) {
+        console.warn("[transcription] Could not start speech recognition:", e);
+      }
+    }
+  }, [isTranscribing, isHost]);
+
+  const downloadTranscript = useCallback(() => {
+    if (transcriptLines.length === 0) return;
+    const content =
+      `JyotishSetu Consultation Session Transcript\n` +
+      `Date: ${new Date().toLocaleDateString()}\n` +
+      `Participants: ${isHost ? "Astrologer (Host)" : partnerName} & ${isHost ? partnerName : "Seeker"}\n` +
+      `============================================================\n\n` +
+      transcriptLines.map((l) => `[${l.timestamp}] ${l.speaker}: ${l.text}`).join("\n\n");
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `consultation-transcript-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [transcriptLines, isHost, partnerName]);
+
+  // Refs mirror state for LiveKit event handlers, which are registered once and would
+  // otherwise read stale values.
+  const chatOpenRef = useRef(false);
+  const chatCountRef = useRef(0);
+  useEffect(() => {
+    chatOpenRef.current = chatOpen;
+  }, [chatOpen]);
+  useEffect(() => {
+    chatCountRef.current = chatMessages.length;
+  }, [chatMessages]);
+
+  // Keyboard navigation & accessibility: Escape to dismiss modals and sidebars
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showEndConfirmModal) {
+          setShowEndConfirmModal(false);
+        } else if (chatOpen) {
+          setChatOpen(false);
+        } else if (transcriptionOpen) {
+          setTranscriptionOpen(false);
+        } else if (participantsOpen) {
+          setParticipantsOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showEndConfirmModal, chatOpen, transcriptionOpen, participantsOpen]);
 
   // -------------------------------------------------------------
   // 1. RECOVERY-AWARE MEDIA DEVICE DISCOVERY & INITIALIZATION
@@ -354,6 +477,7 @@ export function ConsultationRoomClient({
         previewStreamRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasJoined]);
 
   useEffect(() => {
@@ -382,6 +506,20 @@ export function ConsultationRoomClient({
       await roomRef.current.switchActiveDevice("videoinput", deviceId);
     }
   };
+
+  // Chat is server-authoritative: peers only send a lightweight signal over the data channel and
+  // every client re-reads the persisted history. This prevents a participant from spoofing messages
+  // (names, roles, content) to the other side and keeps ordering/deduplication correct.
+  const refreshChatFromServer = useCallback(async () => {
+    const res = await getMeetingChatHistoryAction(meeting.id);
+    if (res.success && res.messages) {
+      const added = res.messages.length - chatCountRef.current;
+      setChatMessages(res.messages);
+      if (added > 0 && !chatOpenRef.current) {
+        setUnreadChatCount((prev) => prev + added);
+      }
+    }
+  }, [meeting.id]);
 
   useEffect(() => {
     async function loadChat() {
@@ -561,6 +699,12 @@ export function ConsultationRoomClient({
         setConnectionState(state);
       });
 
+      room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, p: Participant) => {
+        if (p === room.localParticipant) {
+          setMyQuality(quality);
+        }
+      });
+
       room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
         setRemoteParticipants((prev) => [...prev.filter((p) => p.sid !== participant.sid), participant]);
       });
@@ -594,22 +738,26 @@ export function ConsultationRoomClient({
         track.detach();
       });
 
-      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: RemoteParticipant) => {
         try {
           const str = new TextDecoder().decode(payload);
           const data = JSON.parse(str);
           if (data.type === "consultation_ended") {
+            // Only the server (no participant) or a host may end the session. The metadata role is
+            // embedded in the server-signed token, so a customer cannot claim it.
+            const fromServer = !participant;
+            if (!fromServer && !isHostParticipant(participant)) return;
+            if (data.meetingId && data.meetingId !== meeting.id) return;
             cleanupAndExit("The astrologer has concluded this consultation session.");
             return;
           }
           if (data.type === "reaction") {
-            setActiveReaction(data.emoji);
-            setTimeout(() => setActiveReaction(null), 3000);
-          } else if (data.type === "chat_message") {
-            setChatMessages((prev) => [...prev, data.message]);
-            if (!chatOpen) {
-              setUnreadChatCount((prev) => prev + 1);
+            if (typeof data.emoji === "string" && data.emoji.length > 0 && data.emoji.length <= 8) {
+              setActiveReaction(data.emoji);
+              setTimeout(() => setActiveReaction(null), 3000);
             }
+          } else if (data.type === "chat_message") {
+            void refreshChatFromServer();
           }
         } catch {}
       });
@@ -761,19 +909,24 @@ export function ConsultationRoomClient({
 
     const text = chatInput.trim();
     setChatInput("");
+    setChatError(null);
     setSendingMsg(true);
 
     try {
       const res = await sendMeetingChatMessageAction(meeting.id, text);
       if (res.success && res.message) {
-        setChatMessages((prev) => [...prev, res.message!]);
+        const saved = res.message;
+        setChatMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev : [...prev, saved]));
 
         if (roomRef.current) {
-          const payload = new TextEncoder().encode(
-            JSON.stringify({ type: "chat_message", message: res.message })
-          );
+          // Signal only; receivers fetch the persisted message from the server
+          const payload = new TextEncoder().encode(JSON.stringify({ type: "chat_message" }));
           void roomRef.current.localParticipant.publishData(payload, { reliable: true });
         }
+      } else {
+        // Restore the text so the user does not lose it, and say why it failed (e.g. meeting ended)
+        setChatInput(text);
+        setChatError(res.error || "Message could not be sent.");
       }
     } finally {
       setSendingMsg(false);
@@ -782,31 +935,28 @@ export function ConsultationRoomClient({
 
   const handleLeaveOrEnd = async (endForAll = false) => {
     if (endForAll && isHost) {
+      setEndError(null);
       setIsConcluding(true);
       setConcludedMessage("Concluding consultation and marking booking as completed...");
 
-      // 1. Send data packet over LiveKit data channel
-      if (roomRef.current) {
-        try {
-          const payload = new TextEncoder().encode(
-            JSON.stringify({
-              type: "consultation_ended",
-              meetingId: meeting.id,
-              bookingId: meeting.booking_id,
-              endedAt: new Date().toISOString(),
-            })
-          );
-          await roomRef.current.localParticipant.publishData(payload, { reliable: true });
-        } catch (pubErr) {
-          console.warn("[consultation-room] publishData error:", pubErr);
-        }
-      }
-
-      // 2. Call server-authoritative termination action
+      // The server is authoritative: it persists the ended meeting + completed booking, broadcasts the
+      // termination packet and closes the LiveKit room. Only leave the room once that succeeded.
+      let failure: string | null = null;
       try {
-        await endConsultationMeetingAction(meeting.id);
+        const res = await endConsultationMeetingAction(meeting.id);
+        if (!res.success) failure = res.error || "Unable to end the consultation.";
       } catch (err) {
         console.error("[consultation-room] endConsultationMeetingAction error:", err);
+        failure = "Network error while ending the consultation.";
+      }
+
+      if (failure) {
+        // Do not claim success: stay in the room and let the host retry (the server action is idempotent)
+        setIsConcluding(false);
+        setConcludedMessage(null);
+        setEndError(failure);
+        setShowEndConfirmModal(true);
+        return;
       }
 
       cleanupAndExit("Consultation concluded. Redirecting to your bookings...");
@@ -1124,26 +1274,62 @@ export function ConsultationRoomClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-gold-light bg-midnight/70 px-3 py-1 rounded-lg border border-gold/20">
-          <Clock className="h-3.5 w-3.5 text-gold" />
-          <span>{formatTime(elapsedSeconds)}</span>
-        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-mono text-gold-light bg-midnight/70 px-3 py-1 rounded-lg border border-gold/20">
+            <Clock className="h-3.5 w-3.5 text-gold" />
+            <span>{formatTime(elapsedSeconds)}</span>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen().catch(() => {});
-              setIsFullscreen(true);
-            } else {
-              document.exitFullscreen().catch(() => {});
-              setIsFullscreen(false);
-            }
-          }}
-          className="p-2 rounded-lg text-parchment/70 hover:text-white hover:bg-gold/10 transition-colors cursor-pointer"
-        >
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
+          <div
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-midnight/80 border border-gold/30 text-[11px] text-parchment/80"
+            title={`Connection Quality: ${myQuality}`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                myQuality === ConnectionQuality.Excellent || myQuality === ConnectionQuality.Good
+                  ? "bg-emerald-400"
+                  : myQuality === ConnectionQuality.Poor
+                  ? "bg-amber-400"
+                  : "bg-rose-400"
+              }`}
+            />
+            <span className="capitalize">{myQuality === ConnectionQuality.Excellent ? "HD WebRTC" : myQuality}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTranscriptionOpen(!transcriptionOpen);
+              if (!transcriptionOpen && !isTranscribing) {
+                toggleTranscription();
+              }
+            }}
+            aria-label="Toggle live transcript"
+            className={`p-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+              transcriptionOpen ? "bg-gold text-midnight" : "text-parchment/70 hover:text-white hover:bg-gold/10"
+            }`}
+          >
+            <Subtitles className="h-4 w-4" />
+            <span className="hidden md:inline">Transcripts</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                setIsFullscreen(true);
+              } else {
+                document.exitFullscreen().catch(() => {});
+                setIsFullscreen(false);
+              }
+            }}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            className="p-2 rounded-lg text-parchment/70 hover:text-white hover:bg-gold/10 transition-colors cursor-pointer"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 relative flex min-h-0 overflow-hidden">
@@ -1241,13 +1427,14 @@ export function ConsultationRoomClient({
               <button
                 type="button"
                 onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
                 className="text-parchment/70 hover:text-white p-1 rounded cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div ref={chatScrollRef} className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+            <div ref={chatScrollRef} aria-live="polite" className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
               {chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-muted p-4">
                   <MessageSquare className="h-8 w-8 text-gold/30 mb-2" />
@@ -1276,11 +1463,19 @@ export function ConsultationRoomClient({
               )}
             </div>
 
+            {chatError && (
+              <p role="alert" className="px-3 py-2 text-[11px] text-rose-300 border-t border-rose-500/30 bg-rose-500/10">
+                {chatError}
+              </p>
+            )}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-gold/20 flex gap-2">
               <input
                 type="text"
                 value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
+                onChange={(e) => {
+                  setChatInput(e.target.value);
+                  if (chatError) setChatError(null);
+                }}
                 placeholder="Type consultation message…"
                 maxLength={1000}
                 className="flex-1 bg-midnight/70 border border-gold/30 rounded-xl px-3 py-2 text-xs text-white placeholder:text-parchment/40 focus:outline-none focus:border-gold"
@@ -1295,6 +1490,75 @@ export function ConsultationRoomClient({
             </form>
           </aside>
         )}
+
+        {transcriptionOpen && (
+          <aside className="w-80 sm:w-96 shrink-0 border-l border-gold/30 bg-midnight/95 backdrop-blur-xl flex flex-col z-30">
+            <div className="h-14 border-b border-gold/20 px-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Subtitles className="h-4 w-4 text-gold-deep" />
+                <h3 className="text-sm font-semibold text-white">Live Transcripts</h3>
+                {isTranscribing && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Transcribing live audio" />}
+              </div>
+              <div className="flex items-center gap-1">
+                {transcriptLines.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={downloadTranscript}
+                    title="Download Transcript"
+                    className="p-1.5 rounded-lg text-gold hover:bg-gold/15 transition-colors cursor-pointer"
+                  >
+                    <FileDown className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTranscriptionOpen(false)}
+                  aria-label="Close transcripts"
+                  className="text-parchment/70 hover:text-white p-1 rounded cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+              {transcriptLines.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center text-muted p-4">
+                  <Subtitles className="h-8 w-8 text-gold/30 mb-2" />
+                  <p className="font-semibold text-parchment">No transcript lines yet</p>
+                  <p className="text-[11px] text-parchment/60 mt-1">
+                    Spoken conversation will appear here in real-time. Click Start below to begin live captions.
+                  </p>
+                </div>
+              ) : (
+                transcriptLines.map((line, idx) => (
+                  <div key={idx} className="rounded-xl p-3 border border-gold/20 bg-midnight/80 text-white space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-gold-light">
+                      <span className="font-bold">{line.speaker}</span>
+                      <span>{line.timestamp}</span>
+                    </div>
+                    <p className="text-xs break-words">{line.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 border-t border-gold/20 flex items-center justify-between bg-midnight/90">
+              <button
+                type="button"
+                onClick={toggleTranscription}
+                className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+                  isTranscribing
+                    ? "bg-rose-600 hover:bg-rose-700 text-white"
+                    : "bg-gold-deep hover:bg-gold text-midnight"
+                }`}
+              >
+                <Subtitles className="h-3.5 w-3.5" />
+                <span>{isTranscribing ? "Pause Live Transcription" : "Start Live Transcription"}</span>
+              </button>
+            </div>
+          </aside>
+        )}
       </div>
 
       <footer className="h-20 shrink-0 border-t border-gold/30 bg-midnight/95 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between z-20">
@@ -1307,6 +1571,7 @@ export function ConsultationRoomClient({
           <button
             type="button"
             onClick={toggleMic}
+            aria-label={isMicOn ? "Mute microphone" : "Unmute microphone"}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
               isMicOn
                 ? "bg-midnight/80 border-gold/40 text-white hover:bg-gold/20"
@@ -1320,6 +1585,7 @@ export function ConsultationRoomClient({
             <button
               type="button"
               onClick={toggleVideo}
+              aria-label={isVideoOn ? "Turn off camera" : "Turn on camera"}
               className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                 isVideoOn
                   ? "bg-midnight/80 border-gold/40 text-white hover:bg-gold/20"
@@ -1333,6 +1599,7 @@ export function ConsultationRoomClient({
           <button
             type="button"
             onClick={toggleScreenShare}
+            aria-label={isScreenSharing ? "Stop sharing screen" : "Share screen"}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
               isScreenSharing ? "bg-gold text-midnight border-gold-light" : "bg-midnight/80 border-gold/40 text-white hover:bg-gold/20"
             }`}
@@ -1346,6 +1613,7 @@ export function ConsultationRoomClient({
               setIsHandRaised(!isHandRaised);
               handleSendReaction(isHandRaised ? "✋" : "🙏");
             }}
+            aria-label={isHandRaised ? "Lower hand" : "Raise hand"}
             className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
               isHandRaised ? "bg-gold/30 border-gold text-gold-light" : "bg-midnight/80 border-gold/40 text-white hover:bg-gold/20"
             }`}
@@ -1353,12 +1621,13 @@ export function ConsultationRoomClient({
             <Hand className="h-5 w-5" />
           </button>
 
-          <div className="flex items-center gap-1 bg-midnight/80 border border-gold/30 rounded-2xl p-1">
+          <div className="flex items-center gap-1 bg-midnight/80 border border-gold/30 rounded-2xl p-1" role="group" aria-label="Emoji reactions">
             {["🙏", "👍", "🪷", "❤️"].map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => handleSendReaction(emoji)}
+                aria-label={`Send reaction ${emoji}`}
                 className="hover:scale-125 transition-transform p-1.5 text-base cursor-pointer"
               >
                 {emoji}
@@ -1372,6 +1641,7 @@ export function ConsultationRoomClient({
               setChatOpen(!chatOpen);
               setUnreadChatCount(0);
             }}
+            aria-label={chatOpen ? "Close chat panel" : "Open chat panel"}
             className={`relative p-3.5 rounded-2xl border transition-all cursor-pointer ${
               chatOpen ? "bg-gold text-midnight border-gold-light" : "bg-midnight/80 border-gold/40 text-white hover:bg-gold/20"
             }`}
@@ -1395,6 +1665,7 @@ export function ConsultationRoomClient({
                 }
               }
             }}
+            aria-label={isHost ? "Open end session options" : "Leave consultation room"}
             className="p-3.5 rounded-2xl bg-rose-600 border border-rose-500 text-white hover:bg-rose-700 transition-colors shadow-lg cursor-pointer"
           >
             <PhoneOff className="h-5 w-5" />
@@ -1406,6 +1677,7 @@ export function ConsultationRoomClient({
             <button
               type="button"
               onClick={() => setShowEndConfirmModal(true)}
+              aria-label="End session for all participants"
               className="px-3.5 py-2.5 rounded-xl border border-rose-500/60 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-md"
             >
               <PhoneOff className="h-4 w-4 text-rose-400" />
@@ -1417,12 +1689,23 @@ export function ConsultationRoomClient({
 
       {/* Astrologer End/Leave Confirmation Modal */}
       {showEndConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="conclude-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+        >
           <div className="max-w-md w-full rounded-2xl border border-gold/40 bg-midnight p-6 shadow-2xl space-y-4">
             <div className="h-12 w-12 rounded-full bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
               <PhoneOff className="h-6 w-6" />
             </div>
-            <h3 className="text-lg font-bold font-display text-white">Conclude Consultation</h3>
+            <h3 id="conclude-modal-title" className="text-lg font-bold font-display text-white">Conclude Consultation</h3>
+            {endError && (
+              <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-rose-500/20 border border-rose-500/50 text-xs text-rose-200">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                <span>{endError} You can try again.</span>
+              </div>
+            )}
             <p className="text-xs text-parchment/80 leading-relaxed">
               Would you like to end the session for all participants (marks the booking as Completed) or just leave the room?
             </p>

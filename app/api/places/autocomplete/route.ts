@@ -6,6 +6,7 @@ import {
   normalizeOlaPrediction,
   autocompleteCache,
 } from "@/lib/location/ola-maps";
+import { checkRateLimit, extractClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,15 @@ function resolveOrigin(request: NextRequest): string {
 
 export async function GET(request: NextRequest) {
   try {
+    // Protect the server-held Ola Maps key/quota from anonymous abuse
+    const limit = checkRateLimit(`places-autocomplete:${extractClientIp(request)}`, 90, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many requests. Please slow down.", predictions: [] },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const rawInput = searchParams.get("input") ?? searchParams.get("q");
 

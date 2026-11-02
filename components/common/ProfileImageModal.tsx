@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { X, ZoomIn, AlertCircle, Camera, Upload } from "lucide-react";
+import { X, ZoomIn, Camera, Upload } from "lucide-react";
 
 export interface ProfileImageModalProps {
   isOpen: boolean;

@@ -7,6 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPermission, requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
+import { sanitizeFilterTerm } from "@/lib/security/postgrest";
 import { revalidatePath } from "next/cache";
 import type {
   ApprovalStatus,
@@ -39,8 +40,7 @@ export async function getAdminListings(
 ): Promise<AuthResult<AdminListingsResultData>> {
   try {
     await requireAdminPermission("listing.read");
-
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 20, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
@@ -52,8 +52,9 @@ export async function getAdminListings(
       query = query.eq("approval_status", filter.status);
     }
 
-    if (filter.search && filter.search.trim()) {
-      const term = `%${filter.search.trim()}%`;
+    const safeSearch = filter.search ? sanitizeFilterTerm(filter.search) : "";
+    if (safeSearch) {
+      const term = `%${safeSearch}%`;
       query = query.or(`display_name.ilike.${term},city.ilike.${term},slug.ilike.${term}`);
     }
 

@@ -22,6 +22,8 @@ import type {
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 import { createInAppNotification } from "@/lib/notifications";
+import { assertAstrologerAvailable } from "@/lib/availability/server";
+import { toUuidOrNull } from "@/lib/security/postgrest";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface CustomerEnquiryItem {
@@ -724,6 +726,27 @@ export async function createCustomerBookingAction(payload: {
     }
     const canonicalScheduledAt = parsedScheduledDate.toISOString();
 
+    // Respect the astrologer's configured working hours, breaks and time off (no-op if none configured)
+    const availabilityAstrologerId = toUuidOrNull(payload.astrologer_id);
+    if (availabilityAstrologerId) {
+      try {
+        const availability = await assertAstrologerAvailable(
+          availabilityAstrologerId,
+          parsedScheduledDate,
+          Number(payload.duration_minutes) || 30
+        );
+        if (!availability.available) {
+          return { success: false, error: availability.reason };
+        }
+      } catch (availabilityErr) {
+        console.error("[createCustomerBookingAction] availability check failed:", availabilityErr);
+        return {
+          success: false,
+          error: "Unable to verify the astrologer's availability right now. Please try again.",
+        };
+      }
+    }
+
     const supabase = await createClient(target);
 
     // Call book_astrologer_consultation RPC
@@ -801,7 +824,7 @@ export async function cancelCustomerBookingAction(
       return { success: true, data: { success: true } };
     }
 
-    if (booking.status === "completed") {
+    if (booking.status === "completed" || booking.status === "no_show") {
       return {
         success: false,
         error: "Cannot cancel a consultation that has already been completed.",
@@ -809,23 +832,64 @@ export async function cancelCustomerBookingAction(
     }
 
     const now = new Date().toISOString();
-    const { error: updateErr } = await supabase
+    // Conditional on a cancellable status so a concurrent completion cannot be overwritten
+    const { data: cancelledRows, error: updateErr } = await supabase
       .from("customer_bookings")
       .update({
         status: "cancelled",
-        cancellation_reason: reason || "Cancelled by customer",
+        cancellation_reason: (reason || "Cancelled by customer").slice(0, 500),
         cancelled_at: now,
         cancelled_by: user.id,
         updated_at: now,
       })
       .eq("id", bookingId)
-      .eq("customer_id", user.id);
+      .eq("customer_id", user.id)
+      .in("status", ["pending", "confirmed"])
+      .select("id");
 
     if (updateErr) {
       return {
         success: false,
         error: "Failed to cancel booking. Please try again.",
       };
+    }
+    if (!cancelledRows || cancelledRows.length === 0) {
+      return {
+        success: false,
+        error: "This booking can no longer be cancelled. Please refresh the page.",
+      };
+    }
+
+    // Keep the consultation room consistent with the booking and tell the astrologer.
+    // Both are best-effort and logged; the cancellation itself is already persisted.
+    try {
+      const admin = await createAdminClient("main");
+      const { error: meetingErr } = await admin
+        .from("consultation_meetings")
+        .update({ status: "cancelled", updated_at: now })
+        .eq("booking_id", bookingId)
+        .in("status", ["scheduled", "waiting", "active"]);
+      if (meetingErr) {
+        console.error("[cancelCustomerBookingAction] meeting sync failed:", meetingErr.message);
+      }
+
+      const { data: astro } = await admin
+        .from("astrologer_profiles")
+        .select("user_id")
+        .eq("id", booking.astrologer_id)
+        .maybeSingle();
+      if (astro?.user_id) {
+        await createInAppNotification({
+          recipientUserId: astro.user_id,
+          title: "Consultation Cancelled by Customer",
+          message: "A customer cancelled an upcoming consultation with you.",
+          linkUrl: "/astrologer/bookings",
+          eventType: "booking_cancelled",
+          metadata: { booking_id: bookingId },
+        });
+      }
+    } catch (syncErr) {
+      console.error("[cancelCustomerBookingAction] post-cancel sync failed:", syncErr);
     }
 
     // Insert persistent cancellation notification
@@ -1156,6 +1220,9 @@ export async function sendCustomerConsultationMessageAction(
 
     if (!cleanMessage) {
       return { success: false, error: "Message content cannot be empty." };
+    }
+    if (cleanMessage.length > 2000) {
+      return { success: false, error: "Message must not exceed 2000 characters." };
     }
 
     const rateLimit = checkRateLimit(`msg:cust:${user.id}`, 25, 60_000);

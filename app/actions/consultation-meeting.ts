@@ -7,6 +7,8 @@ import { requireAuth } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   generateLiveKitConsultationToken,
+  getLiveKitConfig,
+  LiveKitConfigError,
   type ConsultationTokenResult,
 } from "@/lib/consultation/token";
 import { isMeetingWindowActive } from "@/lib/consultation/meeting-window";
@@ -94,8 +96,11 @@ export async function getOrCreateConsultationMeeting(
     if (booking.status === "cancelled") {
       return { success: false, error: "This consultation appointment has been cancelled." };
     }
-    if (booking.status === "completed") {
+    if (booking.status === "completed" || booking.status === "no_show") {
       return { success: false, error: "This consultation appointment has already been completed." };
+    }
+    if (booking.status === "pending") {
+      return { success: false, error: "This consultation has not been confirmed yet." };
     }
 
     // 4. Schedule window verification (15 minutes before until duration + 60 min)
@@ -113,6 +118,9 @@ export async function getOrCreateConsultationMeeting(
 
     if (meeting && meeting.status === "ended") {
       return { success: false, error: "This consultation session has ended." };
+    }
+    if (meeting && meeting.status === "cancelled") {
+      return { success: false, error: "This consultation appointment has been cancelled." };
     }
 
     if (!meeting) {
@@ -201,7 +209,7 @@ export async function getOrCreateConsultationMeeting(
  */
 export async function endConsultationMeetingAction(
   meetingId: string
-): Promise<{ success: boolean; bookingId?: string; error?: string }> {
+): Promise<{ success: boolean; bookingId?: string; error?: string; warning?: string }> {
   try {
     const { user, profile } = await requireAuth();
     const admin = await createAdminClient("main");
@@ -237,39 +245,57 @@ export async function endConsultationMeetingAction(
 
     const nowIso = new Date().toISOString();
 
-    // 3. Update consultation_meetings status to 'ended'
-    const { error: updateMeetingErr } = await admin
-      .from("consultation_meetings")
-      .update({
-        status: "ended",
-        ended_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq("id", meetingId);
+    // 3. Transition the meeting to 'ended'. Conditional on the current status so
+    // concurrent/duplicate requests cannot overwrite the original ended_at.
+    // If the meeting is already ended we still continue so that a retry can
+    // finish booking completion and LiveKit cleanup that failed earlier.
+    if (meeting.status !== "ended") {
+      const { error: updateMeetingErr } = await admin
+        .from("consultation_meetings")
+        .update({
+          status: "ended",
+          ended_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq("id", meetingId)
+        .neq("status", "ended");
 
-    if (updateMeetingErr) {
-      console.error("[endConsultationMeetingAction] Meeting status update failed:", updateMeetingErr);
-      throw updateMeetingErr;
+      if (updateMeetingErr) {
+        console.error("[endConsultationMeetingAction] Meeting status update failed:", updateMeetingErr);
+        throw updateMeetingErr;
+      }
     }
 
-    // 4. Atomically update customer_bookings status to 'completed'
+    // 4. Complete the booking. Only pending/confirmed bookings are moved, so a
+    // cancelled / no_show / already-completed booking is never overwritten.
+    let bookingTransitioned = false;
     if (meeting.booking_id) {
-      const { error: updateBookingErr } = await admin
+      const { data: completedRows, error: updateBookingErr } = await admin
         .from("customer_bookings")
         .update({
           status: "completed",
           updated_at: nowIso,
         })
-        .eq("id", meeting.booking_id);
+        .eq("id", meeting.booking_id)
+        .in("status", ["pending", "confirmed"])
+        .select("id");
 
       if (updateBookingErr) {
         console.error("[endConsultationMeetingAction] Booking status update failed:", updateBookingErr);
+        // Do not report false success; the meeting is already 'ended' so a retry is safe.
+        return {
+          success: false,
+          error:
+            "The consultation was ended but the booking could not be marked completed. Please try again.",
+        };
       }
 
-      // 5. Insert customer notification
-      try {
+      bookingTransitioned = (completedRows?.length ?? 0) > 0;
+
+      // 5. Notify the customer once (only when this call completed the booking)
+      if (bookingTransitioned) {
         const astrologerName = astroProfile?.display_name || "Your Vedic Astrologer";
-        await admin.from("customer_notifications").insert({
+        const { error: notifErr } = await admin.from("customer_notifications").insert({
           customer_id: meeting.customer_id,
           title: "Consultation Completed",
           message: `Your consultation session with ${astrologerName} has successfully concluded.`,
@@ -278,24 +304,20 @@ export async function endConsultationMeetingAction(
           is_read: false,
           created_at: nowIso,
         });
-      } catch (notifErr) {
-        console.warn("[endConsultationMeetingAction] Customer notification notice:", notifErr);
+        if (notifErr) {
+          console.warn("[endConsultationMeetingAction] Customer notification failed:", notifErr.message);
+        }
       }
     }
 
-    // 6. LiveKit Cloud: Send termination packet and delete/close the room
+    // 6. LiveKit Cloud: Send termination packet and delete/close the room.
+    // The database is authoritative (ended meetings cannot be rejoined and chat is
+    // blocked), so LiveKit failures are surfaced as a warning rather than hidden.
+    let livekitWarning: string | undefined;
     if (meeting.room_name) {
       try {
-        const livekitHost =
-          process.env.LIVEKIT_URL?.trim() ||
-          process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim() ||
-          "https://astrosetu-3dx4gffs.livekit.cloud";
-        const apiKey = process.env.LIVEKIT_API_KEY?.trim() || "API5iWTsYP3tkbe";
-        const apiSecret =
-          process.env.LIVEKIT_API_SECRET?.trim() ||
-          "EGgq9JNeTargvrjxfiOqcGXVbKPYC2lHgddwZNc7Rph";
-
-        const roomService = new RoomServiceClient(livekitHost, apiKey, apiSecret);
+        const lk = getLiveKitConfig();
+        const roomService = new RoomServiceClient(lk.httpUrl, lk.apiKey, lk.apiSecret);
 
         // Broadcast consultation_ended reliable data packet to all connected participants
         const endPayload = new TextEncoder().encode(
@@ -312,14 +334,21 @@ export async function endConsultationMeetingAction(
           .catch(() => {});
 
         // Delete the room so all remaining client connections are forcefully torn down
-        await roomService.deleteRoom(meeting.room_name).catch((delErr) => {
-          console.warn(
-            "[endConsultationMeetingAction] LiveKit deleteRoom notice:",
-            delErr?.message || delErr
-          );
+        await roomService.deleteRoom(meeting.room_name).catch((delErr: unknown) => {
+          const status = (delErr as { status?: number } | null)?.status;
+          const msg = delErr instanceof Error ? delErr.message : String(delErr);
+          // A missing room means nobody is connected / it is already closed.
+          if (status === 404 || /not.?found/i.test(msg)) return;
+          throw delErr;
         });
       } catch (lkErr) {
-        console.warn("[endConsultationMeetingAction] LiveKit room service notice:", lkErr);
+        if (lkErr instanceof LiveKitConfigError) {
+          console.error("[endConsultationMeetingAction]", lkErr.message);
+        } else {
+          console.error("[endConsultationMeetingAction] LiveKit room cleanup failed:", lkErr);
+        }
+        livekitWarning =
+          "The consultation was ended, but the live room could not be closed automatically. Participants may remain connected until their session expires; retry to close the room.";
       }
     }
 
@@ -343,7 +372,7 @@ export async function endConsultationMeetingAction(
       connectionState: "ended",
     });
 
-    return { success: true, bookingId: meeting.booking_id };
+    return { success: true, bookingId: meeting.booking_id, warning: livekitWarning };
   } catch (err) {
     console.error("[endConsultationMeetingAction] Error:", err);
     return {
@@ -370,6 +399,10 @@ export async function updateMeetingStatusAction(
     const { user, profile } = await requireAuth();
     const admin = await createAdminClient("main");
 
+    if (newStatus !== "waiting" && newStatus !== "active") {
+      return { success: false, error: "Unsupported meeting status transition." };
+    }
+
     const { data: meeting } = await admin
       .from("consultation_meetings")
       .select("id, host_astrologer_id, customer_id, status, booking_id, started_at")
@@ -378,6 +411,29 @@ export async function updateMeetingStatusAction(
 
     if (!meeting) {
       return { success: false, error: "Meeting not found." };
+    }
+
+    // Authorization: only the booking's customer or host astrologer (or super admin)
+    const { data: callerAstro } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const isParticipant =
+      meeting.customer_id === user.id ||
+      (callerAstro && callerAstro.id === meeting.host_astrologer_id) ||
+      profile.role === "super_admin";
+    if (!isParticipant) {
+      return { success: false, error: "Unauthorized: You are not a participant in this meeting." };
+    }
+
+    // Ended / cancelled meetings can never be reactivated.
+    if (meeting.status === "ended" || meeting.status === "cancelled") {
+      return { success: false, error: "This consultation session has ended." };
+    }
+    // Never regress an active meeting back to waiting.
+    if (meeting.status === "active" && newStatus === "waiting") {
+      return { success: true };
     }
 
     const updates: Record<string, unknown> = {
@@ -392,7 +448,8 @@ export async function updateMeetingStatusAction(
     const { error } = await admin
       .from("consultation_meetings")
       .update(updates)
-      .eq("id", meetingId);
+      .eq("id", meetingId)
+      .in("status", ["scheduled", "waiting", "active"]);
 
     if (error) throw error;
 
@@ -448,6 +505,10 @@ export async function sendMeetingChatMessageAction(
 
     if (!isHost && !isCustomer && profile.role !== "super_admin") {
       return { success: false, error: "Unauthorized: You are not a participant in this meeting." };
+    }
+
+    if (meeting.status === "ended" || meeting.status === "cancelled") {
+      return { success: false, error: "This consultation session has ended. Chat is closed." };
     }
 
     const senderRole = isHost ? "host" : "customer";
@@ -532,5 +593,127 @@ export async function getMeetingChatHistoryAction(
       success: false,
       error: err instanceof Error ? err.message : "Failed to load chat history.",
     };
+  }
+}
+
+/**
+ * Host controls: Allows the host astrologer to remove an unruly participant.
+ */
+export async function manageMeetingParticipantAction(
+  meetingId: string,
+  participantIdentity: string,
+  action: "remove" | "mute"
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { user, profile } = await requireAuth();
+    const admin = await createAdminClient("main");
+
+    const { data: meeting } = await admin
+      .from("consultation_meetings")
+      .select("id, room_name, host_astrologer_id")
+      .eq("id", meetingId)
+      .maybeSingle();
+
+    if (!meeting) {
+      return { success: false, error: "Meeting not found." };
+    }
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isHost = astroProfile && meeting.host_astrologer_id === astroProfile.id;
+    if (!isHost && profile.role !== "super_admin") {
+      return { success: false, error: "Only the consultation host can manage participants." };
+    }
+
+    const config = getLiveKitConfig();
+    const roomService = new RoomServiceClient(config.httpUrl, config.apiKey, config.apiSecret);
+
+    if (action === "remove") {
+      await roomService.removeParticipant(meeting.room_name, participantIdentity);
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to manage participant.";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Server-authoritative waiting room admission control.
+ */
+export async function updateWaitingRoomStatusAction(
+  meetingId: string,
+  participantId: string,
+  status: "admitted" | "rejected"
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { user, profile } = await requireAuth();
+    const admin = await createAdminClient("main");
+
+    const { data: meeting } = await admin
+      .from("consultation_meetings")
+      .select("id, host_astrologer_id, room_name")
+      .eq("id", meetingId)
+      .maybeSingle();
+
+    if (!meeting) {
+      return { success: false, error: "Meeting not found." };
+    }
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isHost = astroProfile && meeting.host_astrologer_id === astroProfile.id;
+    if (!isHost && profile.role !== "super_admin") {
+      return { success: false, error: "Only the host can admit or reject waiting participants." };
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatePayload = {
+      status,
+      admitted_at: status === "admitted" ? nowIso : null,
+      rejected_at: status === "rejected" ? nowIso : null,
+    };
+
+    const { error } = await admin
+      .from("consultation_waiting_room")
+      .update(updatePayload)
+      .eq("meeting_id", meetingId)
+      .eq("participant_id", participantId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    // Broadcast admission decision via LiveKit Data Packet
+    try {
+      const config = getLiveKitConfig();
+      const roomService = new RoomServiceClient(config.httpUrl, config.apiKey, config.apiSecret);
+      const payload = JSON.stringify({
+        type: status === "admitted" ? "participant_admitted" : "participant_rejected",
+        meetingId,
+        participantId,
+      });
+      await roomService.sendData(
+        meeting.room_name,
+        new TextEncoder().encode(payload),
+        DataPacket_Kind.RELIABLE
+      );
+    } catch (relayErr) {
+      console.warn("[waiting-room] LiveKit data broadcast notice:", relayErr);
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update waiting room status.";
+    return { success: false, error: msg };
   }
 }

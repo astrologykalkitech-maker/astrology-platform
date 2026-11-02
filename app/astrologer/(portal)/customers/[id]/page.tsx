@@ -20,6 +20,8 @@ import { isValidUUID } from "@/lib/validations/lead";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatDateTime, formatExactDateTime } from "@/lib/astrologer/format";
+import { getAstrologerCustomerNotesAction } from "@/app/actions/astrologer-crm";
+import { CustomerNotesClient } from "@/components/astrologer/crm/CustomerNotesClient";
 
 export const dynamic = "force-dynamic";
 
@@ -104,8 +106,8 @@ export default async function AstrologerCustomerDetailPage({
     notFound();
   }
 
-  // 4. Fetch consultation history between this astrologer and customer
-  const [enquiriesRes, bookingsRes] = await Promise.all([
+  // 4. Fetch consultation history and confidential notes between this astrologer and customer
+  const [enquiriesRes, bookingsRes, notesRes] = await Promise.all([
     admin
       .from("leads")
       .select("id, subject, message, status, created_at")
@@ -118,6 +120,7 @@ export default async function AstrologerCustomerDetailPage({
       .eq("customer_id", customerId)
       .eq("astrologer_id", astroProfile.id)
       .order("scheduled_at", { ascending: false }),
+    getAstrologerCustomerNotesAction(customerId),
   ]);
 
   const customerName = customer.full_name || "Seeker";
@@ -251,6 +254,11 @@ export default async function AstrologerCustomerDetailPage({
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Private Astrologer Notes & CRM */}
+      <div className={`${CARD} p-6`}>
+        <CustomerNotesClient customerId={customerId} initialNotes={notesRes.data || []} />
       </div>
 
       {/* Consultation History with this Seeker */}

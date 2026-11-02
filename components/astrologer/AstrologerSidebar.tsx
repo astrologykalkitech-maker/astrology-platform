@@ -15,8 +15,9 @@ import {
   LifeBuoy,
   X,
   MessageSquare,
-  HelpCircle,
   ShieldCheck,
+  Users,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
@@ -32,9 +33,12 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
+  { href: "/astrologer/chat", label: "Live Chat", icon: MessageSquare },
   { href: "/astrologer/leads", label: "My Leads", icon: MessageSquareText },
+  { href: "/astrologer/crm", label: "Client CRM", icon: Users },
   { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
+  { href: "/astrologer/availability", label: "Working Hours", icon: Clock },
+  { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
   { href: "/astrologer/reviews", label: "Reviews", icon: Star },
   { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
   { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
@@ -43,16 +47,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
-  {
-    label: "Live Chat",
-    icon: MessageSquare,
-    desc: "Instant one-on-one live messaging with clients launching soon.",
-  },
-  {
-    label: "Kundli Matching",
-    icon: HelpCircle,
-    desc: "Ashtakoota 36-guna Milan compatibility chart generator launching soon.",
-  },
   {
     label: "Protection Rituals",
     icon: ShieldCheck,

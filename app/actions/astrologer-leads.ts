@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction } from "@/lib/admin/audit";
 import { requireAstrologer } from "@/lib/auth/session";
+import { toUuidOrNull } from "@/lib/security/postgrest";
 import type {
   AstrologerLeadsResult,
   AstrologerLeadDetailResult,
@@ -393,7 +394,10 @@ export async function updateAssignmentStatus(
 export async function getAstrologerLeadMessages(leadId: string) {
   try {
     const { user } = await requireAstrologer();
-    const cleanLeadId = (leadId || "").trim().toLowerCase();
+    const cleanLeadId = toUuidOrNull(leadId);
+    if (!cleanLeadId) {
+      return { success: false, error: "Invalid lead identifier." };
+    }
     const admin = await createAdminClient("main");
 
     // Verify astrologer profile exists
@@ -465,7 +469,13 @@ export async function sendAstrologerPredictionAction(payload: {
 }) {
   try {
     const { user } = await requireAstrologer();
-    const cleanLeadId = (payload.leadId || "").trim().toLowerCase();
+    const cleanLeadId = toUuidOrNull(payload.leadId);
+    if (!cleanLeadId) {
+      return { success: false, error: "Invalid lead identifier." };
+    }
+    if ((payload.message || "").trim().length > 4000) {
+      return { success: false, error: "Message must not exceed 4000 characters." };
+    }
     const admin = await createAdminClient("main");
 
     const { data: profile } = await admin

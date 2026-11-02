@@ -19,24 +19,80 @@ export interface ConsultationTokenResult {
 }
 
 /**
- * Returns whether LiveKit server credentials are configured in the environment.
+ * Thrown when LiveKit credentials or URL are missing. Callers should log the
+ * message server-side and show users a generic "video service unavailable" error.
+ */
+export class LiveKitConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LiveKitConfigError";
+  }
+}
+
+export interface LiveKitConfig {
+  apiKey: string;
+  apiSecret: string;
+  /** WebSocket URL handed to browsers (wss://...). */
+  wsUrl: string;
+  /** HTTP(S) URL for the server-side RoomServiceClient (https://...). */
+  httpUrl: string;
+}
+
+/**
+ * Resolves LiveKit configuration from the environment and fails closed:
+ * there are intentionally no hardcoded fallback credentials or hosts.
+ */
+export function getLiveKitConfig(): LiveKitConfig {
+  const apiKey = process.env.LIVEKIT_API_KEY?.trim();
+  const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
+  const url =
+    process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim() ||
+    process.env.LIVEKIT_URL?.trim();
+
+  const missing: string[] = [];
+  if (!apiKey) missing.push("LIVEKIT_API_KEY");
+  if (!apiSecret) missing.push("LIVEKIT_API_SECRET");
+  if (!url) missing.push("LIVEKIT_URL or NEXT_PUBLIC_LIVEKIT_URL");
+  if (missing.length > 0 || !apiKey || !apiSecret || !url) {
+    throw new LiveKitConfigError(
+      `LiveKit is not configured. Missing environment variable(s): ${missing.join(", ")}.`
+    );
+  }
+
+  return {
+    apiKey,
+    apiSecret,
+    wsUrl: url.replace(/^http/i, "ws"),
+    httpUrl: url.replace(/^ws/i, "http"),
+  };
+}
+
+/**
+ * Returns whether LiveKit server credentials and URL are configured in the environment.
  */
 export function isLiveKitConfigured(): boolean {
-  return Boolean(
-    process.env.LIVEKIT_API_KEY?.trim() &&
-    process.env.LIVEKIT_API_SECRET?.trim()
-  );
+  try {
+    getLiveKitConfig();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Returns the public client-facing LiveKit WebSocket URL.
+ * Throws LiveKitConfigError when no URL is configured.
  */
 export function getLiveKitServerUrl(): string {
   const url =
     process.env.NEXT_PUBLIC_LIVEKIT_URL?.trim() ||
-    process.env.LIVEKIT_URL?.trim() ||
-    "wss://astrosetu-3dx4gffs.livekit.cloud";
-  return url;
+    process.env.LIVEKIT_URL?.trim();
+  if (!url) {
+    throw new LiveKitConfigError(
+      "LiveKit is not configured. Missing environment variable(s): LIVEKIT_URL or NEXT_PUBLIC_LIVEKIT_URL."
+    );
+  }
+  return url.replace(/^http/i, "ws");
 }
 
 /**
@@ -46,9 +102,7 @@ export function getLiveKitServerUrl(): string {
 export async function generateLiveKitConsultationToken(
   options: GenerateConsultationTokenOptions
 ): Promise<ConsultationTokenResult> {
-  const apiKey = process.env.LIVEKIT_API_KEY?.trim() || "API5iWTsYP3tkbe";
-  const apiSecret =
-    process.env.LIVEKIT_API_SECRET?.trim() || "EGgq9JNeTargvrjxfiOqcGXVbKPYC2lHgddwZNc7Rph";
+  const { apiKey, apiSecret, wsUrl } = getLiveKitConfig();
 
   const isHost = options.role === "host";
   const ttl = options.expiresInSeconds || 7200; // 2 hours default
@@ -77,7 +131,7 @@ export async function generateLiveKitConsultationToken(
 
   return {
     token,
-    serverUrl: getLiveKitServerUrl(),
+    serverUrl: wsUrl,
     roomName: options.roomName,
     participantIdentity: options.participantIdentity,
     participantName: options.participantName,

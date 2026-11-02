@@ -107,17 +107,25 @@ export function checkRateLimit(
  * of trusted proxies and strip that many hops from the right.
  */
 export function extractClientIp(request: Request): string {
+  return extractClientIpFromHeaders(request.headers);
+}
+
+/**
+ * Same as extractClientIp but works with a bare Headers object (e.g. `await headers()`
+ * inside a server action, where no Request is available).
+ */
+export function extractClientIpFromHeaders(requestHeaders: { get(name: string): string | null }): string {
   // Cloudflare / most CDNs set this header reliably
-  const cfConnecting = request.headers.get("cf-connecting-ip");
+  const cfConnecting = requestHeaders.get("cf-connecting-ip");
   if (cfConnecting) return cfConnecting.trim();
 
   // Vercel sets x-real-ip after validation
-  const realIp = request.headers.get("x-real-ip");
+  const realIp = requestHeaders.get("x-real-ip");
   if (realIp) return realIp.trim();
 
   // X-Forwarded-For: rightmost entry is the nearest trusted proxy's record
   // of where the request came from — safer than leftmost which can be forged.
-  const forwarded = request.headers.get("x-forwarded-for");
+  const forwarded = requestHeaders.get("x-forwarded-for");
   if (forwarded) {
     const hops = forwarded.split(",").map((h) => h.trim()).filter(Boolean);
     if (hops.length > 0) {

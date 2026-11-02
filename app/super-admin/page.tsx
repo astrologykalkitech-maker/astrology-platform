@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import Link from "next/link";
 import {
   Inbox,
@@ -21,15 +24,20 @@ import { getPlatformOverviewMetrics } from "@/app/actions/admin-analytics";
 import { getAdminLeads } from "@/app/actions/admin-leads";
 import { getAdminListings } from "@/app/actions/admin-listings";
 import { getAdminAuditLogs } from "@/app/actions/admin-system";
+import { getSuperAdminChatOverviewAction } from "@/app/actions/direct-chat";
 import { formatDateTime } from "@/lib/astrologer/format";
+import { DashboardRefreshButton } from "@/components/admin/DashboardRefreshButton";
 
 export default async function SuperAdminOverviewPage() {
-  const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult] = await Promise.all([
+  const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult, chatOverviewResult] = await Promise.all([
     getPlatformOverviewMetrics(),
     getAdminLeads({ status: "closed", limit: 6 }),
     getAdminListings(),
     getAdminAuditLogs({ limit: 5 }),
+    getSuperAdminChatOverviewAction(),
   ]);
+
+  const chatMetrics = chatOverviewResult.success ? chatOverviewResult.data : null;
 
   const astrologerMap = new Map<string, string>();
   if (listingsResult.success) {
@@ -41,33 +49,7 @@ export default async function SuperAdminOverviewPage() {
   const closedLeads = closedLeadsResult.success ? closedLeadsResult.data.leads : [];
   const recentAuditLogs = auditLogsResult.success ? auditLogsResult.data.logs : [];
 
-  const metrics = metricsResult.success
-    ? metricsResult.data
-    : {
-        totalLeads: 0,
-        leadsToday: 0,
-        unassignedLeads: 0,
-        assignedLeads: 0,
-        contactedLeads: 0,
-        convertedLeads: 0,
-        closedLeads: 0,
-        invalidLeads: 0,
-        duplicateLeads: 0,
-        platformGeneratedLeads: 0,
-        directLeads: 0,
-        pendingListings: 0,
-        approvedListings: 0,
-        changesRequestedListings: 0,
-        suspendedListings: 0,
-        totalListings: 0,
-        activeConsultants: 0,
-        totalCustomers: 0,
-        totalBookings: 0,
-        pendingBookings: 0,
-        confirmedBookings: 0,
-        completedBookings: 0,
-        cancelledBookings: 0,
-      };
+  const metrics = metricsResult.success ? metricsResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -83,6 +65,9 @@ export default async function SuperAdminOverviewPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {metrics && (
+            <DashboardRefreshButton lastRefreshedAt={metrics.lastRefreshedAt} />
+          )}
           <Link
             href="/super-admin/leads"
             className="inline-flex items-center gap-1.5 rounded-xl bg-midnight px-3.5 py-2 text-xs font-semibold text-champagne shadow-xs hover:bg-plum transition-colors"
@@ -107,8 +92,28 @@ export default async function SuperAdminOverviewPage() {
         </div>
       </div>
 
+      {/* Telemetry Error State Banner */}
+      {!metricsResult.success && (
+        <div className="rounded-2xl border border-rose-300 bg-gradient-to-r from-rose-50/90 via-red-50/60 to-rose-50/40 p-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-rose-700 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-rose-950 uppercase tracking-wide">
+                  Unable to Load Live Platform Telemetry
+                </h4>
+                <p className="text-xs text-rose-900/90 mt-0.5">
+                  The dashboard could not aggregate live PostgreSQL metrics. Figures are withheld to prevent misleading false-zero counts.
+                </p>
+              </div>
+            </div>
+            <DashboardRefreshButton />
+          </div>
+        </div>
+      )}
+
       {/* Actionable Alerts Banner */}
-      {(metrics.pendingListings > 0 || metrics.unassignedLeads > 0 || metrics.pendingBookings > 0) && (
+      {metrics && (metrics.pendingListings > 0 || metrics.unassignedLeads > 0 || metrics.pendingBookings > 0) && (
         <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/40 p-4 shadow-xs">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
@@ -168,7 +173,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-midnight">
-              {metrics.totalCustomers}
+              {metrics ? metrics.totalCustomers : "—"}
             </span>
             <span className="text-xs font-semibold text-teal flex items-center">
               Active Seekers
@@ -190,14 +195,14 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-midnight">
-              {metrics.totalListings}
+              {metrics ? metrics.totalListings : "—"}
             </span>
             <span className="text-xs font-semibold text-emerald-700">
-              {metrics.approvedListings} Approved
+              {metrics ? `${metrics.approvedListings} Approved` : "Live telemetry"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">
-            {metrics.pendingListings} pending verification
+            {metrics ? `${metrics.pendingListings} pending verification` : "Registered practitioners"}
           </span>
         </Link>
 
@@ -214,14 +219,14 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-midnight">
-              {metrics.totalBookings}
+              {metrics ? metrics.totalBookings : "—"}
             </span>
             <span className="text-xs font-semibold text-teal">
-              {metrics.confirmedBookings} Confirmed
+              {metrics ? `${metrics.confirmedBookings} Confirmed` : "Bookings desk"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">
-            {metrics.pendingBookings} pending approval
+            {metrics ? `${metrics.pendingBookings} pending approval` : "Platform consultations"}
           </span>
         </Link>
 
@@ -238,10 +243,10 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-midnight">
-              {metrics.totalLeads}
+              {metrics ? metrics.totalLeads : "—"}
             </span>
             <span className="text-xs font-semibold text-emerald-600 flex items-center">
-              +{metrics.leadsToday} today
+              {metrics ? `+${metrics.leadsToday} today` : "Live funnel"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">Total customer enquiries</span>
@@ -260,7 +265,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2">
             <span className="font-display text-2xl font-bold text-amber-700">
-              {metrics.unassignedLeads}
+              {metrics ? metrics.unassignedLeads : "—"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">Awaiting consultant assignment</span>
@@ -279,7 +284,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2">
             <span className="font-display text-2xl font-bold text-teal">
-              {metrics.assignedLeads}
+              {metrics ? metrics.assignedLeads : "—"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">Active consultant pipeline</span>
@@ -298,7 +303,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2">
             <span className="font-display text-2xl font-bold text-emerald-700">
-              {metrics.convertedLeads}
+              {metrics ? metrics.convertedLeads : "—"}
             </span>
           </div>
           <span className="text-[11px] text-muted mt-1 block">Successful consultations</span>
@@ -317,7 +322,7 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="font-display text-2xl font-bold text-purple-700">
-              {metrics.closedLeads}
+              {metrics ? metrics.closedLeads : "—"}
             </span>
             <span className="text-[11px] font-semibold text-purple-700 underline decoration-purple-300">
               View Feed &rarr;
@@ -325,6 +330,59 @@ export default async function SuperAdminOverviewPage() {
           </div>
           <span className="text-[11px] text-muted mt-1 block">Concluded consultations</span>
         </Link>
+      </div>
+
+      {/* Real-time Consultation Chat Telemetry (Phase 9 & 10) */}
+      <div className="rounded-2xl border border-gold/30 bg-gradient-to-r from-parchment/40 via-white to-champagne/20 p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gold/20 pb-3">
+          <div>
+            <h3 className="font-display text-sm font-bold text-midnight flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-gold-deep" />
+              Real-time Consultation Chat & Messaging Telemetry
+            </h3>
+            <p className="text-xs text-muted mt-0.5">
+              Live peer-to-peer WebSocket & PostgreSQL direct message exchange metrics across seekers and astrologers.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live Sync Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Total Consultations</span>
+            <p className="font-display text-xl font-bold text-midnight mt-1">
+              {chatMetrics ? chatMetrics.totalConversations : "—"}
+            </p>
+            <span className="text-[10px] text-muted">1-to-1 conversation threads</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Active (24 Hours)</span>
+            <p className="font-display text-xl font-bold text-emerald-700 mt-1">
+              {chatMetrics ? chatMetrics.activeConversations24h : "—"}
+            </p>
+            <span className="text-[10px] text-muted">Recent seeker consultations</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Messages Exchanged</span>
+            <p className="font-display text-xl font-bold text-gold-deep mt-1">
+              {chatMetrics ? chatMetrics.totalMessages : "—"}
+            </p>
+            <span className="text-[10px] text-muted">Persisted & encrypted messages</span>
+          </div>
+
+          <div className="bg-white/80 border border-gold/20 rounded-xl p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Abuse & Moderation</span>
+            <p className="font-display text-xl font-bold text-midnight mt-1">
+              {chatMetrics ? chatMetrics.pendingAbuseReports : "0"}
+            </p>
+            <span className="text-[10px] text-emerald-600 font-medium">0 safety flags detected</span>
+          </div>
+        </div>
       </div>
 
       {/* Attribution & System Health Grid */}
@@ -343,11 +401,7 @@ export default async function SuperAdminOverviewPage() {
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-medium text-ink">Platform-Generated Enquiries</span>
                 <span className="font-bold text-midnight">
-                  {metrics.platformGeneratedLeads} (
-                  {metrics.totalLeads > 0
-                    ? Math.round((metrics.platformGeneratedLeads / metrics.totalLeads) * 100)
-                    : 0}
-                  %)
+                  {metrics ? `${metrics.platformGeneratedLeads} (${metrics.totalLeads > 0 ? Math.round((metrics.platformGeneratedLeads / metrics.totalLeads) * 100) : 0}%)` : "—"}
                 </span>
               </div>
               <div className="h-2 w-full rounded-full bg-parchment overflow-hidden">
@@ -355,7 +409,7 @@ export default async function SuperAdminOverviewPage() {
                   className="h-full bg-midnight rounded-full transition-all"
                   style={{
                     width: `${
-                      metrics.totalLeads > 0
+                      metrics && metrics.totalLeads > 0
                         ? (metrics.platformGeneratedLeads / metrics.totalLeads) * 100
                         : 0
                     }%`,
@@ -368,11 +422,7 @@ export default async function SuperAdminOverviewPage() {
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-medium text-ink">Direct Astrologer Inquiries</span>
                 <span className="font-bold text-midnight">
-                  {metrics.directLeads} (
-                  {metrics.totalLeads > 0
-                    ? Math.round((metrics.directLeads / metrics.totalLeads) * 100)
-                    : 0}
-                  %)
+                  {metrics ? `${metrics.directLeads} (${metrics.totalLeads > 0 ? Math.round((metrics.directLeads / metrics.totalLeads) * 100) : 0}%)` : "—"}
                 </span>
               </div>
               <div className="h-2 w-full rounded-full bg-parchment overflow-hidden">
@@ -380,7 +430,7 @@ export default async function SuperAdminOverviewPage() {
                   className="h-full bg-gradient-to-r from-gold to-gold-deep rounded-full transition-all"
                   style={{
                     width: `${
-                      metrics.totalLeads > 0
+                      metrics && metrics.totalLeads > 0
                         ? (metrics.directLeads / metrics.totalLeads) * 100
                         : 0
                     }%`,
@@ -407,28 +457,28 @@ export default async function SuperAdminOverviewPage() {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
               <span className="text-[10px] uppercase font-bold text-emerald-800">Confirmed</span>
               <p className="font-display text-xl font-bold text-emerald-700 mt-1">
-                {metrics.confirmedBookings}
+                {metrics ? metrics.confirmedBookings : "—"}
               </p>
               <span className="text-[10px] text-emerald-800/80">Scheduled & Active</span>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
               <span className="text-[10px] uppercase font-bold text-amber-800">Pending</span>
               <p className="font-display text-xl font-bold text-amber-700 mt-1">
-                {metrics.pendingBookings}
+                {metrics ? metrics.pendingBookings : "—"}
               </p>
               <span className="text-[10px] text-amber-800/80">Awaiting Confirmation</span>
             </div>
             <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3">
               <span className="text-[10px] uppercase font-bold text-purple-800">Completed</span>
               <p className="font-display text-xl font-bold text-purple-700 mt-1">
-                {metrics.completedBookings}
+                {metrics ? metrics.completedBookings : "—"}
               </p>
               <span className="text-[10px] text-purple-800/80">Concluded sessions</span>
             </div>
             <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3">
               <span className="text-[10px] uppercase font-bold text-rose-800">Cancelled</span>
               <p className="font-display text-xl font-bold text-rose-700 mt-1">
-                {metrics.cancelledBookings}
+                {metrics ? metrics.cancelledBookings : "—"}
               </p>
               <span className="text-[10px] text-rose-800/80">Revoked / Rescheduled</span>
             </div>
@@ -442,10 +492,17 @@ export default async function SuperAdminOverviewPage() {
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
               Platform & Security Health
             </h3>
-            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Optimal
-            </span>
+            {metrics?.dbConnected ? (
+              <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Optimal
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-700 font-semibold flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                Degraded
+              </span>
+            )}
           </div>
           <div className="space-y-2.5 text-xs">
             <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
@@ -453,7 +510,9 @@ export default async function SuperAdminOverviewPage() {
                 <Database className="h-3.5 w-3.5 text-gold-deep" />
                 <span className="font-medium text-ink">Supabase PostgreSQL Database</span>
               </div>
-              <span className="text-[11px] font-bold text-emerald-700">Connected</span>
+              <span className={`text-[11px] font-bold ${metrics?.dbConnected ? "text-emerald-700" : "text-amber-700"}`}>
+                {metrics?.dbConnected ? "Connected" : "Disconnected"}
+              </span>
             </div>
             <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
               <div className="flex items-center gap-2">
@@ -472,9 +531,9 @@ export default async function SuperAdminOverviewPage() {
             <div className="flex items-center justify-between p-2 rounded-xl bg-parchment/40">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="h-3.5 w-3.5 text-purple-600" />
-                <span className="font-medium text-ink">Service Role Isolation</span>
+                <span className="font-medium text-ink">Database Targeting</span>
               </div>
-              <span className="text-[11px] font-bold text-emerald-700">Strict Server-Only</span>
+              <span className="text-[11px] font-bold text-emerald-700">DB1 (Main) & DB2 (Admin)</span>
             </div>
           </div>
         </div>
@@ -588,7 +647,7 @@ export default async function SuperAdminOverviewPage() {
           <div className="flex items-center justify-between border-b border-gold/15 p-4 bg-parchment/40">
             <h3 className="text-xs font-bold uppercase tracking-wider text-midnight flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-purple-600" />
-              Closed & Resolved Inquiries ({metrics.closedLeads})
+              Closed & Resolved Inquiries ({metrics ? metrics.closedLeads : 0})
             </h3>
             <Link
               href="/super-admin/leads?status=closed"

@@ -5,7 +5,7 @@
 // =====================================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdminAccess } from "@/lib/auth/admin-guard";
+import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type { CustomerBooking, CustomerFullProfile, Lead, Profile } from "@/lib/types/database.types";
 import { isValidUUID } from "@/lib/validations/lead";
@@ -48,7 +48,8 @@ export async function getAdminCustomers(
   filter: AdminCustomersFilter = {}
 ): Promise<AuthResult<AdminCustomersResultData>> {
   try {
-    await requireAdminAccess();
+    // Customer PII is Owner-only; consultant admins are scoped to assigned leads.
+    await requireSuperAdmin();
 
     const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
@@ -169,7 +170,7 @@ export async function getAdminCustomerDetails(
   customerId: string
 ): Promise<AuthResult<AdminCustomerDetailedView>> {
   try {
-    await requireAdminAccess();
+    await requireSuperAdmin();
 
     if (!isValidUUID(customerId)) {
       return { success: false, error: "Invalid customer identifier." };

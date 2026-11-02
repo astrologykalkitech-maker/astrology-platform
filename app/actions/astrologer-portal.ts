@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAstrologer } from "@/lib/auth/session";
 import { getOwnAstrologerProfile } from "@/lib/astrologer/guard";
+import { checkBookingTransition, meetingStatusForBooking } from "@/lib/consultation/booking-lifecycle";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type {
   CustomerBooking,
@@ -124,6 +125,18 @@ export async function updateAstrologerBookingStatusAction(params: {
       return { success: false, error: "Booking record not found or unauthorized." };
     }
 
+    // Enforce the authoritative lifecycle (no reopening terminal bookings, no early completion)
+    const transition = checkBookingTransition(beforeBooking.status as BookingStatus, params.status, {
+      scheduledAt: beforeBooking.scheduled_at,
+    });
+    if (!transition.allowed) {
+      return { success: false, error: transition.reason };
+    }
+    if (transition.noop) {
+      // Repeated request for the state the booking is already in: succeed without side effects
+      return { success: true, data: beforeBooking as unknown as CustomerBooking };
+    }
+
     const updatePayload: Record<string, unknown> = {
       status: params.status,
       updated_at: new Date().toISOString(),
@@ -134,15 +147,41 @@ export async function updateAstrologerBookingStatusAction(params: {
       updatePayload.cancelled_at = new Date().toISOString();
     }
 
+    // Conditional on the status we validated against, so concurrent requests cannot both win
     const { data: updatedBooking, error: updateErr } = await admin
       .from("customer_bookings")
       .update(updatePayload)
       .eq("id", params.bookingId)
+      .eq("status", beforeBooking.status)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (updateErr) {
       return { success: false, error: updateErr.message };
+    }
+    if (!updatedBooking) {
+      return {
+        success: false,
+        error: "This booking was changed by someone else. Please refresh and try again.",
+      };
+    }
+
+    // Keep the meeting record consistent with the booking so the two can never contradict
+    const syncedMeetingStatus = meetingStatusForBooking(params.status);
+    if (syncedMeetingStatus) {
+      const nowIso = new Date().toISOString();
+      const { error: meetingSyncErr } = await admin
+        .from("consultation_meetings")
+        .update({
+          status: syncedMeetingStatus,
+          ...(syncedMeetingStatus === "ended" ? { ended_at: nowIso } : {}),
+          updated_at: nowIso,
+        })
+        .eq("booking_id", params.bookingId)
+        .in("status", ["scheduled", "waiting", "active"]);
+      if (meetingSyncErr) {
+        console.error("[updateAstrologerBookingStatusAction] meeting sync failed:", meetingSyncErr.message);
+      }
     }
 
     // Notify customer on status update
@@ -161,7 +200,7 @@ export async function updateAstrologerBookingStatusAction(params: {
       }
 
       if (notifTitle) {
-        await admin.from("customer_notifications").insert({
+        const { error: notifInsertErr } = await admin.from("customer_notifications").insert({
           customer_id: beforeBooking.customer_id,
           title: notifTitle,
           message: notifMessage,
@@ -170,6 +209,9 @@ export async function updateAstrologerBookingStatusAction(params: {
           is_read: false,
           created_at: new Date().toISOString(),
         });
+        if (notifInsertErr) {
+          console.warn("[updateAstrologerBookingStatusAction] notification insert failed:", notifInsertErr.message);
+        }
       }
     } catch (notifErr) {
       console.warn("[updateAstrologerBookingStatusAction] customer notification notice:", notifErr);

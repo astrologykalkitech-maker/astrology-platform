@@ -5,7 +5,7 @@
 // =====================================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdminAccess } from "@/lib/auth/admin-guard";
+import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
 import { revalidatePath } from "next/cache";
 import type { AuthResult } from "@/lib/types/auth.types";
@@ -47,7 +47,8 @@ export async function getAdminBookings(
   filter: AdminBookingsFilter = {}
 ): Promise<AuthResult<AdminBookingsResultData>> {
   try {
-    await requireAdminAccess();
+    // Platform-wide booking data is Owner-only; consultant admins are scoped to assigned leads.
+    await requireSuperAdmin();
 
     const supabase = await createAdminClient("main");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
@@ -149,7 +150,7 @@ export async function updateAdminBookingStatus(params: {
   cancellationReason?: string;
 }): Promise<AuthResult<CustomerBooking>> {
   try {
-    const { user, profile } = await requireAdminAccess();
+    const { user, profile } = await requireSuperAdmin();
 
     if (!isValidUUID(params.bookingId)) {
       return { success: false, error: "Invalid booking identifier." };

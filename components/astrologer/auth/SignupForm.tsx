@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { ArrowRight, MailCheck } from "lucide-react";
 import { signUp } from "@/app/actions/auth";
@@ -37,7 +36,6 @@ interface SignupFormProps {
 }
 
 export function SignupForm({ role = "astrologer", reason, error }: SignupFormProps) {
-  const router = useRouter();
   const copy = COPY[role];
   const [isPending, startTransition] = useTransition();
   const [fullName, setFullName] = useState("");
@@ -96,8 +94,7 @@ export function SignupForm({ role = "astrologer", reason, error }: SignupFormPro
         return;
       }
 
-      router.replace(copy.redirect);
-      router.refresh();
+      window.location.href = copy.redirect;
     });
   }
 

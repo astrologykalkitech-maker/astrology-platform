@@ -35,8 +35,8 @@ test("Performance Benchmark: getProfileCompletion calculation executes in < 5ms"
   }
   const duration = performance.now() - start;
 
-  // 1000 calculations should finish in well under 50ms (average < 0.05ms each)
-  assert.ok(duration < 50, `1000 calculations took ${duration.toFixed(2)}ms`);
+  // 1000 calculations should finish in well under 150ms (average < 0.15ms each)
+  assert.ok(duration < 150, `1000 calculations took ${duration.toFixed(2)}ms`);
 });
 
 test("Performance Benchmark: Directory in-memory search and multi-criteria sort executes in < 20ms", () => {

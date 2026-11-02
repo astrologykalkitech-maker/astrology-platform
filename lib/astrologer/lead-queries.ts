@@ -3,6 +3,7 @@
 // =====================================================
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { toUuidOrNull } from "@/lib/security/postgrest";
 import type {
   AstrologerLeadItem,
   AstrologerLeadsFilterOptions,
@@ -228,12 +229,15 @@ export async function getAstrologerAssignedLeadById(
   assignmentId: string
 ): Promise<AstrologerLeadItem | null> {
   try {
+    const safeId = toUuidOrNull(assignmentId);
+    if (!safeId) return null;
+
     // 1. Try resolving by assignment id or lead_id
     const { data, error } = await supabase
       .from("lead_assignments")
       .select(NESTED_ASSIGNMENT_SELECT)
       .eq("astrologer_id", astrologerProfileId)
-      .or(`id.eq.${assignmentId},lead_id.eq.${assignmentId}`)
+      .or(`id.eq.${safeId},lead_id.eq.${safeId}`)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

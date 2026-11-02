@@ -5,6 +5,7 @@ import {
   reverseGeocodeCache,
   type OlaReverseGeocodeResult,
 } from "@/lib/location/ola-maps";
+import { checkRateLimit, extractClientIp } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,15 @@ function resolveOrigin(request: NextRequest): string {
 
 export async function GET(request: NextRequest) {
   try {
+    // Protect the server-held Ola Maps key/quota from anonymous abuse
+    const limit = checkRateLimit(`places-reverse:${extractClientIp(request)}`, 30, 60_000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many requests. Please slow down." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const latStr = searchParams.get("lat");
     const lngStr = searchParams.get("lng");

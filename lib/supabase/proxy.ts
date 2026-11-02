@@ -21,28 +21,55 @@ function fetchWithProxyTimeout(input: RequestInfo | URL, init?: RequestInit): Pr
 }
 
 /**
+ * Robust chunk assembly matching @supabase/ssr combineChunks:
+ * If prefix.0 exists, strictly iterates 0, 1, 2... avoiding corrupting
+ * sessions by combining orphaned unchunked cookies with chunked ones.
+ */
+function extractCombinedCookieValue(
+  cookies: { name: string; value: string }[],
+  prefix: string
+): string | null {
+  const hasChunkZero = cookies.some((c) => c.name === `${prefix}.0`);
+  if (hasChunkZero) {
+    const chunks: string[] = [];
+    for (let i = 0; ; i++) {
+      const chunk = cookies.find((c) => c.name === `${prefix}.${i}`);
+      if (!chunk || typeof chunk.value !== "string") break;
+      chunks.push(chunk.value);
+    }
+    return chunks.join("");
+  }
+
+  const single = cookies.find((c) => c.name === prefix);
+  return single?.value || null;
+}
+
+/**
  * Extracts and decodes JWT session claims directly from Supabase chunked cookies.
- * Allows microsecond-level local session verification, eliminating blocking 400ms+
- * external network calls during internal route transitions and RSC prefetching.
+ * Allows microsecond-level local session verification, eliminating blocking external
+ * network calls during internal route transitions and RSC prefetching.
  */
 function extractJwtSession(
   cookies: { name: string; value: string }[],
   prefix: string
 ): { userId: string; exp: number; role?: string } | null {
   try {
-    const parts = cookies
-      .filter((c) => c.name === prefix || c.name.startsWith(`${prefix}.`))
-      .sort((a, b) => {
-        const numA = parseInt(a.name.split(".")[1] || "0", 10);
-        const numB = parseInt(b.name.split(".")[1] || "0", 10);
-        return numA - numB;
-      });
+    let combined = extractCombinedCookieValue(cookies, prefix);
+    if (!combined) return null;
 
-    if (parts.length === 0) return null;
+    try {
+      combined = decodeURIComponent(combined);
+    } catch {
+      // Keep as-is if decodeURIComponent fails
+    }
 
-    let combined = parts.map((p) => p.value).join("");
     if (combined.startsWith("base64-")) {
-      combined = Buffer.from(combined.slice(7), "base64").toString("utf-8");
+      const raw = combined.slice(7);
+      try {
+        combined = Buffer.from(raw, "base64url").toString("utf-8");
+      } catch {
+        combined = Buffer.from(raw, "base64").toString("utf-8");
+      }
     }
 
     const parsed = JSON.parse(combined);
@@ -196,7 +223,11 @@ export async function updateSession(
       const redirectUrl = new URL("/customer/login", request.url);
       const returnPath = pathname + request.nextUrl.search;
       redirectUrl.searchParams.set("redirectTo", returnPath);
-      return NextResponse.redirect(redirectUrl);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      supabaseResponse.cookies.getAll().forEach((c) => {
+        redirectResponse.cookies.set(c);
+      });
+      return redirectResponse;
     }
   }
 
@@ -211,7 +242,11 @@ export async function updateSession(
       const redirectUrl = new URL("/astrologer/login", request.url);
       const returnPath = pathname + request.nextUrl.search;
       redirectUrl.searchParams.set("redirectTo", returnPath);
-      return NextResponse.redirect(redirectUrl);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      supabaseResponse.cookies.getAll().forEach((c) => {
+        redirectResponse.cookies.set(c);
+      });
+      return redirectResponse;
     }
   }
 
@@ -222,7 +257,11 @@ export async function updateSession(
       redirectUrl.searchParams.set("reason", "admin_required");
       const returnPath = pathname + request.nextUrl.search;
       redirectUrl.searchParams.set("redirectTo", returnPath);
-      return NextResponse.redirect(redirectUrl);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      supabaseResponse.cookies.getAll().forEach((c) => {
+        redirectResponse.cookies.set(c);
+      });
+      return redirectResponse;
     }
   }
 
