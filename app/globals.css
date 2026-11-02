@@ -37,6 +37,8 @@
   }
 }
 
+@tailwind base;
+
 @layer base {
   /* Cross-browser layout and box-sizing normalization */
   *,
