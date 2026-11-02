@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
   }
 
   // 4. Determine authoritative destination based strictly on database role
-  let destination = "/customer/dashboard";
+  let destination = "/customer/astrologers";
 
   if (userRole === "super_admin" || userRole === "admin") {
     destination = "/super-admin";
@@ -238,7 +238,7 @@ export async function GET(request: NextRequest) {
     if (oauthRole === "astrologer") {
       destination = "/astrologer/login?reason=customer_account";
     } else {
-      destination = rawNext ? validateRedirectPath(rawNext, "/customer/dashboard") : "/customer/dashboard";
+      destination = rawNext ? validateRedirectPath(rawNext, "/customer/astrologers") : "/customer/astrologers";
     }
   }
 

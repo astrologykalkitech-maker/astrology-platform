@@ -21,6 +21,7 @@ import {
   VolumeX,
   X,
   Flag,
+  Phone,
 } from "lucide-react";
 import {
   type ConversationSummary,
@@ -49,6 +50,9 @@ import { playChatNotificationChime } from "@/lib/chat/audio-notification";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
+import { useAccountPresence } from "@/components/chat/AccountPresenceProvider";
+import { getAccountPresenceKey } from "@/lib/chat/presence";
+import { useVoiceCall } from "@/components/chat/VoiceCallProvider";
 
 const LIVE_CHAT_SHARED_CHANNEL = "jyotishsetu-live-consultation-chat";
 
@@ -99,6 +103,8 @@ export function AstrologerChatClient({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeDropdownMsgId, setActiveDropdownMsgId] = useState<string | null>(null);
   const [unreadScrolledCount, setUnreadScrolledCount] = useState(0);
+  const onlineAccounts = useAccountPresence();
+  const { startCall, canStartCall } = useVoiceCall();
 
   // Reporting modal
   const [reportingMsgId, setReportingMsgId] = useState<string | null>(null);
@@ -930,6 +936,11 @@ export function AstrologerChatClient({
     selectedConvo?.customer_name ||
     selectedSeeker?.full_name ||
     "Seeker";
+  const currentChatSeekerId = selectedConvo?.customer_id || selectedSeeker?.id;
+  const isCurrentChatSeekerOnline = Boolean(
+    currentChatSeekerId &&
+      onlineAccounts.has(getAccountPresenceKey("customer", currentChatSeekerId))
+  );
 
   const pinnedMessages = useMemo(() => {
     return messages.filter((m) => m.is_pinned);
@@ -938,7 +949,7 @@ export function AstrologerChatClient({
   const displayMessages = searchResults !== null ? searchResults : messages;
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] min-h-[560px] max-h-[820px] rounded-2xl border border-gold/30 bg-white shadow-xl overflow-hidden relative">
+    <div className="flex h-[calc(100vh-12rem)] min-h-140 max-h-205 rounded-2xl border border-gold/30 bg-white shadow-xl overflow-hidden relative">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-4 right-4 z-50 rounded-xl bg-midnight text-white px-4 py-2.5 text-xs font-medium shadow-lg flex items-center gap-2 border border-gold/30">
@@ -1061,24 +1072,8 @@ export function AstrologerChatClient({
             </div>
           </div>
 
-          {/* Dual Tabs: All Seekers vs Active Chats */}
+          {/* Dual Tabs: Active Chats vs All Seekers */}
           <div className="grid grid-cols-2 p-0.5 rounded-xl bg-gold/10 border border-gold/20 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setActiveTab("seekers")}
-              className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === "seekers"
-                  ? "bg-white text-midnight shadow-xs font-bold"
-                  : "text-muted hover:text-midnight"
-              }`}
-            >
-              <Users className="h-3.5 w-3.5 text-gold-deep" />
-              <span>All Seekers</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-gold/20 text-midnight font-bold">
-                {seekers.length}
-              </span>
-            </button>
-
             <button
               type="button"
               onClick={() => setActiveTab("chats")}
@@ -1092,6 +1087,22 @@ export function AstrologerChatClient({
               <span>Active Chats</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-gold/20 text-midnight font-bold">
                 {conversations.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("seekers")}
+              className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "seekers"
+                  ? "bg-white text-midnight shadow-xs font-bold"
+                  : "text-muted hover:text-midnight"
+              }`}
+            >
+              <Users className="h-3.5 w-3.5 text-gold-deep" />
+              <span>All Seekers</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-gold/20 text-midnight font-bold">
+                {seekers.length}
               </span>
             </button>
           </div>
@@ -1124,6 +1135,9 @@ export function AstrologerChatClient({
                 const isSelected =
                   selectedSeeker?.id === seeker.id ||
                   (selectedConvoId !== null && seeker.conversation_id === selectedConvoId);
+                const isOnline = onlineAccounts.has(
+                  getAccountPresenceKey("customer", seeker.id)
+                );
 
                 return (
                   <button
@@ -1134,9 +1148,15 @@ export function AstrologerChatClient({
                       isSelected ? "bg-gold/15" : "hover:bg-parchment/60"
                     }`}
                   >
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shrink-0 shadow-xs">
+                    <div className="h-9 w-9 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shrink-0 shadow-xs">
                       {seeker.full_name.slice(0, 2).toUpperCase()}
                     </div>
+                    {isOnline && (
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-white"
+                        aria-label="Online now"
+                      />
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -1183,6 +1203,9 @@ export function AstrologerChatClient({
             ) : (
               filteredConversations.map((convo) => {
                 const isSelected = convo.id === selectedConvoId;
+                const isOnline = onlineAccounts.has(
+                  getAccountPresenceKey("customer", convo.customer_id)
+                );
                 return (
                   <button
                     key={convo.id}
@@ -1196,10 +1219,15 @@ export function AstrologerChatClient({
                     }`}
                   >
                     <div className="relative h-10 w-10 shrink-0">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
+                      <div className="h-10 w-10 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
                         {(convo.customer_name || "S").slice(0, 2).toUpperCase()}
                       </div>
-                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                      {isOnline && (
+                        <span
+                          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                          aria-label="Online now"
+                        />
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -1257,10 +1285,12 @@ export function AstrologerChatClient({
                 </button>
 
                 <div className="relative h-9 w-9 shrink-0">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
+                  <div className="h-9 w-9 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
                     {currentChatSeekerName.slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  {isCurrentChatSeekerOnline && (
+                    <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  )}
                 </div>
 
                 <div className="min-w-0">
@@ -1268,8 +1298,12 @@ export function AstrologerChatClient({
                     {currentChatSeekerName}
                   </h3>
                   <p className="text-[10px] text-muted flex items-center gap-1.5 mt-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Seeker Consultation</span>
+                    {isCurrentChatSeekerOnline && (
+                      <>
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Online now</span>
+                      </>
+                    )}
                     {isSeekerTyping && (
                       <span className="text-gold-deep font-semibold italic ml-2 animate-pulse">
                         Seeker is typing…
@@ -1281,6 +1315,25 @@ export function AstrologerChatClient({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedConvoId) return;
+                    void startCall(selectedConvoId).then((result) => {
+                      if (!result.success) setError(result.error || "Unable to start voice call.");
+                    });
+                  }}
+                  disabled={!selectedConvoId || !isCurrentChatSeekerOnline || !canStartCall}
+                  className="rounded-xl p-2 text-muted transition-colors hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={
+                    !isCurrentChatSeekerOnline
+                      ? "Voice calls are available when the customer is online."
+                      : "Start voice call"
+                  }
+                  aria-label="Start voice call"
+                >
+                  <Phone className="h-4 w-4" />
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsSearchingChat((prev) => !prev)}
@@ -1357,7 +1410,7 @@ export function AstrologerChatClient({
             {/* Message Feed Area */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-parchment/10 via-white to-parchment/10"
+              className="flex-1 p-4 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10"
             >
               {hasMoreMessages && (
                 <div className="text-center py-1">

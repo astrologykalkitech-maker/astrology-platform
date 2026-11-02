@@ -5,7 +5,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%26_RLS-3ECF8E?logo=supabase)](https://supabase.com/)
 [![LiveKit](https://img.shields.io/badge/LiveKit-In--House_WebRTC-black?logo=livekit)](https://livekit.io/)
-[![Tests](https://img.shields.io/badge/Tests-415%2F415_Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
+[![Tests](https://img.shields.io/badge/Tests-422%2F422_Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
 [![Build](https://img.shields.io/badge/Build-43_Routes_Production_Ready-success)]()
 
 **JyotishSetu** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, and complete end-to-end booking lifecycles.
@@ -43,9 +43,10 @@ JyotishSetu operates across a high-availability dual-database split architecture
 ## 🌟 Core Features & Workspaces
 
 ### 1. Customer Portal (`/customer/*`)
-* **Interactive Celestial Dashboard (`/customer/dashboard` / `/customer`)**: Real-time consultation countdowns, pending booking alerts, quick-start Vedic tool launchers, and astrologer recommendations.
+* **Customer Portal Entry (`/customer`)**: Opens the astrologer directory for signed-in customers.
 * **Unified Direct Consultation Chat (`/customer/chat`)**:
   * Real-time peer-to-peer WebSocket messaging (< 50ms delivery).
+  * In-app one-to-one voice calls with online-only calling, incoming call controls, mute, speaker, and persisted call status.
   * Bidirectional read status: single check (sent), double grey check (delivered), double gold check (read).
   * Extreme 60 FPS zero-lag typing using isolated memoized composers (`ChatComposer`).
   * Rich messaging: file attachments (images, PDFs up to 10MB), image lightbox, message replies, Vedic emoji reactions (`👍`, `❤️`, `😂`, `😮`, `😢`, `🙏`), pinned message drawer, message search, and report abuse modal.
@@ -392,7 +393,7 @@ astrology-website/
 │       ├── 024_video_conferencing.sql   # In-house LiveKit consultation records
 │       └── 029_chat_complete.sql        # Full chat suite: edits, reactions, pins, abuse
 │
-├── tests/                               # Comprehensive Automated Test Suites (415 Tests)
+├── tests/                               # Comprehensive Automated Test Suites (422 Tests)
 │   ├── complete-chat-system.test.ts     # Live chat peer delivery, clamping & reactions
 │   ├── live-chat-seeker-directory.test.ts# Astrologer seeker discovery & directory
 │   ├── route-auth-activation.test.ts    # 43 application routes, 404 & redirect tests
@@ -457,19 +458,22 @@ DB1_SUPABASE_SERVICE_ROLE_KEY=your-main-service-role-key
 DB2_SUPABASE_URL=https://your-crm-project.supabase.co
 DB2_SUPABASE_SERVICE_ROLE_KEY=your-crm-service-role-key
 
-# LiveKit In-House Video Conferencing
+# LiveKit In-House Audio and Video
 LIVEKIT_API_KEY=your-livekit-api-key
 LIVEKIT_API_SECRET=your-livekit-api-secret
-NEXT_PUBLIC_LIVEKIT_WS_URL=wss://your-livekit-instance.livekit.cloud
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
 ```
 
-### 4. Running the Development Server
+### 4. Database Setup
+Apply `supabase/migrations/030_direct_voice_calls.sql` to the DB1/main Supabase project before enabling chat voice calls. It creates the persisted call records, participant-only read access, concurrency protection, and Realtime publication. The browser also needs microphone permission, and the LiveKit URL and server credentials above must be configured.
+
+### 5. Running the Development Server
 ```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-### 5. Running in Production Mode
+### 6. Running in Production Mode
 ```bash
 npm run build
 npm start
@@ -482,7 +486,7 @@ npm start
 JyotishSetu maintains a comprehensive test suite covering security policies, role authorization, RLS enforcement, Vedic calculations, and real-time chat integrity:
 
 ```bash
-# Run all 415 automated unit and regression tests
+# Run all 422 automated unit and regression tests
 npm test -- --run
 
 # Run TypeScript static analysis
@@ -502,13 +506,13 @@ npm run build
 ✔ Central Lead Capture & 60-Second Anti-Duplication Hashing
 ✔ Atomic Lead Assignment, Reassignment & Batch Reporting
 ✔ Super Admin Telemetry, Listing Moderation & Immutable Audit Logging
-✔ Real-Time Chat Synchronization, Idempotent Delivery & Zero Unread Clamping
+✔ Real-Time Chat Synchronization, Presence, Voice-Call Lifecycle & Zero Unread Clamping
 ✔ In-House Video Conferencing Termination & Booking Persistence
 ✔ Universal AI Companion Multi-Turn Ethical Boundaries & Tool Invocations
 
-ℹ tests 415
+ℹ tests 422
 ℹ suites 0
-ℹ pass 415
+ℹ pass 422
 ℹ fail 0
 ```
 

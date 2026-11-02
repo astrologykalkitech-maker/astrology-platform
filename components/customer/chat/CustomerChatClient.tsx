@@ -21,6 +21,7 @@ import {
   Volume2,
   VolumeX,
   Flag,
+  Phone,
 } from "lucide-react";
 import {
   type ConversationSummary,
@@ -46,6 +47,9 @@ import { playChatNotificationChime } from "@/lib/chat/audio-notification";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
+import { useAccountPresence } from "@/components/chat/AccountPresenceProvider";
+import { getAccountPresenceKey } from "@/lib/chat/presence";
+import { useVoiceCall } from "@/components/chat/VoiceCallProvider";
 
 const LIVE_CHAT_SHARED_CHANNEL = "jyotishsetu-live-consultation-chat";
 
@@ -101,6 +105,8 @@ export function CustomerChatClient({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeDropdownMsgId, setActiveDropdownMsgId] = useState<string | null>(null);
   const [unreadScrolledCount, setUnreadScrolledCount] = useState(0);
+  const onlineAccounts = useAccountPresence();
+  const { startCall, canStartCall } = useVoiceCall();
 
   // Reporting modal
   const [reportingMsgId, setReportingMsgId] = useState<string | null>(null);
@@ -874,6 +880,12 @@ export function CustomerChatClient({
     selectedConvo?.astrologer_name ||
     selectedAstrologer?.display_name ||
     "Verified Astrologer";
+  const currentChatAstrologerUserId =
+    selectedConvo?.astrologer_user_id || selectedAstrologer?.user_id;
+  const isCurrentChatAstrologerOnline = Boolean(
+    currentChatAstrologerUserId &&
+      onlineAccounts.has(getAccountPresenceKey("astrologer", currentChatAstrologerUserId))
+  );
 
   const pinnedMessages = useMemo(() => {
     return messages.filter((m) => m.is_pinned && !m.deleted_for_all);
@@ -882,7 +894,7 @@ export function CustomerChatClient({
   const displayMessages = searchResults !== null ? searchResults : messages;
 
   return (
-    <div className="flex h-[calc(100vh-140px)] min-h-[580px] flex-col overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-2xl lg:flex-row relative">
+    <div className="flex h-[calc(100vh-140px)] min-h-145 flex-col overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-2xl lg:flex-row relative">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-midnight border border-gold/50 text-gold-light px-4 py-2 rounded-full shadow-2xl text-xs flex items-center gap-2 animate-bounce">
@@ -1064,6 +1076,10 @@ export function CustomerChatClient({
             ) : (
               filteredConversations.map((convo) => {
                 const isSelected = convo.id === selectedConvoId;
+                const isOnline = Boolean(
+                  convo.astrologer_user_id &&
+                    onlineAccounts.has(getAccountPresenceKey("astrologer", convo.astrologer_user_id))
+                );
                 return (
                   <button
                     key={convo.id}
@@ -1084,11 +1100,16 @@ export function CustomerChatClient({
                           className="rounded-full object-cover border border-gold/30 shadow-xs"
                         />
                       ) : (
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
+                        <div className="h-10 w-10 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
                           {(convo.astrologer_name || "A").slice(0, 2).toUpperCase()}
                         </div>
                       )}
-                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                      {isOnline && (
+                        <span
+                          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                          aria-label="Online now"
+                        />
+                      )}
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -1126,46 +1147,56 @@ export function CustomerChatClient({
                 {searchQuery ? "No astrologers match your search." : "No astrologers available."}
               </div>
             ) : (
-              filteredAstrologers.map((astro) => (
-                <button
-                  key={astro.id}
-                  type="button"
-                  onClick={() => handleSelectAstrologer(astro)}
-                  className="w-full p-3.5 text-left transition-colors flex items-center gap-3 hover:bg-parchment/60 cursor-pointer"
-                >
-                  <div className="relative h-10 w-10 shrink-0">
-                    {astro.profile_photo_url ? (
-                      <Image
-                        src={astro.profile_photo_url}
-                        alt={astro.display_name}
-                        fill
-                        sizes="40px"
-                        unoptimized
-                        className="rounded-full object-cover border border-gold/30 shadow-xs"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
-                        {astro.display_name.slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-midnight truncate">
-                        {astro.display_name}
-                      </span>
-                      <span className="text-[10px] font-medium text-gold-deep shrink-0">
-                        ₹{astro.consultation_fee}
-                      </span>
+              filteredAstrologers.map((astro) => {
+                const isOnline = onlineAccounts.has(
+                  getAccountPresenceKey("astrologer", astro.user_id)
+                );
+                return (
+                  <button
+                    key={astro.id}
+                    type="button"
+                    onClick={() => handleSelectAstrologer(astro)}
+                    className="w-full p-3.5 text-left transition-colors flex items-center gap-3 hover:bg-parchment/60 cursor-pointer"
+                  >
+                    <div className="relative h-10 w-10 shrink-0">
+                      {astro.profile_photo_url ? (
+                        <Image
+                          src={astro.profile_photo_url}
+                          alt={astro.display_name}
+                          fill
+                          sizes="40px"
+                          unoptimized
+                          className="rounded-full object-cover border border-gold/30 shadow-xs"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
+                          {astro.display_name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                      {isOnline && (
+                        <span
+                          className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+                          aria-label="Online now"
+                        />
+                      )}
                     </div>
-                    <p className="text-[11px] text-muted truncate mt-0.5">
-                      {astro.specializations.slice(0, 2).join(", ") || `${astro.experience_years} yrs exp`}
-                    </p>
-                  </div>
-                </button>
-              ))
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs text-midnight truncate">
+                          {astro.display_name}
+                        </span>
+                        <span className="text-[10px] font-medium text-gold-deep shrink-0">
+                          ₹{astro.consultation_fee}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted truncate mt-0.5">
+                        {astro.specializations.slice(0, 2).join(", ") || `${astro.experience_years} yrs exp`}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
             )
           )}
         </div>
@@ -1193,10 +1224,12 @@ export function CustomerChatClient({
                 </button>
 
                 <div className="relative h-9 w-9 shrink-0">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
+                  <div className="h-9 w-9 rounded-full bg-linear-to-br from-champagne via-gold to-gold-deep flex items-center justify-center font-bold text-xs text-midnight shadow-xs">
                     {currentChatAstrologerName.slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  {isCurrentChatAstrologerOnline && (
+                    <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  )}
                 </div>
 
                 <div className="min-w-0">
@@ -1204,8 +1237,12 @@ export function CustomerChatClient({
                     {currentChatAstrologerName}
                   </h3>
                   <p className="text-[10px] text-muted flex items-center gap-1.5 mt-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Online & Verified</span>
+                    {isCurrentChatAstrologerOnline && (
+                      <>
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Online now</span>
+                      </>
+                    )}
                     {isAstrologerTyping && (
                       <span className="text-gold-deep font-semibold italic ml-2 animate-pulse">
                         Astrologer is typing…
@@ -1217,6 +1254,25 @@ export function CustomerChatClient({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedConvoId) return;
+                    void startCall(selectedConvoId).then((result) => {
+                      if (!result.success) setError(result.error || "Unable to start voice call.");
+                    });
+                  }}
+                  disabled={!selectedConvoId || !isCurrentChatAstrologerOnline || !canStartCall}
+                  className="rounded-xl p-2 text-muted transition-colors hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={
+                    !isCurrentChatAstrologerOnline
+                      ? "Voice calls are available when the astrologer is online."
+                      : "Start voice call"
+                  }
+                  aria-label="Start voice call"
+                >
+                  <Phone className="h-4 w-4" />
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsSearchingChat((prev) => !prev)}
@@ -1293,7 +1349,7 @@ export function CustomerChatClient({
             {/* Message Feed Area */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 p-4 overflow-y-auto space-y-3 bg-gradient-to-b from-parchment/10 via-white to-parchment/10"
+              className="flex-1 p-4 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10"
             >
               {hasMoreMessages && (
                 <div className="text-center py-1">

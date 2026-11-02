@@ -29,7 +29,7 @@ function pageTitleFor(pathname: string) {
   if (pathname.startsWith("/customer/notification")) return "Notifications";
   if (pathname.startsWith("/customer/offers")) return "Special Offers";
   if (pathname.startsWith("/customer/support")) return "Customer Support";
-  return "Dashboard";
+  return "Customer Portal";
 }
 
 export function CustomerHeader({
@@ -112,8 +112,8 @@ export function CustomerHeader({
           <Menu className="h-6 w-6" aria-hidden="true" />
         </button>
         <Link
-          href="/customer"
-          aria-label="JyotishSetu customer dashboard"
+          href="/customer/astrologers"
+          aria-label="JyotishSetu Customer Portal"
           className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-champagne"
         >
           <Logo tagline="Customer Portal" />
@@ -147,7 +147,7 @@ export function CustomerHeader({
       </header>
 
       {/* Desktop Header */}
-      <header className="shrink-0 sticky top-0 z-20 hidden h-[76px] items-center justify-between gap-4 border-b border-gold/30 bg-ivory px-8 shadow-xs lg:flex">
+      <header className="shrink-0 sticky top-0 z-20 hidden h-19 items-center justify-between gap-4 border-b border-gold/30 bg-ivory px-8 shadow-xs lg:flex">
         <div className="leading-tight">
           <p className="font-display text-xl font-semibold text-midnight">Customer Portal</p>
           <p className="text-xs text-muted">{pageTitle}</p>
@@ -176,7 +176,7 @@ export function CustomerHeader({
               >
                 <Avatar name={customerName} src={photoUrl} size="sm" roleTitle="Customer Profile" uploadHref="/customer/profile" />
                 <div className="leading-tight">
-                  <p className="max-w-[200px] truncate text-sm font-semibold text-midnight">{customerName}</p>
+                  <p className="max-w-50 truncate text-sm font-semibold text-midnight">{customerName}</p>
                   <p className="text-xs text-muted">Customer Profile</p>
                 </div>
               </Link>

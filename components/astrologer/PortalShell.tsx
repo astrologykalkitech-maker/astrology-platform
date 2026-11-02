@@ -6,14 +6,17 @@ import { AstrologerSidebar } from "@/components/astrologer/AstrologerSidebar";
 import { BottomNav } from "@/components/astrologer/BottomNav";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { RealtimeAstrologerPortalSync } from "@/components/astrologer/RealtimeAstrologerPortalSync";
+import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
+import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
 
 type PortalShellProps = {
+  userId: string;
   displayName: string;
   photoUrl: string | null;
   children: ReactNode;
 };
 
-export function PortalShell({ displayName, photoUrl, children }: PortalShellProps) {
+export function PortalShell({ userId, displayName, photoUrl, children }: PortalShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -28,7 +31,9 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
   }, [menuOpen]);
 
   return (
-    <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
+    <VoiceCallProvider role="astrologer" userId={userId}>
+    <AccountPresenceProvider role="astrologer" userId={userId}>
+      <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <RealtimeAstrologerPortalSync />
       <a
         href="#main-content"
@@ -71,6 +76,8 @@ export function PortalShell({ displayName, photoUrl, children }: PortalShellProp
           <div className="rise-in mx-auto w-full max-w-[1200px]">{children}</div>
         </main>
       </div>
-    </div>
+      </div>
+    </AccountPresenceProvider>
+    </VoiceCallProvider>
   );
 }

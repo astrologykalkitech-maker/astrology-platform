@@ -6,11 +6,14 @@ import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerBottomNav } from "@/components/customer/CustomerBottomNav";
 import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologerSync";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
+import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
+import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
 
 interface CustomerShellProps {
   customerName: string;
   userInitial: string;
   photoUrl?: string | null;
+  userId: string;
   isLoggedIn?: boolean;
   children: ReactNode;
 }
@@ -19,6 +22,7 @@ export function CustomerShell({
   customerName,
   userInitial,
   photoUrl,
+  userId,
   isLoggedIn = true,
   children,
 }: CustomerShellProps) {
@@ -36,7 +40,9 @@ export function CustomerShell({
   }, [menuOpen]);
 
   return (
-    <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
+    <VoiceCallProvider role="customer" userId={userId}>
+    <AccountPresenceProvider role="customer" userId={userId}>
+      <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <a
         href="#customer-main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-midnight"
@@ -83,6 +89,8 @@ export function CustomerShell({
           <div className="rise-in mx-auto w-full max-w-[1200px] min-w-0">{children}</div>
         </main>
       </div>
-    </div>
+      </div>
+    </AccountPresenceProvider>
+    </VoiceCallProvider>
   );
 }

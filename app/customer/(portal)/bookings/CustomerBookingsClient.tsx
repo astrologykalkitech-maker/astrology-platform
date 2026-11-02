@@ -129,7 +129,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
     );
     window.dispatchEvent(new CustomEvent("jyotishsetu:booking-updated"));
 
-    const res = await cancelCustomerBookingAction(id, "Cancelled by user via dashboard");
+    const res = await cancelCustomerBookingAction(id, "Cancelled by user via customer portal");
     setCancellingId(null);
 
     if (res.success) {
