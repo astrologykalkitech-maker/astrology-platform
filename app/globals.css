@@ -89,6 +89,8 @@
   }
 }
 
+@tailwind components;
+
 @layer components {
   .gold-gradient {
     background-image:
