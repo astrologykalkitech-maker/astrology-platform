@@ -624,7 +624,16 @@ export function LocationAutocomplete({
               <X className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <MapPin className="h-4 w-4 text-gold-deep pointer-events-none" />
+            <button
+              type="button"
+              onClick={handleCurrentLocation}
+              disabled={disabled || detectingLocation}
+              title={currentLocationLabel || "Detect current location"}
+              aria-label={currentLocationLabel || "Detect current location"}
+              className="p-0.5 text-gold-deep hover:text-midnight hover:scale-110 active:scale-95 transition-all cursor-pointer rounded-full disabled:opacity-50"
+            >
+              <MapPin className="h-4 w-4 text-gold-deep" />
+            </button>
           )}
         </div>
       </div>

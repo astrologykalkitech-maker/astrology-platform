@@ -249,7 +249,8 @@ export function KundliMilanForm({ onSuccess, defaultPartnerA }: KundliMilanFormP
                 onSelectSuggestion={handleLocationSelectA}
                 placeholder="Search city (e.g. Varanasi, Uttar Pradesh)"
                 inputClassName="w-full text-xs rounded-xl border border-gold/30 bg-white py-2"
-                enableCurrentLocation={false}
+                enableCurrentLocation={true}
+                currentLocationLabel="Use current location"
               />
               {resolvedA && (
                 <p className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
@@ -360,7 +361,8 @@ export function KundliMilanForm({ onSuccess, defaultPartnerA }: KundliMilanFormP
                 onSelectSuggestion={handleLocationSelectB}
                 placeholder="Search city (e.g. Mumbai, Maharashtra)"
                 inputClassName="w-full text-xs rounded-xl border border-gold/30 bg-white py-2"
-                enableCurrentLocation={false}
+                enableCurrentLocation={true}
+                currentLocationLabel="Use current location"
               />
               {resolvedB && (
                 <p className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">

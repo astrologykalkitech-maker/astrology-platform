@@ -223,7 +223,8 @@ export function KundliForm({ initialValues, onSuccess }: KundliFormProps) {
           onSelectSuggestion={handleLocationSelect}
           placeholder="Search birthplace (e.g. Varanasi, Uttar Pradesh, India)"
           inputClassName="w-full text-xs rounded-xl border border-gold/30 bg-white py-2"
-          enableCurrentLocation={false}
+          enableCurrentLocation={true}
+          currentLocationLabel="Use current location"
         />
         {hasResolvedCoords && (
           <p className="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
