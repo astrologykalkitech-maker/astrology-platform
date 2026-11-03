@@ -166,15 +166,27 @@ export function normalizeReverseGeocodeResult(
   fallbackLng: number
 ): NormalizedReverseGeocode {
   const components = result.address_components || [];
-  let city = "";
+  let locality = "";
+  let sublocality = "";
+  let adminLevel3 = ""; // Tehsil / Taluk / Sub-district (e.g., Mawana, Hastinapur)
+  let adminLevel2 = ""; // District (e.g., Meerut, New Delhi)
   let state = "";
   let country = "India";
   let postalCode: string | undefined;
 
   for (const comp of components) {
     const types = comp.types || [];
-    if (types.includes("locality") || types.includes("administrative_area_level_2") || types.includes("city")) {
-      if (!city) city = comp.long_name;
+    if (types.includes("locality") || types.includes("city")) {
+      if (!locality) locality = comp.long_name;
+    }
+    if (types.includes("sublocality") || types.includes("sublocality_level_1") || types.includes("neighborhood")) {
+      if (!sublocality) sublocality = comp.long_name;
+    }
+    if (types.includes("administrative_area_level_3") || types.includes("subdistrict") || types.includes("taluk") || types.includes("tehsil")) {
+      if (!adminLevel3) adminLevel3 = comp.long_name;
+    }
+    if (types.includes("administrative_area_level_2") || types.includes("district")) {
+      if (!adminLevel2) adminLevel2 = comp.long_name;
     }
     if (types.includes("administrative_area_level_1") || types.includes("state")) {
       if (!state) state = comp.long_name;
@@ -186,6 +198,9 @@ export function normalizeReverseGeocodeResult(
       postalCode = comp.long_name;
     }
   }
+
+  // City priority: Locality > Admin Area Level 3 (Tehsil/Taluk/Town) > District (Admin Area Level 2) > Sublocality
+  const city = locality || adminLevel3 || adminLevel2 || sublocality || "";
 
   const formatted = result.formatted_address || [city, state, country].filter(Boolean).join(", ");
   const name = result.name || city || formatted.split(",")[0]?.trim() || "Current Location";

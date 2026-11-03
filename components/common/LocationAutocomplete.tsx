@@ -440,23 +440,30 @@ export function LocationAutocomplete({
     clearTemporaryError();
 
     const hasExistingValue = Boolean(value && value.trim().length > 0);
-    let finished = false;
+    let resolvedAccurateGps = false;
 
-    // Fast-fallback timer: start IP location immediately in parallel so desktop/laptop users
-    // get their city filled in ~1-1.5s instead of waiting for slow Windows GPS positioning
-    void tryFallbackIpLocation().then((resolved) => {
-      if (resolved) {
-        finished = true;
+    // Fast-fallback timer: if GPS takes more than 3.5 seconds on desktop/laptops,
+    // seamlessly provide IP-based approximate location as an interim fallback
+    // BUT allow subsequent accurate GPS arrival to upgrade coordinates!
+    const ipFallbackTimer = setTimeout(() => {
+      if (!resolvedAccurateGps) {
+        void tryFallbackIpLocation();
       }
-    });
+    }, 3500);
 
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      clearTimeout(ipFallbackTimer);
+      const ipResolved = await tryFallbackIpLocation();
+      if (!ipResolved) {
+        setDetectingLocation(false);
+        showTemporaryError("Geolocation is not supported by your browser.");
+      }
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        if (finished) return;
+        clearTimeout(ipFallbackTimer);
         const { latitude, longitude } = position.coords;
 
         try {
@@ -473,7 +480,7 @@ export function LocationAutocomplete({
             };
 
             if (data.success && data.result) {
-              finished = true;
+              resolvedAccurateGps = true;
               applyDetectedLocation(data.result);
               return;
             }
@@ -482,10 +489,10 @@ export function LocationAutocomplete({
           // Fallback if reverse geocode endpoint experiences an issue
         }
 
-        if (!finished) {
+        if (!resolvedAccurateGps) {
           const ipResolved = await tryFallbackIpLocation();
           if (ipResolved) {
-            finished = true;
+            resolvedAccurateGps = true;
             return;
           }
 
@@ -500,21 +507,20 @@ export function LocationAutocomplete({
             longitude,
             source: "geolocation",
           });
-          finished = true;
+          resolvedAccurateGps = true;
           setDetectingLocation(false);
         }
       },
       async (geoError) => {
-        if (finished) return;
+        clearTimeout(ipFallbackTimer);
+        if (resolvedAccurateGps) return;
 
         // Attempt fast IP-based approximate location fallback if device GPS times out or is unavailable
         const ipResolved = await tryFallbackIpLocation();
         if (ipResolved) {
-          finished = true;
           return;
         }
 
-        finished = true;
         setDetectingLocation(false);
 
         // If the user already has a manually entered or saved value (e.g. "Varanasi"),
@@ -534,9 +540,9 @@ export function LocationAutocomplete({
         showTemporaryError(msg);
       },
       {
-        enableHighAccuracy: false,
+        enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 600000,
+        maximumAge: 60000,
       }
     );
   };

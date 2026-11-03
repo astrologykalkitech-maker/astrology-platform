@@ -39,6 +39,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/kundli-milan", label: "Kundli Milan", icon: Heart },
   { href: "/customer/panchang", label: "Daily Panchang", icon: Sun },
   { href: "/customer/horoscope", label: "Daily Horoscope", icon: Moon },
+  { href: "/customer/remedies", label: "Vedic Remedies", icon: ShieldCheck },
+  { href: "/customer/protection-rituals", label: "Protection Rituals", icon: ShieldCheck },
+  { href: "/customer/numerology", label: "Numerology", icon: Sparkles },
+  { href: "/customer/planetary-transits", label: "Planetary Transits", icon: Compass },
+  { href: "/customer/muhurat", label: "Shubh Muhurat", icon: Sun },
+  { href: "/customer/reports", label: "Report Library", icon: ClipboardList },
   { href: "/customer/profile", label: "My Kundli Profile", icon: User },
   { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
@@ -48,9 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
 ];
 
-const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
-  { label: "Protection Rituals", icon: ShieldCheck, desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon." },
-];
+const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [];
 
 function isActive(pathname: string, item: NavItem) {
   if (item.exact) return pathname === item.href;
@@ -136,30 +140,34 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
             );
           })}
 
-          <Ornament className="mt-3 px-2" />
-          <p className="mt-2 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
-            Coming soon
-          </p>
-          <div className="space-y-1 pt-1">
-            {COMING_SOON.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.label}
-                  className="rounded-xl px-3.5 py-2 text-xs text-ivory/50"
-                  title={item.desc}
-                >
-                  <div className="flex items-center gap-3 font-medium text-ivory/70">
-                    <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                    <span>{item.label}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 pl-7 text-[11px] leading-relaxed text-ivory/40">
-                    {item.desc}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          {COMING_SOON.length > 0 && (
+            <>
+              <Ornament className="mt-3 px-2" />
+              <p className="mt-2 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
+                Coming soon
+              </p>
+              <div className="space-y-1 pt-1">
+                {COMING_SOON.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.label}
+                      className="rounded-xl px-3.5 py-2 text-xs text-ivory/50"
+                      title={item.desc}
+                    >
+                      <div className="flex items-center gap-3 font-medium text-ivory/70">
+                        <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                        <span>{item.label}</span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 pl-7 text-[11px] leading-relaxed text-ivory/40">
+                        {item.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </nav>
 
         {isLoggedIn && (

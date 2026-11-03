@@ -29,13 +29,24 @@ export interface PersonalizedHoroscopeInput {
   dateStr?: string;
 }
 
+// In-memory cache for AI enriched horoscopes to avoid duplicate API requests and protect Gemini quotas
+const aiHoroscopeCache = new Map<string, { forecast: HoroscopeForecast; expiresAt: number }>();
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 /**
  * Enriches deterministic Vedic horoscope with Gemini AI synthesis if configured and available.
  * Fails safely to the verified deterministic calculation if Gemini fails or is unreachable.
+ * Includes deterministic memory-caching to strictly preserve API rate limits and quotas.
  */
 async function enrichHoroscopeWithAi(forecast: HoroscopeForecast): Promise<HoroscopeForecast> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim() === "") return forecast;
+
+  const cacheKey = `${forecast.zodiacSign}:${forecast.predictionPeriod}:${forecast.periodStart}`;
+  const cached = aiHoroscopeCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.forecast;
+  }
 
   try {
     const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
@@ -72,7 +83,7 @@ Respond ONLY with a JSON object in this format (no markdown code fences):
     if (response && response.text) {
       const parsed = JSON.parse(response.text.trim());
       if (parsed.generalOverview && parsed.career) {
-        return {
+        const enriched: HoroscopeForecast = {
           ...forecast,
           generalOverview: parsed.generalOverview,
           career: parsed.career || forecast.career,
@@ -84,6 +95,14 @@ Respond ONLY with a JSON object in this format (no markdown code fences):
             : forecast.recommendations,
           calculationMethodology: `${forecast.calculationMethodology} + JyotishSetu AI Synthesis`,
         };
+
+        // Cache for 6 hours
+        aiHoroscopeCache.set(cacheKey, {
+          forecast: enriched,
+          expiresAt: Date.now() + CACHE_TTL_MS,
+        });
+
+        return enriched;
       }
     }
   } catch (err) {

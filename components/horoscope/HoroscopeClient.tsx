@@ -272,9 +272,9 @@ export function HoroscopeClient({
       {/* 3. Personalized Customer Kundli Integration Banner */}
       {customerKundlis.length > 0 && (
         <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="text-2xl">🕉️</span>
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <span className="text-2xl shrink-0">🕉️</span>
               <div>
                 <h3 className="font-display text-sm font-bold text-indigo-950">
                   Personalize with your Janam Kundli
@@ -285,11 +285,11 @@ export function HoroscopeClient({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
               <select
                 value={selectedKundliId}
                 onChange={(e) => setSelectedKundliId(e.target.value)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-indigo-200 bg-white text-indigo-950 focus:outline-none"
+                className="max-w-full sm:max-w-xs md:max-w-md text-xs font-semibold px-3 py-2 rounded-xl border border-indigo-200 bg-white text-indigo-950 truncate focus:outline-none focus:ring-1 focus:ring-indigo-400"
               >
                 {customerKundlis.map((k) => (
                   <option key={k.id} value={k.id}>
@@ -299,7 +299,7 @@ export function HoroscopeClient({
               </select>
               <button
                 onClick={handlePersonalizedGenerate}
-                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors whitespace-nowrap"
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors whitespace-nowrap text-center shrink-0"
               >
                 Personalize
               </button>
