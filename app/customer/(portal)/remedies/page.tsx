@@ -4,6 +4,8 @@ import { getCustomerKundlisAction } from "@/app/actions/kundli";
 import { generateFullAstrologyReport } from "@/lib/astrology";
 import { RemediesClient } from "@/components/customer/RemediesClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Vedic Remedies & Protection Rituals | JyotishSetu",
   description: "Personalized Vedic Gemstones, Rudraksha, Mantras, and Charity prescribed according to your authentic Janam Kundli.",

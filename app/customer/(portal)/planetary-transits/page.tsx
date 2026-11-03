@@ -4,6 +4,8 @@ import { getCustomerKundlisAction } from "@/app/actions/kundli";
 import { calculateTransitSnapshot, ZODIAC_SIGNS } from "@/lib/astrology/transits";
 import { PlanetaryTransitsClient } from "@/components/customer/PlanetaryTransitsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Planetary Transits & Vedic Gochara | JyotishSetu",
   description: "Live planetary transits for all 9 Grahas, Sade Sati status, House effects, and transit timelines grounded in Chitrapaksha Lahiri Ayanamsa.",

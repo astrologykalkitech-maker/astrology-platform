@@ -4,6 +4,8 @@ import { getCustomerKundlisAction } from "@/app/actions/kundli";
 import { calculateNumerology } from "@/lib/astrology/numerology";
 import { NumerologyClient } from "@/components/customer/NumerologyClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Vedic & Chaldean Numerology | JyotishSetu",
   description: "Calculate Moolank (Birth Number), Bhagyank (Destiny Number), and Namank (Chaldean Name Number) with personalized cosmic insights.",

@@ -3,6 +3,8 @@ import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { getProtectionRitualsAction } from "@/app/actions/protection-rituals";
 import { ProtectionRitualsClient } from "@/components/customer/ProtectionRitualsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Vedic Protection Rituals | JyotishSetu",
   description: "Authentic Vedic rituals and sacred practices for Evil Eye (Drishti Dosha), negative energy clearing, and spiritual home protection.",

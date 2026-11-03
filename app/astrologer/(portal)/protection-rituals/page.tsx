@@ -3,6 +3,8 @@ import { requireAstrologer } from "@/lib/auth/session";
 import { getProtectionRitualsAction } from "@/app/actions/protection-rituals";
 import { ProtectionRitualsClient } from "@/components/customer/ProtectionRitualsClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Prescribed Protection Rituals | Astrologer Portal",
   description: "Browse authentic Vedic protection rituals and prescribe Upayas for client consultations.",
