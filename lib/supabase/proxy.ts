@@ -141,9 +141,17 @@ export async function updateSession(
                 cookiesToSet.forEach(({ name, value }) =>
                   request.cookies.set(name, value)
                 );
-                cookiesToSet.forEach(({ name, value, options }) =>
-                  supabaseResponse.cookies.set(name, value, options)
-                );
+                cookiesToSet.forEach(({ name, value, options }) => {
+                  const isDeleting = options?.maxAge === 0;
+                  const sessionOptions = isDeleting
+                    ? options
+                    : {
+                        ...options,
+                        maxAge: undefined,
+                        expires: undefined,
+                      };
+                  supabaseResponse.cookies.set(name, value, sessionOptions);
+                });
               },
             },
           }
@@ -193,9 +201,17 @@ export async function updateSession(
                 cookiesToSet.forEach(({ name, value }) =>
                   request.cookies.set(name, value)
                 );
-                cookiesToSet.forEach(({ name, value, options }) =>
-                  supabaseResponse.cookies.set(name, value, options)
-                );
+                cookiesToSet.forEach(({ name, value, options }) => {
+                  const isDeleting = options?.maxAge === 0;
+                  const sessionOptions = isDeleting
+                    ? options
+                    : {
+                        ...options,
+                        maxAge: undefined,
+                        expires: undefined,
+                      };
+                  supabaseResponse.cookies.set(name, value, sessionOptions);
+                });
               },
             },
           });

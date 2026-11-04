@@ -88,10 +88,18 @@ export async function GET(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookiesToSetList.push({ name, value, options });
+            const isDeleting = options?.maxAge === 0;
+            const sessionOptions = isDeleting
+              ? options
+              : {
+                  ...(options ?? {}),
+                  maxAge: undefined,
+                  expires: undefined,
+                };
             response.cookies.set(name, value, {
               path: "/",
               sameSite: "lax",
-              ...(options ?? {}),
+              ...sessionOptions,
             });
           });
         },
@@ -249,9 +257,17 @@ export async function GET(request: NextRequest) {
   // Transfer captured session cookies with explicit path: "/" to prevent scoping to /auth/callback
   if (cookiesToSetList.length > 0) {
     cookiesToSetList.forEach(({ name, value, options }) => {
+      const isDeleting = options?.maxAge === 0;
+      const sessionOptions = isDeleting
+        ? options
+        : {
+            ...(options ?? {}),
+            maxAge: undefined,
+            expires: undefined,
+          };
       redirectResponse.cookies.set(name, value, {
         sameSite: "lax",
-        ...(options ?? {}),
+        ...sessionOptions,
         path: "/",
       });
     });

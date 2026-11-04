@@ -9,6 +9,7 @@ import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBounda
 import { RealtimeAstrologerPortalSync } from "@/components/astrologer/RealtimeAstrologerPortalSync";
 import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
 import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
+import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 
 type PortalShellProps = {
   userId: string;
@@ -34,6 +35,7 @@ export function PortalShell({ userId, displayName, photoUrl, children }: PortalS
 
   return (
     <VoiceCallProvider role="astrologer" userId={userId}>
+      <SessionLifecycleGuard userId={userId} role="astrologer" loginPath="/astrologer/login" />
     <AccountPresenceProvider role="astrologer" userId={userId}>
       <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <RealtimeAstrologerPortalSync />

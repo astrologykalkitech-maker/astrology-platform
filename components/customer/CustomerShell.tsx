@@ -9,6 +9,7 @@ import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologer
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
 import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
+import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 
 interface CustomerShellProps {
   customerName: string;
@@ -43,6 +44,7 @@ export function CustomerShell({
 
   return (
     <VoiceCallProvider role="customer" userId={userId}>
+      <SessionLifecycleGuard userId={userId} role="customer" loginPath="/customer/login" />
     <AccountPresenceProvider role="customer" userId={userId}>
       <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <a
