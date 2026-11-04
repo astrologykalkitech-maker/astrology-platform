@@ -1,192 +1,183 @@
+@import "tailwindcss";
+
+/* JyotishSetu design tokens */
+@theme inline {
+  --color-midnight: #151027;
+  --color-plum: #29183b;
+  --color-maroon: #55252b;
+  --color-teal: #135e5a;
+  --color-emerald: #176b50;
+  --color-gold: #c49a4a;
+  --color-gold-deep: #8a6420;
+  --color-champagne: #e8d4a6;
+  --color-ivory: #fffcf6;
+  --color-parchment: #f7f0e3;
+  --color-ink: #25202b;
+  --color-muted: #79717c;
+  --color-line: #e6d8bc;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), Georgia, serif;
+  --font-mono: var(--font-geist-mono);
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
 
-
-  /* JyotishSetu design tokens */
-  @theme {
-    --color-midnight: #151027;
-    --color-plum: #29183b;
-    --color-maroon: #55252b;
-    --color-teal: #135e5a;
-    --color-emerald: #176b50;
-    --color-gold: #c49a4a;
-    --color-gold-deep: #8a6420;
-    --color-champagne: #e8d4a6;
-    --color-ivory: #fffcf6;
-    --color-parchment: #f7f0e3;
-    --color-ink: #25202b;
-    --color-muted: #79717c;
-    --color-line: #e6d8bc;
-
-    @theme inline {
-      --color-background: var(--background);
-      --color-foreground: var(--foreground);
-      --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-      --font-display: var(--font-playfair), Georgia, serif;
-      --font-mono: var(--font-geist-mono);
-
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --background: #0a0a0a;
-          --foreground: #ededed;
-
-          @tailwind base;
-
-          @layer base {
-
-            /* Cross-browser layout and box-sizing normalization */
-            *,
-            *::before,
-            *::after {
-              box-sizing: border-box;
-            }
-
-            html {
-              scroll-behavior: smooth;
-              -webkit-text-size-adjust: 100%;
-              -moz-text-size-adjust: 100%;
-              text-size-adjust: 100%;
-            }
-
-            body {
-              margin: 0;
-              padding: 0;
-              background: var(--background);
-              color: var(--foreground);
-              font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarello, "Helvetica Neue", Arial, sans-serif;
-              overflow-x: clip;
-              min-width: 320px;
-              -webkit-font-smoothing: antialiased;
-              -moz-osx-font-smoothing: grayscale;
-              text-rendering: optimizeLegibility;
-              padding-left: env(safe-area-inset-left, 0px);
-              padding-right: env(safe-area-inset-right, 0px);
-            }
-
-            /* Ensure consistent form control styling across Chrome, Safari, Firefox, and Edge */
-            input,
-            button,
-            textarea,
-            select {
-              font: inherit;
-              color: inherit;
-              -webkit-appearance: none;
-              -moz-appearance: none;
-              appearance: none;
-            }
-
-            /* Maintain native arrow appearance for select while standardizing geometry */
-            select {
-              background-repeat: no-repeat;
-              background-position: right 0.75rem center;
-              background-size: 1em 1em;
-            }
-
-            @tailwind components;
-
-            @tailwind utilities;
-
-            .gold-gradient {
-              background-image:
-                linear-gradient(180deg, rgba(232, 212, 166, 0.35) 0, transparent 1px),
-                linear-gradient(180deg, #a87d2e 0%, #84601f 100%);
-            }
-
-            .gold-text {
-              background-image: linear-gradient(90deg, #b58a35, #e8d4a6 50%, #b58a35);
-              -webkit-background-clip: text;
-              background-clip: text;
-              color: transparent;
-            }
-
-            .portal-bg {
-              background:
-                radial-gradient(ellipse 55% 35% at 90% -5%, rgba(196, 154, 74, 0.18), transparent 70%),
-                radial-gradient(ellipse 45% 30% at 0% 100%, rgba(19, 94, 90, 0.08), transparent 70%),
-                linear-gradient(180deg, #fbf6ea 0%, #f7f0e3 100%);
-            }
-
-            .celestial-surface {
-              background:
-                radial-gradient(ellipse at 15% 0%, rgba(196, 154, 74, 0.2), transparent 55%),
-                radial-gradient(ellipse at 95% 100%, rgba(85, 37, 43, 0.55), transparent 55%),
-                radial-gradient(ellipse at 60% 40%, rgba(41, 24, 59, 0.9), transparent 70%),
-                linear-gradient(165deg, #151027 0%, #29183b 100%);
-            }
-
-            .rise-in {
-              animation: rise-in 0.5s ease-out both;
-            }
-
-            @keyframes rise-in {
-              from {
-                opacity: 0;
-                transform: translateY(8px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-
-            @keyframes twinkle {
-              0%,
-              100% { opacity: 0.9; }
-              50% { opacity: 0.25; }
-            }
-
-            .star-twinkle {
-              animation: twinkle 4.5s ease-in-out infinite;
-            }
-
-            @media (prefers-reduced-motion: reduce) {
-              *,
-              *::before,
-              *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-              }
-            }
-
-            /* Contained table scrollbar styling */
-            .table-scrollbar {
-              scrollbar-width: thin;
-              scrollbar-color: rgba(196, 154, 74, 0.4) transparent;
-            }
-
-            .table-scrollbar::-webkit-scrollbar {
-              height: 6px;
-            }
-
-            .table-scrollbar::-webkit-scrollbar-track {
-              background: transparent;
-            }
-
-            .table-scrollbar::-webkit-scrollbar-thumb {
-              background-color: rgba(196, 154, 74, 0.4);
-              border-radius: 9999px;
-            }
-
-            .table-scrollbar::-webkit-scrollbar-thumb:hover {
-              background-color: rgba(196, 154, 74, 0.7);
-            }
-
-            /* Sleek dark sidebar scrollbar without native OS arrows */
-            .sidebar-scrollbar {
-              scrollbar-width: none;
-              -ms-overflow-style: none;
-            }
-
-            .sidebar-scrollbar::-webkit-scrollbar {
-              display: none;
-              width: 0;
-              height: 0;
-            }
-          }
-        }
-      }
-    }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
   }
+}
+
+@layer base {
+  /* Cross-browser layout and box-sizing normalization */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarello, "Helvetica Neue", Arial, sans-serif;
+    overflow-x: clip;
+    min-width: 320px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* Ensure consistent form control styling across Chrome, Safari, Firefox, and Edge */
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+
+  /* Maintain native arrow appearance for select while standardizing geometry */
+  select {
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1em 1em;
+  }
+}
+
+.gold-gradient {
+  background-image:
+    linear-gradient(180deg, rgba(232, 212, 166, 0.35) 0, transparent 1px),
+    linear-gradient(180deg, #a87d2e 0%, #84601f 100%);
+}
+
+.gold-text {
+  background-image: linear-gradient(90deg, #b58a35, #e8d4a6 50%, #b58a35);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.portal-bg {
+  background:
+    radial-gradient(ellipse 55% 35% at 90% -5%, rgba(196, 154, 74, 0.18), transparent 70%),
+    radial-gradient(ellipse 45% 30% at 0% 100%, rgba(19, 94, 90, 0.08), transparent 70%),
+    linear-gradient(180deg, #fbf6ea 0%, #f7f0e3 100%);
+}
+
+.celestial-surface {
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(196, 154, 74, 0.2), transparent 55%),
+    radial-gradient(ellipse at 95% 100%, rgba(85, 37, 43, 0.55), transparent 55%),
+    radial-gradient(ellipse at 60% 40%, rgba(41, 24, 59, 0.9), transparent 70%),
+    linear-gradient(165deg, #151027 0%, #29183b 100%);
+}
+
+.rise-in {
+  animation: rise-in 0.5s ease-out both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% { opacity: 0.9; }
+  50% { opacity: 0.25; }
+}
+
+.star-twinkle {
+  animation: twinkle 4.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Contained table scrollbar styling */
+.table-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 154, 74, 0.4) transparent;
+}
+
+.table-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.table-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(196, 154, 74, 0.4);
+  border-radius: 9999px;
+}
+
+.table-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(196, 154, 74, 0.7);
+}
+
+/* Sleek dark sidebar scrollbar without native OS arrows */
+.sidebar-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
