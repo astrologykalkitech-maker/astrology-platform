@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { CustomerHeader } from "@/components/customer/CustomerHeader";
 import { CustomerSidebar } from "@/components/customer/CustomerSidebar";
 import { CustomerBottomNav } from "@/components/customer/CustomerBottomNav";
@@ -8,6 +9,7 @@ import { RealtimeAstrologerSync } from "@/components/customer/RealtimeAstrologer
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
 import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
+import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 
 interface CustomerShellProps {
   customerName: string;
@@ -27,6 +29,7 @@ export function CustomerShell({
   children,
 }: CustomerShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isChatPage = usePathname() === "/customer/chat";
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -41,6 +44,7 @@ export function CustomerShell({
 
   return (
     <VoiceCallProvider role="customer" userId={userId}>
+      <SessionLifecycleGuard userId={userId} role="customer" loginPath="/customer/login" />
     <AccountPresenceProvider role="customer" userId={userId}>
       <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <a
@@ -84,9 +88,19 @@ export function CustomerShell({
         <main
           id="customer-main-content"
           tabIndex={-1}
-          className="flex-1 overflow-y-auto px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8"
+          className={`flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 outline-none sm:px-8 sm:pt-8 lg:pb-8 ${
+            isChatPage
+              ? "flex min-h-0 flex-col overflow-hidden"
+              : "overflow-y-auto"
+          }`}
         >
-          <div className="rise-in mx-auto w-full max-w-[1200px] min-w-0">{children}</div>
+          <div
+            className={`rise-in mx-auto w-full max-w-300 min-w-0 ${
+              isChatPage ? "flex min-h-0 flex-1 flex-col" : ""
+            }`}
+          >
+            {children}
+          </div>
         </main>
       </div>
       </div>

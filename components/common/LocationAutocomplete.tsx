@@ -8,6 +8,7 @@ import React, {
   type KeyboardEvent,
   type ChangeEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   MapPin,
   Loader2,
@@ -43,6 +44,14 @@ export interface LocationAutocompleteProps {
   currentLocationLabel?: string;
 }
 
+interface DropdownPosition {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+  placement: "bottom" | "top";
+}
+
 export function LocationAutocomplete({
   id = "location-autocomplete",
   name,
@@ -68,15 +77,22 @@ export function LocationAutocomplete({
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [hasSearched, setHasSearched] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<DropdownPosition | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLUListElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastRequestIdRef = useRef<number>(0);
   const clientQueryCacheRef = useRef<Map<string, LocationSuggestion[]>>(new Map());
   const listboxId = `${id}-listbox`;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const clearTemporaryError = useCallback(() => {
     if (errorTimerRef.current) {
@@ -91,12 +107,65 @@ export function LocationAutocomplete({
       clearTimeout(errorTimerRef.current);
     }
     setFetchError(msg);
-    // Auto-dismiss transient location notices after 6 seconds
     errorTimerRef.current = setTimeout(() => {
       setFetchError(null);
       errorTimerRef.current = null;
     }, 6000);
   }, []);
+
+  // Calculate high-precision dropdown coordinates relative to viewport for React Portal
+  const updateDropdownPosition = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    const DESIRED_MAX_HEIGHT = 280;
+    const MARGIN = 6;
+
+    // Decide placement: open above if space below is tighter than space above and < 200px
+    const openAbove = spaceBelow < 200 && spaceAbove > spaceBelow;
+
+    if (openAbove) {
+      const availableHeight = Math.min(DESIRED_MAX_HEIGHT, spaceAbove - MARGIN - 10);
+      setDropdownPos({
+        top: Math.max(10, rect.top - availableHeight - MARGIN),
+        left: rect.left,
+        width: rect.width,
+        maxHeight: availableHeight,
+        placement: "top",
+      });
+    } else {
+      const availableHeight = Math.min(DESIRED_MAX_HEIGHT, spaceBelow - MARGIN - 10);
+      setDropdownPos({
+        top: rect.bottom + MARGIN,
+        left: rect.left,
+        width: rect.width,
+        maxHeight: availableHeight,
+        placement: "bottom",
+      });
+    }
+  }, []);
+
+  // Reposition on scroll or resize while open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateDropdownPosition();
+
+    const handleScrollOrResize = () => {
+      updateDropdownPosition();
+    };
+
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [isOpen, updateDropdownPosition]);
 
   // Debounced search logic with request cancellation and sequence ID checks
   const fetchSuggestions = useCallback(async (query: string) => {
@@ -120,6 +189,7 @@ export function LocationAutocomplete({
       setHasSearched(true);
       setFetchError(null);
       setActiveIndex(-1);
+      updateDropdownPosition();
       return;
     }
 
@@ -137,13 +207,11 @@ export function LocationAutocomplete({
     setFetchError(null);
 
     try {
-      // Primary: Official Ola Maps Places Autocomplete endpoint
       const res = await fetch(
         `/api/places/autocomplete?input=${encodeURIComponent(trimmed)}`,
         { signal: controller.signal }
       );
 
-      // Discard stale response if a newer request was dispatched
       if (requestId !== lastRequestIdRef.current) return;
 
       if (!res.ok) {
@@ -164,33 +232,36 @@ export function LocationAutocomplete({
         if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
           results = data.suggestions;
         } else if (Array.isArray(data.predictions)) {
-          results = data.predictions.map((p, idx) => ({
-            id: p.place_id || p.reference || `ola-${idx}`,
-            name: p.structured_formatting?.main_text || p.description.split(",")[0]?.trim() || "Location",
-            state: p.structured_formatting?.secondary_text?.split(",")[0]?.trim(),
-            country: p.structured_formatting?.secondary_text?.split(",").slice(-1)[0]?.trim() || "India",
-            formatted: p.description,
-            latitude: p.geometry?.location?.lat,
-            longitude: p.geometry?.location?.lng,
-            place_id: p.place_id,
-            source: "autocomplete",
-          }));
+          results = data.predictions.map((p) => {
+            const desc = p.description || "";
+            const parts = desc.split(",").map((s) => s.trim()).filter(Boolean);
+            const country = parts.length > 1 ? parts[parts.length - 1] : "India";
+            const state = parts.length > 2 ? parts[parts.length - 2] : undefined;
+            const mainText = p.structured_formatting?.main_text || parts[0] || desc;
+
+            return {
+              id: p.place_id || `sugg-${Math.random().toString(36).substring(2, 9)}`,
+              name: mainText,
+              state,
+              country,
+              formatted: desc,
+              latitude: p.geometry?.location?.lat,
+              longitude: p.geometry?.location?.lng,
+              place_id: p.place_id,
+              source: "autocomplete",
+            };
+          });
         }
 
+        clientQueryCacheRef.current.set(cacheKey, results);
         setSuggestions(results);
         setIsOpen(true);
         setActiveIndex(-1);
-
-        // Store up to 50 entries in client memory for instant backspacing and typing
-        if (clientQueryCacheRef.current.size >= 50) {
-          const oldest = clientQueryCacheRef.current.keys().next().value;
-          if (oldest) clientQueryCacheRef.current.delete(oldest);
-        }
-        clientQueryCacheRef.current.set(cacheKey, results);
+        updateDropdownPosition();
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        return; // Normal cancellation
+        return;
       }
       if (requestId === lastRequestIdRef.current) {
         setSuggestions([]);
@@ -201,7 +272,7 @@ export function LocationAutocomplete({
         setLoading(false);
       }
     }
-  }, []);
+  }, [updateDropdownPosition]);
 
   // Handle typing with clean 300ms debounce
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -227,9 +298,12 @@ export function LocationAutocomplete({
   // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node;
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -265,7 +339,7 @@ export function LocationAutocomplete({
     inputRef.current?.focus();
   };
 
-  // Full Keyboard navigation support (ArrowDown, ArrowUp, Enter, Escape, Tab)
+  // Keyboard navigation support
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen || suggestions.length === 0) {
       if (e.key === "ArrowDown" && value.trim().length >= 2) {
@@ -317,7 +391,6 @@ export function LocationAutocomplete({
     inputRef.current?.focus();
   };
 
-  // Helper to apply detected location to form inputs seamlessly
   const applyDetectedLocation = (loc: NormalizedReverseGeocode) => {
     const isCityField =
       (currentLocationLabel && currentLocationLabel.toLowerCase().includes("city")) ||
@@ -346,9 +419,7 @@ export function LocationAutocomplete({
     setDetectingLocation(false);
   };
 
-  // Resilient multi-layer IP location fallback
   const tryFallbackIpLocation = async (): Promise<boolean> => {
-    // 1. Try internal server API route with multi-provider pool
     try {
       const ipRes = await fetch("/api/places/ip-location", {
         signal: AbortSignal.timeout(5000),
@@ -367,7 +438,6 @@ export function LocationAutocomplete({
       // Continue to direct client fallback
     }
 
-    // 2. Direct browser CORS fallback to BigDataCloud (fast, 0ms server latency)
     try {
       const bdcRes = await fetch(
         "https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=en",
@@ -398,7 +468,6 @@ export function LocationAutocomplete({
       // Continue to direct CORS fallback to ipwho.is
     }
 
-    // 3. Direct browser CORS fallback to ipwho.is
     try {
       const directRes = await fetch("https://ipwho.is/", {
         signal: AbortSignal.timeout(4000),
@@ -431,7 +500,6 @@ export function LocationAutocomplete({
     return false;
   };
 
-  // "Use my current location" Geolocation Handler
   const handleCurrentLocation = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -440,27 +508,30 @@ export function LocationAutocomplete({
     clearTemporaryError();
 
     const hasExistingValue = Boolean(value && value.trim().length > 0);
-    let finished = false;
+    let resolvedAccurateGps = false;
 
-    // Fast-fallback timer: start IP location immediately in parallel so desktop/laptop users
-    // get their city filled in ~1-1.5s instead of waiting for slow Windows GPS positioning
-    void tryFallbackIpLocation().then((resolved) => {
-      if (resolved) {
-        finished = true;
+    const ipFallbackTimer = setTimeout(() => {
+      if (!resolvedAccurateGps) {
+        void tryFallbackIpLocation();
       }
-    });
+    }, 3500);
 
     if (typeof window === "undefined" || !("geolocation" in navigator)) {
+      clearTimeout(ipFallbackTimer);
+      const ipResolved = await tryFallbackIpLocation();
+      if (!ipResolved) {
+        setDetectingLocation(false);
+        showTemporaryError("Geolocation is not supported by your browser.");
+      }
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        if (finished) return;
+        clearTimeout(ipFallbackTimer);
         const { latitude, longitude } = position.coords;
 
         try {
-          // Call our server-side Ola Maps reverse geocoding proxy
           const res = await fetch(
             `/api/places/reverse-geocode?lat=${latitude}&lng=${longitude}`,
             { signal: AbortSignal.timeout(6000) }
@@ -473,7 +544,7 @@ export function LocationAutocomplete({
             };
 
             if (data.success && data.result) {
-              finished = true;
+              resolvedAccurateGps = true;
               applyDetectedLocation(data.result);
               return;
             }
@@ -482,14 +553,13 @@ export function LocationAutocomplete({
           // Fallback if reverse geocode endpoint experiences an issue
         }
 
-        if (!finished) {
+        if (!resolvedAccurateGps) {
           const ipResolved = await tryFallbackIpLocation();
           if (ipResolved) {
-            finished = true;
+            resolvedAccurateGps = true;
             return;
           }
 
-          // Fallback to coordinate label if reverse geocoding is unavailable
           const fallbackStr = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
           onChange(fallbackStr, {
             id: `geo-coords`,
@@ -500,25 +570,21 @@ export function LocationAutocomplete({
             longitude,
             source: "geolocation",
           });
-          finished = true;
+          resolvedAccurateGps = true;
           setDetectingLocation(false);
         }
       },
       async (geoError) => {
-        if (finished) return;
+        clearTimeout(ipFallbackTimer);
+        if (resolvedAccurateGps) return;
 
-        // Attempt fast IP-based approximate location fallback if device GPS times out or is unavailable
         const ipResolved = await tryFallbackIpLocation();
         if (ipResolved) {
-          finished = true;
           return;
         }
 
-        finished = true;
         setDetectingLocation(false);
 
-        // If the user already has a manually entered or saved value (e.g. "Varanasi"),
-        // never show a misleading "timed out, type manually" error!
         if (hasExistingValue) {
           return;
         }
@@ -534,18 +600,92 @@ export function LocationAutocomplete({
         showTemporaryError(msg);
       },
       {
-        enableHighAccuracy: false,
+        enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 600000,
+        maximumAge: 60000,
       }
     );
   };
 
   const displayError = error || (!value ? fetchError : null);
 
+  // Portal-based suggestion list dropdown component
+  const dropdownElement = isOpen && dropdownPos && mounted ? (
+    <ul
+      ref={dropdownRef}
+      id={listboxId}
+      role="listbox"
+      aria-label="Location suggestions"
+      style={{
+        position: "fixed",
+        top: `${dropdownPos.top}px`,
+        left: `${dropdownPos.left}px`,
+        width: `${dropdownPos.width}px`,
+        maxHeight: `${dropdownPos.maxHeight}px`,
+        zIndex: 999999,
+      }}
+      className="overflow-y-auto rounded-xl border border-gold/30 bg-white p-1 shadow-2xl backdrop-blur-md transition-all overscroll-contain animate-fadeIn"
+    >
+      {suggestions.length > 0 ? (
+        suggestions.map((item, idx) => {
+          const isSelected = activeIndex === idx;
+          return (
+            <li
+              key={item.id}
+              id={`${id}-opt-${idx}`}
+              role="option"
+              aria-selected={isSelected}
+              onMouseDown={(e) => {
+                // Prevent input blur before click registers
+                e.preventDefault();
+                handleSelect(item);
+              }}
+              onMouseEnter={() => setActiveIndex(idx)}
+              className={`flex items-start gap-2.5 rounded-lg px-3 py-2 text-xs cursor-pointer transition-colors ${
+                isSelected
+                  ? "bg-gold/15 text-midnight font-medium"
+                  : "text-ink hover:bg-parchment/60"
+              }`}
+            >
+              <MapPin
+                className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+                  isSelected ? "text-gold-deep" : "text-muted"
+                }`}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-midnight truncate">
+                  {item.name}
+                  {item.state ? (
+                    <span className="font-normal text-muted ml-1">
+                      ({item.state})
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-[10px] text-muted truncate">
+                  {item.formatted}
+                </p>
+              </div>
+              {isSelected && (
+                <Check className="h-3.5 w-3.5 text-gold-deep shrink-0 mt-0.5" />
+              )}
+            </li>
+          );
+        })
+      ) : hasSearched && !loading ? (
+        <li className="px-3 py-3 text-center text-xs text-muted">
+          <p className="font-medium text-midnight">No matching locations found</p>
+          <p className="text-[10px] text-muted mt-0.5">
+            You can keep your custom typed location.
+          </p>
+        </li>
+      ) : null}
+    </ul>
+  ) : null;
+
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
-      <div className="flex items-center justify-between mb-1.5">
+      {/* Header with Optional Label & One-click Geolocation Link */}
+      <div className="flex items-center justify-between mb-1 gap-2">
         {label && (
           <label
             htmlFor={id}
@@ -596,8 +736,12 @@ export function LocationAutocomplete({
           onKeyDown={handleKeyDown}
           onFocus={() => {
             clearTemporaryError();
-            if (suggestions.length > 0) setIsOpen(true);
-            else if (value.trim().length >= 2) void fetchSuggestions(value);
+            if (suggestions.length > 0) {
+              setIsOpen(true);
+              updateDropdownPosition();
+            } else if (value.trim().length >= 2) {
+              void fetchSuggestions(value);
+            }
           }}
           placeholder={placeholder}
           className={`w-full rounded-xl border border-gold/30 bg-parchment/30 py-2.5 pl-3.5 pr-14 text-xs text-midnight placeholder:text-muted/60 transition-colors focus:border-gold focus:bg-white focus:outline-none focus:ring-1 focus:ring-gold disabled:opacity-50 ${
@@ -618,7 +762,16 @@ export function LocationAutocomplete({
               <X className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <MapPin className="h-4 w-4 text-gold-deep pointer-events-none" />
+            <button
+              type="button"
+              onClick={handleCurrentLocation}
+              disabled={disabled || detectingLocation}
+              title={currentLocationLabel || "Detect current location"}
+              aria-label={currentLocationLabel || "Detect current location"}
+              className="p-0.5 text-gold-deep hover:text-midnight hover:scale-110 active:scale-95 transition-all cursor-pointer rounded-full disabled:opacity-50"
+            >
+              <MapPin className="h-4 w-4 text-gold-deep" />
+            </button>
           )}
         </div>
       </div>
@@ -640,69 +793,10 @@ export function LocationAutocomplete({
         </div>
       )}
 
-      {/* Autocomplete Suggestions Dropdown */}
-      {isOpen && (
-        <ul
-          id={listboxId}
-          role="listbox"
-          aria-label="Location suggestions"
-          className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-gold/30 bg-white p-1 shadow-xl backdrop-blur-md transition-all"
-        >
-          {suggestions.length > 0 ? (
-            suggestions.map((item, idx) => {
-              const isSelected = activeIndex === idx;
-              return (
-                <li
-                  key={item.id}
-                  id={`${id}-opt-${idx}`}
-                  role="option"
-                  aria-selected={isSelected}
-                  onMouseDown={(e) => {
-                    // Prevent input blur before click registers
-                    e.preventDefault();
-                    handleSelect(item);
-                  }}
-                  onMouseEnter={() => setActiveIndex(idx)}
-                  className={`flex items-start gap-2.5 rounded-lg px-3 py-2 text-xs cursor-pointer transition-colors ${
-                    isSelected
-                      ? "bg-gold/15 text-midnight font-medium"
-                      : "text-ink hover:bg-parchment/60"
-                  }`}
-                >
-                  <MapPin
-                    className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
-                      isSelected ? "text-gold-deep" : "text-muted"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-midnight truncate">
-                      {item.name}
-                      {item.state ? (
-                        <span className="font-normal text-muted ml-1">
-                          ({item.state})
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="text-[10px] text-muted truncate">
-                      {item.formatted}
-                    </p>
-                  </div>
-                  {isSelected && (
-                    <Check className="h-3.5 w-3.5 text-gold-deep shrink-0 mt-0.5" />
-                  )}
-                </li>
-              );
-            })
-          ) : hasSearched && !loading ? (
-            <li className="px-3 py-3 text-center text-xs text-muted">
-              <p className="font-medium text-midnight">No matching locations found</p>
-              <p className="text-[10px] text-muted mt-0.5">
-                You can keep your custom typed location.
-              </p>
-            </li>
-          ) : null}
-        </ul>
-      )}
+      {/* Render via Portal to eliminate clipping by overflow: hidden containers */}
+      {mounted && typeof document !== "undefined" && dropdownElement
+        ? createPortal(dropdownElement, document.body)
+        : null}
     </div>
   );
 }

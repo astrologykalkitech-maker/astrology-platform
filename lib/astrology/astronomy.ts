@@ -98,41 +98,110 @@ export function calculateLST(jd: number, longitudeDegrees: number): number {
  */
 export function calculateObliquity(jd: number): number {
   const T = getCenturiesSinceJ2000(jd);
-  // Mean obliquity of the ecliptic
-  return 23.439291 - 0.0130042 * T - 0.00000016 * T * T;
+  const eps0 = 23.439291 - 0.0130042 * T - 0.00000016 * T * T + 0.000000504 * T * T * T;
+  return eps0;
 }
 
 /**
- * Calculates the Vedic Sidereal Ascendant (Lagna) in degrees [0, 360).
+ * Calculates the Vedic Ascendant (Lagna) in degrees [0, 360).
  */
 export function calculateAscendant(
   jd: number,
-  latitude: number,
-  longitude: number,
+  latitudeDegrees: number,
+  longitudeDegrees: number,
   ayanamsa: number
 ): number {
-  const lstDeg = calculateLST(jd, longitude);
-  const epsDeg = calculateObliquity(jd);
+  const lstDeg = calculateLST(jd, longitudeDegrees);
+  const theta = degToRad(lstDeg);
+  const eps = degToRad(calculateObliquity(jd));
+  const phi = degToRad(latitudeDegrees);
 
-  const lst = degToRad(lstDeg);
-  const lat = degToRad(latitude);
-  const eps = degToRad(epsDeg);
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
+  const sinEps = Math.sin(eps);
+  const cosEps = Math.cos(eps);
+  const tanPhi = Math.tan(phi);
 
-  // Tan(Sayana Lagna) = -cos(LST) / [ sin(eps) * tan(lat) + cos(eps) * sin(LST) ]
-  const y = Math.cos(lst);
-  const x = -(Math.sin(eps) * Math.tan(lat) + Math.cos(eps) * Math.sin(lst));
+  const y = -cosTheta;
+  const x = sinTheta * cosEps + tanPhi * sinEps;
 
-  let sayanaLagna = radToDeg(Math.atan2(y, x));
-  sayanaLagna = normalizeDegrees(sayanaLagna);
+  let tropicalAsc = radToDeg(Math.atan2(y, x));
+  tropicalAsc = normalizeDegrees(tropicalAsc);
 
-  // Convert Tropical (Sayana) to Sidereal (Nirayana) by subtracting Lahiri Ayanamsa
-  const nirayanaLagna = normalizeDegrees(sayanaLagna - ayanamsa);
-  return nirayanaLagna;
+  const nirayanaAsc = normalizeDegrees(tropicalAsc - ayanamsa);
+  return nirayanaAsc;
 }
 
 /**
- * Calculates geocentric tropical ecliptic longitudes for the 9 Vedic Grahas,
- * then applies Lahiri Ayanamsa to derive accurate Nirayana positions.
+ * Calculates NOAA Solar Sunrise and Sunset in UTC decimal hours [0, 24).
+ * Returns { sunriseUT, sunsetUT, solarNoonUT } where values are UTC hours or null for polar conditions.
+ */
+export function calculateSunTimes(
+  year: number,
+  month: number,
+  day: number,
+  latitude: number,
+  longitude: number,
+  zenith: number = 90.8333 // 90° 50' standard atmospheric refraction zenith
+): { sunriseUT: number | null; sunsetUT: number | null; solarNoonUT: number } {
+  // Day of year calculation
+  const N1 = Math.floor((275 * month) / 9);
+  const N2 = Math.floor((month + 9) / 12);
+  const N3 = 1 + Math.floor((year - 4 * Math.floor(year / 4) + 2) / 3);
+  const N = N1 - N2 * N3 + day - 30;
+
+  const lngHour = longitude / 15.0;
+
+  // Approximate solar noon
+  const t_noon = N + (12.0 - lngHour) / 24.0;
+  const M_noon = 0.9856 * t_noon - 3.289;
+  let L_noon = M_noon + 1.916 * Math.sin(degToRad(M_noon)) + 0.02 * Math.sin(degToRad(2 * M_noon)) + 282.634;
+  L_noon = normalizeDegrees(L_noon);
+  let RA_noon = radToDeg(Math.atan(0.91764 * Math.tan(degToRad(L_noon))));
+  RA_noon = normalizeDegrees(RA_noon);
+  const Lquadrant_noon = Math.floor(L_noon / 90) * 90;
+  const RAquadrant_noon = Math.floor(RA_noon / 90) * 90;
+  RA_noon = (RA_noon + (Lquadrant_noon - RAquadrant_noon)) / 15.0;
+  const T_noon_utc = RA_noon - 0.06571 * t_noon - 6.622;
+  const solarNoonUT = ((T_noon_utc - lngHour) % 24 + 24) % 24;
+
+  function calcTime(isSunrise: boolean): number | null {
+    const t = isSunrise ? N + (6.0 - lngHour) / 24.0 : N + (18.0 - lngHour) / 24.0;
+    const M = 0.9856 * t - 3.289;
+    let L = M + 1.916 * Math.sin(degToRad(M)) + 0.02 * Math.sin(degToRad(2 * M)) + 282.634;
+    L = normalizeDegrees(L);
+
+    let RA = radToDeg(Math.atan(0.91764 * Math.tan(degToRad(L))));
+    RA = normalizeDegrees(RA);
+
+    const Lquadrant = Math.floor(L / 90) * 90;
+    const RAquadrant = Math.floor(RA / 90) * 90;
+    RA = (RA + (Lquadrant - RAquadrant)) / 15.0;
+
+    const sinDec = 0.39782 * Math.sin(degToRad(L));
+    const cosDec = Math.cos(Math.asin(sinDec));
+
+    const cosH =
+      (Math.cos(degToRad(zenith)) - sinDec * Math.sin(degToRad(latitude))) /
+      (cosDec * Math.cos(degToRad(latitude)));
+
+    if (cosH > 1 || cosH < -1) return null; // Sun never rises or never sets
+
+    let H = isSunrise ? 360 - radToDeg(Math.acos(cosH)) : radToDeg(Math.acos(cosH));
+    H = H / 15.0;
+
+    const T_utc = H + RA - 0.06571 * t - 6.622;
+    return ((T_utc - lngHour) % 24 + 24) % 24;
+  }
+
+  const sunriseUT = calcTime(true);
+  const sunsetUT = calcTime(false);
+
+  return { sunriseUT, sunsetUT, solarNoonUT };
+}
+
+/**
+ * Calculates geocentric planetary positions in Nirayana (Sidereal) Zodiac using Chitrapaksha Lahiri.
  */
 export function calculatePlanetaryPositions(
   jd: number,
@@ -140,53 +209,45 @@ export function calculatePlanetaryPositions(
 ): Record<PlanetName, { longitude: number; speed: number; isRetrograde: boolean }> {
   const T = getCenturiesSinceJ2000(jd);
 
-  // 1. Sun (Mean & True Longitude)
+  // 1. Sun
   const L0_sun = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
-  const M_sun = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
-  const M_sun_rad = degToRad(M_sun);
+  const M_sun = degToRad(357.52911 + 35999.05029 * T - 0.0001537 * T * T);
   const C_sun =
-    (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M_sun_rad) +
-    (0.019993 - 0.000101 * T) * Math.sin(2 * M_sun_rad) +
-    0.000289 * Math.sin(3 * M_sun_rad);
-  const tropicalSun = normalizeDegrees(L0_sun + C_sun);
-  const sunSpeed = 0.9856; // degrees/day approx
+    (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(M_sun) +
+    (0.019993 - 0.000101 * T) * Math.sin(2 * M_sun) +
+    0.000289 * Math.sin(3 * M_sun);
+  const trueLong_sun = L0_sun + C_sun;
+  const omega_sun = degToRad(125.04 - 1934.136 * T);
+  const lambda_sun = trueLong_sun - 0.00569 - 0.00478 * Math.sin(omega_sun);
+  const tropicalSun = normalizeDegrees(lambda_sun);
+  const sunSpeed = 0.9856; // approx daily speed
 
-  // 2. Moon (Brown's Lunar Theory fundamental arguments)
-  const L_moon = 218.3164477 + 481267.88123421 * T;
-  const D_moon = 297.8501921 + 445267.1114034 * T;
-  const M_moon = 134.9633964 + 477198.8675055 * T;
-  const F_moon = 93.272095 + 483202.0175233 * T;
+  // 2. Moon
+  const L_moon = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T + (T * T * T) / 538841.0;
+  const D_moon = degToRad(297.8501921 + 445267.1114034 * T - 0.0018819 * T * T + (T * T * T) / 545868.0);
+  const M_moon = degToRad(134.9633964 + 477198.8675055 * T + 0.0087414 * T * T + (T * T * T) / 69699.0);
 
-  const D_rad = degToRad(D_moon);
-  const Mm_rad = degToRad(M_moon);
-  const Ms_rad = degToRad(M_sun);
-  const F_rad = degToRad(F_moon);
+  const periodicMoon =
+    6.288774 * Math.sin(M_moon) +
+    1.274027 * Math.sin(2 * D_moon - M_moon) +
+    0.658314 * Math.sin(2 * D_moon) +
+    0.213618 * Math.sin(2 * M_moon) -
+    0.185116 * Math.sin(M_sun) -
+    0.114332 * Math.sin(2 * degToRad(93.272095 + 483202.0175233 * T));
 
-  const moonCorr =
-    6.288774 * Math.sin(Mm_rad) +
-    1.274027 * Math.sin(2 * D_rad - Mm_rad) +
-    0.658314 * Math.sin(2 * D_rad) +
-    0.213618 * Math.sin(2 * Mm_rad) -
-    0.185116 * Math.sin(Ms_rad) -
-    0.114332 * Math.sin(2 * F_rad) +
-    0.058793 * Math.sin(2 * D_rad - 2 * Mm_rad) +
-    0.057066 * Math.sin(2 * D_rad - Ms_rad - Mm_rad) +
-    0.05332 * Math.sin(2 * D_rad + Mm_rad) +
-    0.046153 * Math.sin(2 * D_rad - Ms_rad);
-
-  const tropicalMoon = normalizeDegrees(L_moon + moonCorr);
-  const moonSpeed = 13.176;
+  const tropicalMoon = normalizeDegrees(L_moon + periodicMoon);
+  const moonSpeed = 13.176; // approx daily speed
 
   // 3. Mars
   const L_mars = 355.433 + 19140.299 * T;
-  const M_mars = degToRad(19.373 + 19139.858 * T);
-  const C_mars = 10.691 * Math.sin(M_mars) + 0.623 * Math.sin(2 * M_mars);
+  const M_mars = degToRad(19.373 + 19139.854 * T);
+  const C_mars = 10.691 * Math.sin(M_mars) + 0.623 * Math.sin(2 * M_mars) + 0.05 * Math.sin(3 * M_mars);
   const tropicalMars = normalizeDegrees(L_mars + C_mars);
 
   // 4. Mercury
   const L_merc = 252.251 + 149472.674 * T;
-  const M_merc = degToRad(174.795 + 149472.516 * T);
-  const C_merc = 23.44 * Math.sin(M_merc) + 2.982 * Math.sin(2 * M_merc);
+  const M_merc = degToRad(174.795 + 149472.515 * T);
+  const C_merc = 23.44 * Math.sin(M_merc) + 2.982 * Math.sin(2 * M_merc) + 0.529 * Math.sin(3 * M_merc);
   const tropicalMercury = normalizeDegrees(L_merc + C_merc);
 
   // 5. Jupiter
@@ -249,4 +310,3 @@ export function calculatePlanetaryPositions(
     Ketu: { longitude: toNirayana(tropicalKetu), speed: -0.0529, isRetrograde: true },
   };
 }
-

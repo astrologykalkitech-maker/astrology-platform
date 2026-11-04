@@ -22,7 +22,7 @@ export default async function CustomerChatPage() {
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div>
         <h1 className="font-display text-xl sm:text-2xl font-bold text-midnight">
           Astrologer Consultation Chat

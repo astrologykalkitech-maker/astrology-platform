@@ -44,6 +44,7 @@ import {
 import {
   type DirectMessage,
   type DirectMessageAttachment,
+  parseDirectMessageRow,
 } from "@/lib/chat/meta";
 import { createClient } from "@/lib/supabase/client";
 import { playChatNotificationChime } from "@/lib/chat/audio-notification";
@@ -59,11 +60,13 @@ const LIVE_CHAT_SHARED_CHANNEL = "jyotishsetu-live-consultation-chat";
 interface AstrologerChatClientProps {
   initialConversations: ConversationSummary[];
   initialSeekers: EligibleSeeker[];
+  currentUserId: string;
 }
 
 export function AstrologerChatClient({
   initialConversations,
   initialSeekers,
+  currentUserId,
 }: AstrologerChatClientProps) {
   // Navigation & tabs
   const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
@@ -374,10 +377,6 @@ export function AstrologerChatClient({
     channelRef.current = channel;
 
     // 1. Peer-to-Peer WebSocket Broadcasts
-    channel.on("broadcast", { event: "new_direct_message" }, ({ payload }) => {
-      handleIncomingMessage(payload as DirectMessage);
-    });
-
     channel.on("broadcast", { event: "conversation_started" }, () => {
       void resyncConversations();
       void resyncSeekers();
@@ -443,7 +442,8 @@ export function AstrologerChatClient({
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "direct_messages" },
       (payload) => {
-        handleIncomingMessage(payload.new as DirectMessage);
+        const message = parseDirectMessageRow(payload.new, currentUserId);
+        if (message) handleIncomingMessage(message);
       }
     );
 
@@ -502,7 +502,7 @@ export function AstrologerChatClient({
       channelRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [handleIncomingMessage, resyncConversations, resyncSeekers]);
+  }, [currentUserId, handleIncomingMessage, resyncConversations, resyncSeekers]);
 
   // --------------------------------------------------------------------------
   // BACKGROUND SYNC POLLING & VISIBILITY CATCH-UP
@@ -703,13 +703,6 @@ export function AstrologerChatClient({
                 : m
             )
           );
-
-          // Instant Peer-to-Peer WebSocket Broadcast (< 50ms delivery)
-          channelRef.current?.send({
-            type: "broadcast",
-            event: "new_direct_message",
-            payload: persistedMsg,
-          });
 
           // Update sidebar conversations preview
           setConversations((prev) =>
@@ -949,7 +942,7 @@ export function AstrologerChatClient({
   const displayMessages = searchResults !== null ? searchResults : messages;
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] min-h-140 max-h-205 rounded-2xl border border-gold/30 bg-white shadow-xl overflow-hidden relative">
+    <div className="relative grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-xl lg:grid-cols-[21rem_minmax(0,1fr)] lg:grid-rows-1">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="absolute top-4 right-4 z-50 rounded-xl bg-midnight text-white px-4 py-2.5 text-xs font-medium shadow-lg flex items-center gap-2 border border-gold/30">
@@ -1049,12 +1042,12 @@ export function AstrologerChatClient({
       {/* LEFT SIDEBAR: CONVERSATIONS & DIRECTORY                            */}
       {/* ================================================================== */}
       <aside
-        className={`w-full lg:w-84 shrink-0 border-r border-gold/20 bg-parchment/20 flex flex-col transition-all duration-300 ${
+        className={`min-h-0 min-w-0 border-r border-gold/20 bg-parchment/20 flex flex-col transition-all duration-300 ${
           isMobileChatOpen ? "hidden lg:flex" : "flex"
         }`}
       >
         {/* Header & Connection Pill */}
-        <div className="p-3.5 border-b border-gold/20 space-y-2.5">
+        <div className="shrink-0 p-3.5 border-b border-gold/20 space-y-2.5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-sm font-bold text-midnight flex items-center gap-1.5">
               <span>Seeker Consultation Chat</span>
@@ -1123,7 +1116,7 @@ export function AstrologerChatClient({
         </div>
 
         {/* Directory Content List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gold/10">
+        <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-gold/10">
           {activeTab === "seekers" ? (
             /* TAB 1: ALL REGISTERED SEEKERS DIRECTORY */
             filteredSeekers.length === 0 ? (
@@ -1267,14 +1260,14 @@ export function AstrologerChatClient({
       {/* RIGHT MAIN PANEL: ACTIVE CONVERSATION WINDOW                       */}
       {/* ================================================================== */}
       <main
-        className={`flex-1 flex flex-col min-w-0 bg-white transition-all duration-300 relative ${
+        className={`relative flex min-h-0 min-w-0 flex-col bg-white transition-all duration-300 ${
           !isMobileChatOpen ? "hidden lg:flex" : "flex"
         }`}
       >
         {selectedConvoId ? (
           <>
             {/* Chat Header */}
-            <div className="p-3.5 border-b border-gold/20 bg-parchment/30 flex items-center justify-between">
+            <div className="shrink-0 p-3.5 border-b border-gold/20 bg-parchment/30 flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <button
                   type="button"
@@ -1367,7 +1360,7 @@ export function AstrologerChatClient({
 
             {/* In-Chat Search Bar */}
             {isSearchingChat && (
-              <div className="p-2.5 bg-parchment/60 border-b border-gold/20 flex items-center gap-2">
+              <div className="shrink-0 p-2.5 bg-parchment/60 border-b border-gold/20 flex items-center gap-2">
                 <Search className="h-3.5 w-3.5 text-muted shrink-0" />
                 <input
                   type="text"
@@ -1393,7 +1386,7 @@ export function AstrologerChatClient({
 
             {/* Pinned Messages Bar */}
             {pinnedMessages.length > 0 && (
-              <div className="px-4 py-2 bg-champagne/20 border-b border-gold/20 flex items-center justify-between text-xs">
+              <div className="shrink-0 px-4 py-2 bg-champagne/20 border-b border-gold/20 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 truncate text-midnight">
                   <Pin className="h-3.5 w-3.5 text-gold-deep shrink-0 rotate-45" />
                   <span className="font-semibold text-[11px]">Pinned:</span>
@@ -1410,7 +1403,7 @@ export function AstrologerChatClient({
             {/* Message Feed Area */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 p-4 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10"
+              className="min-h-0 flex-1 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10 p-4"
             >
               {hasMoreMessages && (
                 <div className="text-center py-1">

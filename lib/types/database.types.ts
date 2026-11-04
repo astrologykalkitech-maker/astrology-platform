@@ -486,3 +486,113 @@ export interface ConsultationReminder {
   error_message?: string | null;
   created_at: string;
 }
+
+export interface SavedKundliRecord {
+  id: string;
+  customer_id: string;
+  name: string;
+  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  date_of_birth: string;
+  time_of_birth: string;
+  birth_place: string;
+  latitude: number;
+  longitude: number;
+  timezone: number;
+  calculation_config: Record<string, unknown>;
+  planetary_positions: Record<string, unknown>;
+  chart_data: Record<string, unknown>;
+  dasha_data: Record<string, unknown>;
+  generated_report: Record<string, unknown>;
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPanchangPreferenceRecord {
+  customer_id: string;
+  city_name: string;
+  state_name?: string | null;
+  country_name: string;
+  latitude: number;
+  longitude: number;
+  timezone_id: string;
+  timezone_offset: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPanchangPreferenceRecord {
+  customer_id: string;
+  city_name: string;
+  state_name?: string | null;
+  country_name: string;
+  latitude: number;
+  longitude: number;
+  timezone_id: string;
+  timezone_offset: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedKundliMilanRecord {
+  id: string;
+  customer_id: string;
+  partner_a_name: string;
+  partner_a_gender: string;
+  partner_a_dob: string;
+  partner_a_tob: string;
+  partner_a_birth_place: string;
+  partner_a_latitude: number;
+  partner_a_longitude: number;
+  partner_a_timezone: number;
+
+  partner_b_name: string;
+  partner_b_gender: string;
+  partner_b_dob: string;
+  partner_b_tob: string;
+  partner_b_birth_place: string;
+  partner_b_latitude: number;
+  partner_b_longitude: number;
+  partner_b_timezone: number;
+
+  partner_a_chart: Record<string, unknown>;
+  partner_b_chart: Record<string, unknown>;
+  ashtakoota_scores: Record<string, unknown>;
+  total_score: number;
+  percentage: number;
+  is_compatible: boolean;
+  category: string;
+  doshas: Record<string, unknown>;
+  full_report: Record<string, unknown>;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPanchangPreferenceRecord {
+  customer_id: string;
+  city_name: string;
+  state_name?: string | null;
+  country_name: string;
+  latitude: number;
+  longitude: number;
+  timezone_id: string;
+  timezone_offset: number;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface SavedHoroscopeRecord {
+  id: string;
+  customer_id: string;
+  zodiac_sign: string;
+  period_type: "today" | "tomorrow" | "weekly" | "monthly" | "yearly";
+  period_start: string;
+  period_end: string;
+  is_personalized: boolean;
+  kundli_id?: string | null;
+  horoscope_data: Record<string, unknown>;
+  planetary_snapshot: Record<string, unknown>;
+  created_at: string;
+}

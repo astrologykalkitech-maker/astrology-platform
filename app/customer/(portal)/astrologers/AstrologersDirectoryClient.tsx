@@ -70,7 +70,7 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
           setNearMeNotice("Could not detect location.");
         }
       },
-      { timeout: 10000, enableHighAccuracy: false }
+      { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 }
     );
   };
 

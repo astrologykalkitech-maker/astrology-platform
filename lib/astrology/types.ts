@@ -191,25 +191,105 @@ export interface TithiInfo {
   paksha: "Shukla" | "Krishna";
   startAngle: number;
   endAngle: number;
+  startTime?: string;
+  endTime?: string;
+  nextTithi?: string;
+  tithiAtSunrise?: string;
+}
+
+export interface NakshatraInfo {
+  name: NakshatraName;
+  number: number;
+  rulingPlanet: PlanetName;
+  pada: number;
+  startTime?: string;
+  endTime?: string;
+  nextNakshatra?: string;
+  nakshatraAtSunrise?: string;
+}
+
+export interface YogaInfo {
+  number: number;
+  name: string;
+  startTime?: string;
+  endTime?: string;
+  nextYoga?: string;
+  meaning?: string;
+}
+
+export interface KaranaInfo {
+  number: number;
+  name: string;
+  classification: "Movable (Chara)" | "Fixed (Sthira)";
+  startTime?: string;
+  endTime?: string;
+  nextKarana?: string;
+}
+
+export interface VaraInfo {
+  dayName: string;
+  sanskritName: string;
+  ruler: string;
+  deity: string;
+}
+
+export interface MuhuratWindow {
+  name: string;
+  start: string;
+  end: string;
+  status: "Auspicious" | "Inauspicious" | "Neutral" | "Restricted";
+  description?: string;
+}
+
+export interface ChoghadiyaPeriod {
+  name: "Amrit" | "Shubh" | "Labh" | "Char" | "Rog" | "Kaal" | "Udveg";
+  start: string;
+  end: string;
+  type: "Shubh (Auspicious)" | "Ashubh (Inauspicious)" | "Madhyam (Neutral)";
+  rulingPlanet: string;
+  benefit: string;
+}
+
+export interface FestivalEvent {
+  name: string;
+  category: "Festival" | "Vrat" | "Ekadashi" | "Purnima" | "Amavasya" | "Sankranti" | "Jayanti";
+  description: string;
+  significance: string;
+  paranaTime?: string;
+}
+
+export interface PanchangLocation {
+  city: string;
+  state?: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  timezoneId: string;
+  timezoneOffsetHours: number;
+}
+
+export interface SolarDayInfo {
+  sunrise: string;
+  sunset: string;
+  solarNoon: string;
+  dayDuration: string;
+  nightDuration: string;
+  moonrise?: string;
+  moonset?: string;
+  sunSign: string;
+  moonSign: string;
 }
 
 export interface PanchangResult {
   date: string;
   dayOfWeek: string;
+  location: PanchangLocation;
+  solarInfo: SolarDayInfo;
+  vara: VaraInfo;
   tithi: TithiInfo;
-  nakshatra: {
-    name: NakshatraName;
-    number: number;
-    rulingPlanet: PlanetName;
-  };
-  yoga: {
-    number: number;
-    name: string;
-  };
-  karana: {
-    number: number;
-    name: string;
-  };
+  nakshatra: NakshatraInfo;
+  yoga: YogaInfo;
+  karana: KaranaInfo;
   sunrise: string;
   sunset: string;
   rahukalam: { start: string; end: string };
@@ -217,6 +297,12 @@ export interface PanchangResult {
   gulikakalam: { start: string; end: string };
   abhijitMuhurat: { start: string; end: string };
   brahmaMuhurat: { start: string; end: string };
+  allMuhurats: MuhuratWindow[];
+  dayChoghadiya: ChoghadiyaPeriod[];
+  nightChoghadiya: ChoghadiyaPeriod[];
+  festivals: FestivalEvent[];
+  ayanamsaName: string;
+  ayanamsaDegrees: number;
 }
 
 export interface NumerologyProfile {

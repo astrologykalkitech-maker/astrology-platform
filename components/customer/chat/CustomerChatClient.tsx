@@ -43,6 +43,7 @@ import {
   searchConversationMessagesAction,
 } from "@/app/actions/direct-chat";
 import { createClient } from "@/lib/supabase/client";
+import { parseDirectMessageRow } from "@/lib/chat/meta";
 import { playChatNotificationChime } from "@/lib/chat/audio-notification";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
@@ -345,10 +346,6 @@ export function CustomerChatClient({
     });
     channelRef.current = channel;
 
-    channel.on("broadcast", { event: "new_direct_message" }, ({ payload }) => {
-      handleIncomingMessage(payload as DirectMessage);
-    });
-
     channel.on("broadcast", { event: "conversation_started" }, () => {
       void resyncConversations();
     });
@@ -416,7 +413,8 @@ export function CustomerChatClient({
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "direct_messages" },
       (payload) => {
-        handleIncomingMessage(payload.new as DirectMessage);
+        const message = parseDirectMessageRow(payload.new, currentUserId);
+        if (message) handleIncomingMessage(message);
       }
     );
 
@@ -639,12 +637,6 @@ export function CustomerChatClient({
                 : m
             )
           );
-
-          channelRef.current?.send({
-            type: "broadcast",
-            event: "new_direct_message",
-            payload: persistedMsg,
-          });
 
           setConversations((prev) =>
             prev.map((c) =>
@@ -894,7 +886,7 @@ export function CustomerChatClient({
   const displayMessages = searchResults !== null ? searchResults : messages;
 
   return (
-    <div className="flex h-[calc(100vh-140px)] min-h-145 flex-col overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-2xl lg:flex-row relative">
+    <div className="relative grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-2xl lg:grid-cols-[21rem_minmax(0,1fr)] lg:grid-rows-1">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-midnight border border-gold/50 text-gold-light px-4 py-2 rounded-full shadow-2xl text-xs flex items-center gap-2 animate-bounce">
@@ -987,7 +979,7 @@ export function CustomerChatClient({
       {/* LEFT SIDEBAR: CONVERSATIONS & DIRECTORY                            */}
       {/* ================================================================== */}
       <aside
-        className={`w-full lg:w-84 shrink-0 border-r border-gold/20 bg-parchment/20 flex flex-col transition-all duration-300 ${
+        className={`min-h-0 min-w-0 border-r border-gold/20 bg-parchment/20 flex flex-col transition-all duration-300 ${
           isMobileChatOpen ? "hidden lg:flex" : "flex"
         }`}
       >
@@ -1060,7 +1052,7 @@ export function CustomerChatClient({
         </div>
 
         {/* Directory Content List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gold/10">
+        <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-gold/10">
           {activeTab === "chats" ? (
             filteredConversations.length === 0 ? (
               <div className="p-6 text-center text-xs text-muted space-y-2">
@@ -1206,7 +1198,7 @@ export function CustomerChatClient({
       {/* RIGHT MAIN PANEL: ACTIVE CONVERSATION WINDOW                       */}
       {/* ================================================================== */}
       <main
-        className={`flex-1 flex flex-col min-w-0 bg-white transition-all duration-300 relative ${
+        className={`relative flex min-h-0 min-w-0 flex-col bg-white transition-all duration-300 ${
           !isMobileChatOpen ? "hidden lg:flex" : "flex"
         }`}
       >
@@ -1349,7 +1341,7 @@ export function CustomerChatClient({
             {/* Message Feed Area */}
             <div
               ref={messagesContainerRef}
-              className="flex-1 p-4 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10"
+              className="min-h-0 flex-1 overflow-y-auto space-y-3 bg-linear-to-b from-parchment/10 via-white to-parchment/10 p-4"
             >
               {hasMoreMessages && (
                 <div className="text-center py-1">

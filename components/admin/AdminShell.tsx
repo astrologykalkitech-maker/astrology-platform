@@ -4,6 +4,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import type { AdminPermissionKey, UserRole } from "@/lib/types/database.types";
+import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 
 interface AdminShellProps {
   children: ReactNode;
@@ -33,6 +34,7 @@ export function AdminShell({
 
   return (
     <div className="h-screen flex flex-col portal-bg text-ink antialiased overflow-hidden">
+      <SessionLifecycleGuard userId={role} role={role} loginPath={isSuperAdmin ? "/super-admin" : "/admin"} />
       {/* Accessibility: Skip to Content */}
       <a
         href="#admin-main-content"

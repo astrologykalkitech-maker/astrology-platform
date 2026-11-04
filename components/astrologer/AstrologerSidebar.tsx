@@ -43,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
   { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
   { href: "/astrologer/support", label: "Support", icon: LifeBuoy },
+  { href: "/astrologer/protection-rituals", label: "Protection Rituals", icon: ShieldCheck },
   { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
 ];
 
@@ -137,6 +138,8 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
             );
           })}
 
+          {COMING_SOON.length > 0 && (
+            <>
           <Ornament className="mt-3 px-2" />
           <p className="mt-2 px-3.5 text-[11px] font-semibold uppercase tracking-widest text-ivory/55">
             Coming soon
@@ -155,6 +158,8 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
               </span>
             </div>
           ))}
+            </>
+          )}
         </nav>
 
         <div className="mt-4 pt-3 pb-8 border-t border-gold/40 lg:hidden">
