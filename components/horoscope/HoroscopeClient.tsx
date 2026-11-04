@@ -70,6 +70,11 @@ export function HoroscopeClient({
   const currentSignMeta =
     ZODIAC_SIGNS.find((s) => s.id === selectedSign) || ZODIAC_SIGNS[0];
 
+  const isDeepSynthesized =
+    aiSynthesized ||
+    forecast.calculationMethodology.includes("AI Deep Synthesis") ||
+    forecast.calculationMethodology.includes("AI Synthesis");
+
   const fetchForecast = (signId: string, period: HoroscopePeriod, ai: boolean = false) => {
     setErrorMsg(null);
     setAiSynthesized(false);
@@ -117,6 +122,13 @@ export function HoroscopeClient({
       if (res.success && res.data) {
         setForecast(res.data);
         setAiSynthesized(true);
+        // Smoothly scroll to active forecast showcase so seeker sees the synthesis
+        setTimeout(() => {
+          const el = document.getElementById("forecast-showcase");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 100);
       } else {
         setErrorMsg(res.error || "AI synthesis failed. Showing verified calculation.");
       }
@@ -200,19 +212,20 @@ export function HoroscopeClient({
               onClick={handleAiSynthesize}
               disabled={isAiLoading}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-white shadow-sm transition-all disabled:opacity-50 ${
-                aiSynthesized
-                  ? "bg-gradient-to-r from-emerald-600 to-teal-700 ring-2 ring-emerald-400"
+                isDeepSynthesized
+                  ? "bg-gradient-to-r from-emerald-600 to-teal-700 ring-2 ring-emerald-400 hover:brightness-105"
                   : "bg-gradient-to-r from-gold-deep to-amber-700 hover:brightness-110"
               }`}
+              title={isDeepSynthesized ? "AI Deep Synthesis is active. Click to refresh synthesis." : "Run AI Deep Synthesis for this horoscope."}
             >
               {isAiLoading ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : aiSynthesized ? (
+              ) : isDeepSynthesized ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-white" />
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {isAiLoading ? "Synthesizing..." : aiSynthesized ? "AI Synthesized" : "AI Deep Synthesis"}
+              {isAiLoading ? "Synthesizing..." : isDeepSynthesized ? "AI Synthesized" : "AI Deep Synthesis"}
             </button>
           </div>
         </div>
@@ -331,7 +344,7 @@ export function HoroscopeClient({
       )}
 
       {/* 4. Active Horoscope Prediction Showcase */}
-      <div className={CARD_CLASS}>
+      <div id="forecast-showcase" className={CARD_CLASS}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-4 border-b border-gold/20">
           <div>
             <div className="flex items-center gap-2">
@@ -347,11 +360,11 @@ export function HoroscopeClient({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {aiSynthesized && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isDeepSynthesized && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
                 <Sparkles className="h-3 w-3 text-emerald-600" />
-                AI Enriched
+                AI Deep Synthesized
               </span>
             )}
             <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-gold/15 text-gold-deep border border-gold/30 font-semibold">
@@ -359,6 +372,32 @@ export function HoroscopeClient({
             </span>
           </div>
         </div>
+
+        {/* AI Deep Synthesis Active Highlight Callout */}
+        {isDeepSynthesized && (
+          <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/60 to-emerald-50 border border-emerald-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                  AI Deep Synthesis Active
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Planetary Gochara alignments, Bhavas, and life dimensions synthesized with Vedic precision.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => fetchForecast(selectedSign, selectedPeriod, false)}
+              className="text-[11px] font-semibold text-emerald-900 hover:text-emerald-950 px-3 py-1 rounded-lg border border-emerald-300 bg-white hover:bg-emerald-100/60 transition-colors shrink-0 shadow-2xs"
+            >
+              Reset to Standard Forecast
+            </button>
+          </div>
+        )}
 
         {/* General Overview */}
         <div className="mt-4 p-4 rounded-xl bg-parchment/60 border border-gold/25">
