@@ -64,12 +64,15 @@ export function HoroscopeClient({
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [aiSynthesized, setAiSynthesized] = useState<boolean>(false);
+
   // Active Zodiac Sign metadata
   const currentSignMeta =
     ZODIAC_SIGNS.find((s) => s.id === selectedSign) || ZODIAC_SIGNS[0];
 
   const fetchForecast = (signId: string, period: HoroscopePeriod, ai: boolean = false) => {
     setErrorMsg(null);
+    setAiSynthesized(false);
     startTransition(async () => {
       const res = await getHoroscopeAction({
         signId,
@@ -99,13 +102,21 @@ export function HoroscopeClient({
     setIsAiLoading(true);
     setErrorMsg(null);
     try {
-      const res = await getHoroscopeAction({
-        signId: selectedSign,
-        period: selectedPeriod,
-        useAiEnrichment: true,
-      });
+      const res = forecast.isPersonalized && selectedKundliId
+        ? await getPersonalizedHoroscopeAction({
+            kundliId: selectedKundliId,
+            period: selectedPeriod,
+            useAiEnrichment: true,
+          })
+        : await getHoroscopeAction({
+            signId: selectedSign,
+            period: selectedPeriod,
+            useAiEnrichment: true,
+          });
+
       if (res.success && res.data) {
         setForecast(res.data);
+        setAiSynthesized(true);
       } else {
         setErrorMsg(res.error || "AI synthesis failed. Showing verified calculation.");
       }
@@ -118,6 +129,7 @@ export function HoroscopeClient({
   const handlePersonalizedGenerate = () => {
     if (!selectedKundliId) return;
     setErrorMsg(null);
+    setAiSynthesized(false);
     startTransition(async () => {
       const res = await getPersonalizedHoroscopeAction({
         kundliId: selectedKundliId,
@@ -187,10 +199,20 @@ export function HoroscopeClient({
             <button
               onClick={handleAiSynthesize}
               disabled={isAiLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-gold-deep to-amber-700 text-white shadow-sm hover:brightness-110 transition-all disabled:opacity-50"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-white shadow-sm transition-all disabled:opacity-50 ${
+                aiSynthesized
+                  ? "bg-gradient-to-r from-emerald-600 to-teal-700 ring-2 ring-emerald-400"
+                  : "bg-gradient-to-r from-gold-deep to-amber-700 hover:brightness-110"
+              }`}
             >
-              {isAiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              AI Deep Synthesis
+              {isAiLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : aiSynthesized ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isAiLoading ? "Synthesizing..." : aiSynthesized ? "AI Synthesized" : "AI Deep Synthesis"}
             </button>
           </div>
         </div>
@@ -326,6 +348,12 @@ export function HoroscopeClient({
           </div>
 
           <div className="flex items-center gap-2">
+            {aiSynthesized && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                <Sparkles className="h-3 w-3 text-emerald-600" />
+                AI Enriched
+              </span>
+            )}
             <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-gold/15 text-gold-deep border border-gold/30 font-semibold">
               {forecast.calculationMethodology}
             </span>

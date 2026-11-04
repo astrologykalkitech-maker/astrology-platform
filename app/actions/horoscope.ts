@@ -27,6 +27,7 @@ export interface PersonalizedHoroscopeInput {
   kundliId: string;
   period: HoroscopePeriod;
   dateStr?: string;
+  useAiEnrichment?: boolean;
 }
 
 // In-memory cache for AI enriched horoscopes to avoid duplicate API requests and protect Gemini quotas
@@ -48,11 +49,16 @@ async function enrichHoroscopeWithAi(forecast: HoroscopeForecast): Promise<Horos
     return cached.forecast;
   }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const modelCandidates = [
+    process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    "gemini-2.5-flash",
+  ].filter((v, i, a) => a.indexOf(v) === i);
 
-    const prompt = `You are JyotishSetu's Master Vedic Astrology Forecast Synthesizer.
+  for (const model of modelCandidates) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+
+      const prompt = `You are JyotishSetu's Master Vedic Astrology Forecast Synthesizer.
 Take this verified astronomical Vedic Gochara transit data and refine the narrative explanations into compassionate, illuminating, authoritative Vedic guidance for ${forecast.zodiacName}.
 
 Astronomical Snapshot:
@@ -69,44 +75,66 @@ Respond ONLY with a JSON object in this format (no markdown code fences):
   "love": "2-3 sentences on relationships and emotional life",
   "finance": "2-3 sentences on wealth and expenditure caution",
   "health": "2-3 sentences on vitality and wellness recommendations",
+  "family": "2-3 sentences on domestic harmony and family relationships",
+  "education": "2-3 sentences on academic learning and intellectual pursuits",
   "recommendations": ["Recommendation 1", "Recommendation 2", "Recommendation 3"]
 }`;
 
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+      const generatePromise = ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.3,
+          maxOutputTokens: 2500,
+        },
+      });
 
-    if (response && response.text) {
-      const parsed = JSON.parse(response.text.trim());
-      if (parsed.generalOverview && parsed.career) {
-        const enriched: HoroscopeForecast = {
-          ...forecast,
-          generalOverview: parsed.generalOverview,
-          career: parsed.career || forecast.career,
-          love: parsed.love || forecast.love,
-          finance: parsed.finance || forecast.finance,
-          health: parsed.health || forecast.health,
-          recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0
-            ? parsed.recommendations
-            : forecast.recommendations,
-          calculationMethodology: `${forecast.calculationMethodology} + JyotishSetu AI Synthesis`,
-        };
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const id = setTimeout(() => {
+          clearTimeout(id);
+          reject(new Error(`Timeout: Gemini ${model} did not respond within 15 seconds`));
+        }, 15_000);
+      });
 
-        // Cache for 6 hours
-        aiHoroscopeCache.set(cacheKey, {
-          forecast: enriched,
-          expiresAt: Date.now() + CACHE_TTL_MS,
-        });
+      const response = await Promise.race([generatePromise, timeoutPromise]);
 
-        return enriched;
+      if (response && response.text) {
+        let cleanText = response.text.trim();
+        // Remove accidental markdown fences if returned
+        if (cleanText.startsWith("```")) {
+          cleanText = cleanText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        }
+
+        const parsed = JSON.parse(cleanText);
+        if (parsed.generalOverview && parsed.career) {
+          const enriched: HoroscopeForecast = {
+            ...forecast,
+            generalOverview: parsed.generalOverview,
+            career: parsed.career || forecast.career,
+            love: parsed.love || forecast.love,
+            finance: parsed.finance || forecast.finance,
+            health: parsed.health || forecast.health,
+            family: parsed.family || forecast.family,
+            education: parsed.education || forecast.education,
+            recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0
+              ? parsed.recommendations
+              : forecast.recommendations,
+            calculationMethodology: `${forecast.calculationMethodology} + JyotishSetu AI Synthesis (${model})`,
+          };
+
+          // Cache for 6 hours
+          aiHoroscopeCache.set(cacheKey, {
+            forecast: enriched,
+            expiresAt: Date.now() + CACHE_TTL_MS,
+          });
+
+          return enriched;
+        }
       }
+    } catch (err) {
+      console.warn(`[enrichHoroscopeWithAi] Model ${model} failed, trying next fallback:`, err);
     }
-  } catch (err) {
-    console.warn("[enrichHoroscopeWithAi] AI enrichment bypassed, using verified calculation:", err);
   }
 
   return forecast;
@@ -226,13 +254,17 @@ export async function getPersonalizedHoroscopeAction(
       ? `Operating under ${currentDasha.mahadasha} Mahadasha – ${currentDasha.antardasha} Antardasha until ${currentDasha.endDate}.`
       : "";
 
-    const personalizedForecast: HoroscopeForecast = {
+    let personalizedForecast: HoroscopeForecast = {
       ...baseForecast,
       title: `Personalized Vedic Horoscope for ${kundliRecord.name} (${input.period.toUpperCase()})`,
       generalOverview: `Personalized for ${kundliRecord.name} (Natal Moon: ${moonRashi}, Ascendant: ${fullReport.kundli.ascendant.rashi}). ${dashaText} ${baseForecast.generalOverview}`,
       isPersonalized: true,
       calculationMethodology: `${baseForecast.calculationMethodology} personalized against Natal Janam Kundli of ${kundliRecord.name}`,
     };
+
+    if (input.useAiEnrichment) {
+      personalizedForecast = await enrichHoroscopeWithAi(personalizedForecast);
+    }
 
     return {
       success: true,
