@@ -289,15 +289,33 @@ export function calculatePanchang(
   const sunriseTithiIdx = Math.floor(sunriseDiff / 12);
   const tithiAtSunrise = `${TITHI_NAMES[sunriseTithiIdx % 30]} (${sunriseTithiIdx < 15 ? "Shukla" : "Krishna"})`;
 
+  // Memoized ephemeris sampler for boundary search across the same day
+  const ephemCache = new Map<number, { sunLong: number; moonLong: number }>();
+  const getEphemerisAtUt = (utHr: number) => {
+    // Round utHr to 4 decimal places (~0.36 sec) to leverage cache across Tithi, Nakshatra & Yoga
+    const key = Math.round(utHr * 10000) / 10000;
+    const cached = ephemCache.get(key);
+    if (cached) return cached;
+
+    const h = Math.floor(utHr);
+    const m = Math.floor((utHr - h) * 60);
+    const s = Math.floor(((utHr - h) * 60 - m) * 60);
+    const jdStep = calculateJulianDay(year, month, day, h, m, s);
+    const stepAy = calculateLahiriAyanamsa(jdStep);
+    const stepPl = calculatePlanetaryPositions(jdStep, stepAy);
+    const result = {
+      sunLong: stepPl.Sun.longitude,
+      moonLong: stepPl.Moon.longitude,
+    };
+    ephemCache.set(key, result);
+    return result;
+  };
+
   // Tithi End Time calculation
   const nextTithiTargetAngle = (tithiIndex + 1) * 12;
   const getTithiDiffAtHour = (utHr: number) => {
-    const h = Math.floor(utHr);
-    const m = Math.floor((utHr - h) * 60);
-    const jdStep = calculateJulianDay(year, month, day, h, m);
-    const stepAy = calculateLahiriAyanamsa(jdStep);
-    const stepPl = calculatePlanetaryPositions(jdStep, stepAy);
-    return normalizeDegrees(stepPl.Moon.longitude - stepPl.Sun.longitude);
+    const { sunLong: sL, moonLong: mL } = getEphemerisAtUt(utHr);
+    return normalizeDegrees(mL - sL);
   };
   const tithiEndTime = findBoundaryTime(
     year,
@@ -335,12 +353,7 @@ export function calculatePanchang(
   // Nakshatra End Time calculation
   const nextNakTargetAngle = (nakshatraIndex + 1) * nakshatraSpan;
   const getNakAtHour = (utHr: number) => {
-    const h = Math.floor(utHr);
-    const m = Math.floor((utHr - h) * 60);
-    const jdStep = calculateJulianDay(year, month, day, h, m);
-    const stepAy = calculateLahiriAyanamsa(jdStep);
-    const stepPl = calculatePlanetaryPositions(jdStep, stepAy);
-    return stepPl.Moon.longitude;
+    return getEphemerisAtUt(utHr).moonLong;
   };
   const nakshatraEndTime = findBoundaryTime(
     year,
@@ -370,12 +383,8 @@ export function calculatePanchang(
   const nextYogaEntry = YOGA_NAMES[(yogaIndex + 1) % 27];
 
   const getYogaAtHour = (utHr: number) => {
-    const h = Math.floor(utHr);
-    const m = Math.floor((utHr - h) * 60);
-    const jdStep = calculateJulianDay(year, month, day, h, m);
-    const stepAy = calculateLahiriAyanamsa(jdStep);
-    const stepPl = calculatePlanetaryPositions(jdStep, stepAy);
-    return normalizeDegrees(stepPl.Sun.longitude + stepPl.Moon.longitude);
+    const { sunLong: sL, moonLong: mL } = getEphemerisAtUt(utHr);
+    return normalizeDegrees(sL + mL);
   };
   const yogaEndTime = findBoundaryTime(
     year,

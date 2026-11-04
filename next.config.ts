@@ -54,7 +54,7 @@ const nextConfig: NextConfig = {
   deploymentId: "livekit-inhouse-20231102-01",
 
   experimental: {
-    optimizePackageImports: ["lucide-react", "@google/genai", "date-fns"],
+    optimizePackageImports: ["lucide-react", "@google/genai", "date-fns", "jspdf", "jspdf-autotable", "livekit-client", "canvas-confetti"],
   },
   images: {
     formats: ["image/avif", "image/webp"],
