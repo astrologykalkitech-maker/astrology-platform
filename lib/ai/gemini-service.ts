@@ -34,8 +34,8 @@ function getClient(): GoogleGenAI | null {
   return _client;
 }
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const FALLBACK_MODELS = Array.from(new Set([DEFAULT_MODEL, "gemini-2.5-flash"]));
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+const FALLBACK_MODELS = Array.from(new Set([DEFAULT_MODEL, "gemini-3.5-flash-lite", "gemini-2.5-flash"]));
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
