@@ -49,6 +49,7 @@ const securityHeaders = [
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   compress: true,
   deploymentId: process.env.NEXT_DEPLOYMENT_ID,
 
