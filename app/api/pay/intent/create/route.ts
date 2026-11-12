@@ -107,6 +107,9 @@ export async function POST(req: NextRequest) {
 
     JyotishSimulatorStore.saveSession(qrSessionRecord);
 
+    const { getJyotishPayConfig } = await import("@/lib/pay/config");
+    const gatewayConfig = getJyotishPayConfig();
+
     return NextResponse.json({
       success: true,
       intent: intentRecord,
@@ -115,6 +118,7 @@ export async function POST(req: NextRequest) {
         upiUri: qrData.upiUri,
         qrSvg: qrData.qrSvg,
         expiresAt: qrData.expiresAt,
+        merchantVpa: gatewayConfig.merchantVpa,
       },
     });
   } catch (error: any) {

@@ -5,7 +5,7 @@ export function getJyotishPayConfig(): JyotishGatewayConfig {
   
   return {
     mode,
-    merchantVpa: process.env.JYOTISH_PAY_VPA || "jyotishsetu@upi",
+    merchantVpa: process.env.JYOTISH_PAY_VPA || process.env.NEXT_PUBLIC_JYOTISH_PAY_VPA || "jyotishsetu@upi",
     merchantName: process.env.JYOTISH_PAY_MERCHANT_NAME || "JyotishSetu Astrology Services",
     merchantCode: process.env.JYOTISH_PAY_MCC || "8299", // Astrological / Educational / Consultation services
     appBaseUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",

@@ -65,6 +65,7 @@ export function JyotishPayModal({
   const [sessionCode, setSessionCode] = useState<string | null>(null);
   const [upiUri, setUpiUri] = useState<string | null>(null);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
+  const [merchantVpa, setMerchantVpa] = useState<string>("jyotishsetu@upi");
   const [status, setStatus] = useState<"initiating" | "active" | "completed" | "expired">("initiating");
   const [secondsRemaining, setSecondsRemaining] = useState(600);
   const [simulating, setSimulating] = useState(false);
@@ -121,6 +122,9 @@ export function JyotishPayModal({
       setSessionCode(data.qrSession.sessionCode);
       setUpiUri(data.qrSession.upiUri);
       setQrSvg(data.qrSession.qrSvg);
+      if (data.qrSession.merchantVpa) {
+        setMerchantVpa(data.qrSession.merchantVpa);
+      }
       setStatus("active");
       setSecondsRemaining(600); // 10 minutes
     } catch (err: any) {
@@ -307,7 +311,7 @@ export function JyotishPayModal({
   };
 
   const copyVpa = () => {
-    navigator.clipboard.writeText("jyotishsetu@upi");
+    navigator.clipboard.writeText(merchantVpa);
     setCopiedVpa(true);
     setTimeout(() => setCopiedVpa(false), 2000);
   };
