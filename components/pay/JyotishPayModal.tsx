@@ -172,7 +172,7 @@ export function JyotishPayModal({
       });
       clearTimeout(timeoutId);
       const data = await res.json();
-      if (data.success && data.status === "completed") {
+      if (data.success && (data.status === "completed" || data.intentStatus === "succeeded")) {
         const finalReceipt = data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`;
         setStatus("completed");
         setReceiptNumber(finalReceipt);
@@ -547,21 +547,27 @@ export function JyotishPayModal({
 
           {/* State 3: Payment Completed */}
           {status === "completed" && (
-            <div className="py-6 flex flex-col items-center text-center space-y-4">
-              <div className="h-14 w-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center border-2 border-emerald-500/40">
-                <Check className="h-7 w-7 stroke-[3]" />
+            <div className="py-8 flex flex-col items-center text-center space-y-4 animate-fade-in">
+              <div className="h-16 w-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center border-2 border-emerald-500/40 shadow-lg shadow-emerald-500/20">
+                <Check className="h-8 w-8 stroke-[3]" />
               </div>
 
-              <div>
-                <h4 className="text-lg font-bold text-slate-100">Payment Confirmed!</h4>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1">
-                  Your transaction has been securely cleared and verified.
+              <div className="space-y-1.5">
+                <h4 className="text-xl font-bold text-slate-100">Payment Successful!</h4>
+                <p className="text-sm font-medium text-emerald-400">
+                  Your Professional subscription has been activated successfully.
+                </p>
+                <p className="text-xs text-slate-300">
+                  Your account is now upgraded. Enjoy your Professional membership.
                 </p>
                 {receiptNumber && (
-                  <p className="text-xs font-mono text-amber-300 mt-2 bg-slate-950 px-3 py-1 rounded-md inline-block border border-slate-800">
+                  <p className="text-xs font-mono text-amber-300 mt-2 bg-slate-950 px-3 py-1.5 rounded-md inline-block border border-slate-800">
                     Receipt: {receiptNumber}
                   </p>
                 )}
+                <p className="text-[11px] text-slate-400 italic pt-1">
+                  Updating your dashboard and closing in 3 seconds...
+                </p>
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -579,7 +585,7 @@ export function JyotishPayModal({
                   onClick={onClose}
                   className="py-2 px-5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg transition-colors"
                 >
-                  Done
+                  Close Now
                 </button>
               </div>
             </div>

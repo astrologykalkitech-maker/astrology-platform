@@ -33,11 +33,11 @@ export function AstrologerSubscriptionClient({
   };
 
   const handlePaymentSuccess = (receiptNo: string) => {
-    // Automatically close modal and reload page with fresh server data after brief success view
+    // Automatically close modal and reload page with fresh server data after 3 seconds so user sees confirmation
     setTimeout(() => {
       setIsPayModalOpen(false);
       window.location.reload();
-    }, 2000);
+    }, 3000);
   };
 
   return (

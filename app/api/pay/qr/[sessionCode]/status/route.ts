@@ -56,7 +56,8 @@ export async function GET(
 
     // Check expiration
     const isExpired = new Date(qrSession.expires_at).getTime() < Date.now();
-    const effectiveStatus = isExpired && qrSession.status === "active" ? "expired" : qrSession.status;
+    const isCompleted = qrSession.status === "completed" || intent?.status === "succeeded";
+    const effectiveStatus = isCompleted ? "completed" : isExpired ? "expired" : qrSession.status;
 
     return NextResponse.json({
       success: true,
@@ -65,6 +66,7 @@ export async function GET(
       intentStatus: intent?.status || effectiveStatus,
       amountPaise: qrSession.amount_paise,
       utrReference: qrSession.utr_reference || null,
+      receiptNumber: `JSP-REC-${qrSession.session_code.replace("JSP_QR_", "")}`,
       verifiedAt: qrSession.verified_at || null,
       expiresAt: qrSession.expires_at,
     });
