@@ -56,8 +56,8 @@ export function JyotishPayModal({
   const [appLaunchStatus, setAppLaunchStatus] = useState<"idle" | "launching" | "unsupported">("idle");
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
 
-  // Manual UTR submission
-  const [showManualUtrInput, setShowManualUtrInput] = useState(false);
+  // Manual UTR submission - default to visible so user never has to search for it
+  const [showManualUtrInput, setShowManualUtrInput] = useState(true);
   const [manualUtr, setManualUtr] = useState("");
   const [submittingUtr, setSubmittingUtr] = useState(false);
 
@@ -142,7 +142,7 @@ export function JyotishPayModal({
       setStatus("initiating");
       setError(null);
       setReceiptNumber(null);
-      setShowManualUtrInput(false);
+      setShowManualUtrInput(true);
       setManualUtr("");
       setAppLaunchStatus("idle");
       setLaunchMessage(null);
@@ -492,41 +492,40 @@ export function JyotishPayModal({
                 </div>
               </div>
 
-              {/* Manual Bank UTR Submission */}
+              {/* Bank UTR / Reference ID Submission */}
               <div className="w-full pt-1">
-                {!showManualUtrInput ? (
-                  <button
-                    onClick={() => setShowManualUtrInput(true)}
-                    className="w-full text-center text-xs text-amber-300/80 hover:text-amber-200 underline"
-                  >
-                    Already paid? Enter 12-digit Bank UTR / Reference ID
-                  </button>
-                ) : (
-                  <form onSubmit={handleSubmitManualUtr} className="w-full p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-2">
-                    <label className="text-[11px] font-medium text-slate-300 block">
-                      Enter 12-Digit Bank UTR / Reference ID:
+                <form onSubmit={handleSubmitManualUtr} className="w-full p-3 bg-slate-800/90 border border-amber-500/30 rounded-xl space-y-2 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold text-slate-200 block">
+                      Paid via UPI? Enter 12-Digit Bank UTR / Ref ID:
                     </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        minLength={12}
-                        maxLength={12}
-                        placeholder="e.g. 431289123456"
-                        value={manualUtr}
-                        onChange={(e) => setManualUtr(e.target.value)}
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
-                      />
-                      <button
-                        type="submit"
-                        disabled={submittingUtr || manualUtr.trim().length !== 12}
-                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-50"
-                      >
-                        {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
-                      </button>
-                    </div>
-                  </form>
-                )}
+                    <span className="text-[10px] text-amber-300 font-mono">
+                      {manualUtr.length}/12
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      minLength={12}
+                      maxLength={12}
+                      placeholder="e.g. 431289123456"
+                      value={manualUtr}
+                      onChange={(e) => setManualUtr(e.target.value.replace(/[^A-Za-z0-9]/g, ""))}
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono tracking-wider"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submittingUtr || manualUtr.trim().length !== 12}
+                      className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-40 transition-all shadow-md flex items-center gap-1.5"
+                    >
+                      {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Find the 12-digit UPI Ref / UTR number in your PhonePe / GPay / Paytm payment details.
+                  </p>
+                </form>
               </div>
 
               {/* Dev Mode Simulation Button (Only shown in non-production) */}
