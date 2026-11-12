@@ -107,13 +107,31 @@ export default async function AstrologerCustomerDetailPage({
   }
 
   // 4. Fetch consultation history and confidential notes between this astrologer and customer
+  // First, find all lead IDs assigned to this astrologer for this customer
+  const { data: assignedLeadRows } = await admin
+    .from("lead_assignments")
+    .select("lead_id, leads!inner(customer_id)")
+    .eq("astrologer_id", astroProfile.id)
+    .eq("leads.customer_id", customerId);
+
+  const assignedLeadIds = (assignedLeadRows || []).map((r) => r.lead_id);
+
+  // Fetch leads directly assigned OR assigned via lead_assignments
+  let enquiriesQuery = admin
+    .from("leads")
+    .select("id, subject, message, status, created_at")
+    .eq("customer_id", customerId);
+
+  if (assignedLeadIds.length > 0) {
+    enquiriesQuery = enquiriesQuery.or(
+      `astrologer_id.eq.${astroProfile.id},id.in.(${assignedLeadIds.join(",")})`
+    );
+  } else {
+    enquiriesQuery = enquiriesQuery.eq("astrologer_id", astroProfile.id);
+  }
+
   const [enquiriesRes, bookingsRes, notesRes] = await Promise.all([
-    admin
-      .from("leads")
-      .select("id, subject, message, status, created_at")
-      .eq("customer_id", customerId)
-      .eq("astrologer_id", astroProfile.id)
-      .order("created_at", { ascending: false }),
+    enquiriesQuery.order("created_at", { ascending: false }),
     admin
       .from("customer_bookings")
       .select("id, service_type, consultation_mode, scheduled_at, duration_minutes, status, price")

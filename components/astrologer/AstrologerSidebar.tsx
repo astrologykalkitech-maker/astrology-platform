@@ -47,13 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
 ];
 
-const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [
-  {
-    label: "Protection Rituals",
-    icon: ShieldCheck,
-    desc: "Personalized remedial Puja, Yantra, and Gemstone recommendations launching soon.",
-  },
-];
+const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [];
 
 function isActive(pathname: string, item: NavItem) {
   if (item.exact) return pathname === item.href;

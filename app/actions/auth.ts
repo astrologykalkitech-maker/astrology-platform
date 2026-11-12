@@ -5,7 +5,7 @@
 // =====================================================
 
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createPublicServerClient } from "@/lib/supabase/server";
 import { checkRateLimit, extractClientIpFromHeaders } from "@/lib/security/rate-limit";
 import type {
   ActiveUserProfile,
@@ -555,17 +555,62 @@ export async function getCurrentProfileAction(): Promise<
 }
 
 /**
- * The reset link target is client-supplied, so only accept it when it points at this
- * application's own origin (configured site URL, or localhost during development).
+ * Resolves the trusted application origin from incoming request headers or environment.
  */
-function isTrustedResetRedirect(candidate: string | undefined): candidate is string {
+async function getTrustedOrigin(): Promise<string> {
+  try {
+    const h = await headers();
+    const forwardedHost = h.get("x-forwarded-host");
+    const forwardedProto = h.get("x-forwarded-proto") || "https";
+    if (forwardedHost) {
+      return `${forwardedProto}://${forwardedHost}`;
+    }
+    const host = h.get("host");
+    if (host) {
+      const proto = process.env.NODE_ENV === "production" ? "https" : "http";
+      return `${proto}://${host}`;
+    }
+  } catch {
+    // Outside request context
+  }
+
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site) {
+    try {
+      return new URL(site).origin;
+    } catch {
+      // Fall through
+    }
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  if (process.env.URL) {
+    return process.env.URL;
+  }
+
+  return "http://localhost:3000";
+}
+
+/**
+ * Validates that the client-supplied redirect URL matches this application's trusted origin.
+ */
+function isTrustedResetRedirect(candidate: string | undefined, trustedOrigin: string): candidate is string {
   if (!candidate) return false;
   try {
     const url = new URL(candidate);
     if (url.pathname !== "/auth/callback") return false;
+    const candidateOrigin = url.origin;
+    if (candidateOrigin === trustedOrigin) return true;
+
     const site = process.env.NEXT_PUBLIC_SITE_URL;
-    if (site && url.origin === new URL(site).origin) return true;
-    return process.env.NODE_ENV !== "production" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+    if (site && candidateOrigin === new URL(site).origin) return true;
+
+    if (process.env.NODE_ENV !== "production" && (url.hostname === "localhost" || url.hostname === "127.0.0.1")) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -573,32 +618,66 @@ function isTrustedResetRedirect(candidate: string | undefined): candidate is str
 
 /**
  * Send password reset link to user email address.
+ * Uses an unauthenticated public Supabase client to guarantee that no active/Google session is reused.
+ * Protects against user enumeration by returning a generic success response for unregistered emails.
  */
 export async function requestPasswordReset(
   email: string,
-  redirectTo?: string
+  redirectTo?: string,
+  role: "customer" | "astrologer" = "customer"
 ): Promise<AuthResult<void>> {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  if (!(await allowAuthAttempt("reset", email, { perIp: 15, perIpEmail: 3, windowMs: 15 * 60_000 }))) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!(await allowAuthAttempt("reset", normalizedEmail, { perIp: 15, perIpEmail: 3, windowMs: 15 * 60_000 }))) {
     return { success: false, error: AUTH_RATE_LIMIT_MESSAGE };
   }
 
   try {
-    const supabase = await createClient();
-    const defaultRedirect = `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=/auth/reset-password`;
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: isTrustedResetRedirect(redirectTo) ? redirectTo : defaultRedirect,
+    // Use strictly unauthenticated client so any existing logged-in session does not interfere
+    const supabase = createPublicServerClient("main");
+    const trustedOrigin = await getTrustedOrigin();
+
+    const safeRedirect = isTrustedResetRedirect(redirectTo, trustedOrigin)
+      ? redirectTo
+      : `${trustedOrigin}/auth/callback?next=/auth/reset-password&role=${role}&type=recovery`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: safeRedirect,
     });
 
     if (error) {
       const diag = extractAuthErrorDetails(error);
       console.error("[Supabase Auth Error: requestPasswordReset]", diag);
+
+      const msg = (diag.message || "").toLowerCase();
+
+      // Account enumeration protection: return generic success if email is not found
+      if (
+        msg.includes("user not found") ||
+        msg.includes("email not found") ||
+        diag.code === "user_not_found"
+      ) {
+        return { success: true, data: undefined };
+      }
+
+      if (
+        diag.code === "over_email_send_rate_limit" ||
+        msg.includes("rate limit") ||
+        msg.includes("too many requests")
+      ) {
+        return {
+          success: false,
+          error: "Rate limit reached. Please wait a few minutes before requesting another reset email.",
+        };
+      }
+
       return {
         success: false,
-        error: diag.message,
+        error: diag.message || "Failed to send password reset email. Please try again.",
       };
     }
 
@@ -607,17 +686,18 @@ export async function requestPasswordReset(
     const diag = extractAuthErrorDetails(err);
     return {
       success: false,
-      error: diag.message,
+      error: diag.message || "An unexpected error occurred. Please try again later.",
     };
   }
 }
 
 /**
  * Update password for authenticated user (e.g. from recovery flow).
+ * Enforces minimum length of 8 characters and automatically signs out the recovery session.
  */
 export async function updatePassword(password: string): Promise<AuthResult<void>> {
-  if (!password || password.length < 6) {
-    return { success: false, error: "Password must be at least 6 characters long." };
+  if (!password || password.length < 8) {
+    return { success: false, error: "Password must be at least 8 characters long." };
   }
 
   try {
@@ -629,6 +709,13 @@ export async function updatePassword(password: string): Promise<AuthResult<void>
     if (error) {
       const diag = extractAuthErrorDetails(error);
       return { success: false, error: diag.message };
+    }
+
+    // Explicitly invalidate and sign out the recovery session
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutErr) {
+      console.warn("[updatePassword] Post-reset signOut warning:", signOutErr);
     }
 
     return { success: true, data: undefined };
