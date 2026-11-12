@@ -10,9 +10,11 @@ import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
 export function AstrologerSubscriptionClient({
   subscription,
   availablePlans,
+  astrologerId,
 }: {
   subscription: AstrologerSubscriptionRecord | null;
   availablePlans: PaymentPlanRecord[];
+  astrologerId?: string;
 }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedPlanForPay, setSelectedPlanForPay] = useState<PaymentPlanRecord | null>(null);
@@ -31,9 +33,11 @@ export function AstrologerSubscriptionClient({
   };
 
   const handlePaymentSuccess = (receiptNo: string) => {
+    // Automatically close modal and reload page with fresh server data after brief success view
     setTimeout(() => {
+      setIsPayModalOpen(false);
       window.location.reload();
-    }, 1500);
+    }, 2000);
   };
 
   return (
@@ -163,7 +167,7 @@ export function AstrologerSubscriptionClient({
           title={`Membership: ${selectedPlanForPay.name}`}
           description={`Activate monthly subscription for ${selectedPlanForPay.name} with ${selectedPlanForPay.lead_quota} verified leads.`}
           planId={selectedPlanForPay.id}
-          astrologerId={subscription?.astrologer_id}
+          astrologerId={astrologerId || subscription?.astrologer_id}
           onSuccess={handlePaymentSuccess}
         />
       )}

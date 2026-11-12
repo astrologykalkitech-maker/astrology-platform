@@ -19,28 +19,31 @@ export async function GET(
     let qrSession: any = null;
     let intent: any = null;
 
-    // 1. Fast in-memory lookup first (sub-millisecond response)
-    qrSession = JyotishSimulatorStore.getSession(sessionCode);
-    if (qrSession) {
-      intent = JyotishSimulatorStore.getIntent(qrSession.intent_id);
+    // 1. Check database first to get real-time verified updates from other sessions or workers
+    try {
+      const supabase = await createAdminClient("main");
+      const { data: dbSession } = await supabase
+        .from("qr_payment_sessions")
+        .select("*, payment_intents(*)")
+        .eq("session_code", sessionCode)
+        .maybeSingle();
+
+      if (dbSession) {
+        qrSession = dbSession;
+        intent = dbSession.payment_intents;
+      }
+    } catch (e) {
+      // Fallback
     }
 
-    // 2. Fallback to Supabase with strict timeout if not found in memory
-    if (!qrSession) {
-      try {
-        const supabase = await createAdminClient("main");
-        const { data: dbSession } = await supabase
-          .from("qr_payment_sessions")
-          .select("*, payment_intents(*)")
-          .eq("session_code", sessionCode)
-          .maybeSingle();
-
-        if (dbSession) {
-          qrSession = dbSession;
-          intent = dbSession.payment_intents;
+    // 2. In-memory lookup if DB record not found or completed in memory
+    if (!qrSession || qrSession.status !== "completed") {
+      const memSession = JyotishSimulatorStore.getSession(sessionCode);
+      if (memSession) {
+        if (!qrSession || memSession.status === "completed") {
+          qrSession = memSession;
+          intent = JyotishSimulatorStore.getIntent(memSession.intent_id) || intent;
         }
-      } catch (e) {
-        // Fallback
       }
     }
 

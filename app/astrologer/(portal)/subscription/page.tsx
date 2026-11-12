@@ -14,7 +14,7 @@ export const metadata = {
 export default async function AstrologerSubscriptionPage() {
   await requireAstrologerPage();
   const res = await getAstrologerSubscriptionDetails();
-  const subData = res.success && res.data ? res.data : { subscription: null, availablePlans: [] };
+  const subData = res.success && res.data ? res.data : { subscription: null, availablePlans: [], astrologerId: "" };
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -28,6 +28,7 @@ export default async function AstrologerSubscriptionPage() {
       <AstrologerSubscriptionClient
         subscription={subData.subscription}
         availablePlans={subData.availablePlans}
+        astrologerId={subData.astrologerId}
       />
     </div>
   );

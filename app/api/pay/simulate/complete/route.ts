@@ -80,9 +80,22 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {}
 
+    // Fallback: If intent doesn't have plan_id, fetch professional plan if amount is 49900
+    let effectivePlanId = intent?.plan_id;
+    if (!effectivePlanId && qrSession.amount_paise === 49900) {
+      try {
+        const { data: proPlan } = await supabase
+          .from("payment_plans")
+          .select("id")
+          .eq("slug", "professional")
+          .maybeSingle();
+        if (proPlan) effectivePlanId = proPlan.id;
+      } catch (e) {}
+    }
+
     // Complete Post-Payment triggers (Double-entry ledger & Subscription activation)
     const completion = await completePaymentIntent(
-      intent || {
+      intent ? { ...intent, plan_id: intent.plan_id || effectivePlanId } : {
         id: qrSession.intent_id,
         intent_number: "JSP_SIMULATED",
         entity_type: "subscription",
@@ -97,6 +110,7 @@ export async function POST(req: NextRequest) {
         updated_at: new Date().toISOString(),
         astrologer_id: qrSession.astrologer_id,
         customer_id: qrSession.customer_id,
+        plan_id: effectivePlanId,
       },
       effectiveUtr,
       { supabaseClient: supabase }

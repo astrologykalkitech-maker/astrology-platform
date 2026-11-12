@@ -349,6 +349,7 @@ export async function getAstrologerSubscriptionDetails(): Promise<
   AuthResult<{
     subscription: AstrologerSubscriptionRecord | null;
     availablePlans: PaymentPlanRecord[];
+    astrologerId: string;
   }>
 > {
   try {
@@ -379,6 +380,7 @@ export async function getAstrologerSubscriptionDetails(): Promise<
       data: {
         subscription: (sub as AstrologerSubscriptionRecord) || null,
         availablePlans: (plans as PaymentPlanRecord[]) || [],
+        astrologerId: profile.id,
       },
     };
   } catch (err) {

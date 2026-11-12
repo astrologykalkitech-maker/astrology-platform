@@ -173,9 +173,10 @@ export function JyotishPayModal({
       clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success && data.status === "completed") {
+        const finalReceipt = data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`;
         setStatus("completed");
-        setReceiptNumber(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
-        onSuccess(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
+        setReceiptNumber(finalReceipt);
+        onSuccess(finalReceipt);
       } else if (data.status === "expired") {
         setStatus("expired");
       }
