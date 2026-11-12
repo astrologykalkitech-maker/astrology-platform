@@ -23,15 +23,25 @@ export function sanitizeRedirectPath(
   }
   for (const candidate of [trimmed, decoded]) {
     if (candidate.startsWith("//") || candidate.includes("\\")) return fallback;
+    const lower = candidate.toLowerCase();
+    if (lower.includes("javascript:") || lower.includes("data:") || lower.includes("vbscript:")) {
+      return fallback;
+    }
     for (let i = 0; i < candidate.length; i++) {
       const code = candidate.charCodeAt(i);
       if (code <= 0x1f || code === 0x7f) return fallback;
     }
   }
 
-  // Avoid redirect loops through the OAuth callback or login/signup screens
+  // Allow the legitimate password reset interface: /auth/reset-password (with optional search params)
+  const isResetPasswordPath =
+    trimmed === "/auth/reset-password" ||
+    trimmed.startsWith("/auth/reset-password?") ||
+    trimmed.startsWith("/auth/reset-password/");
+
+  // Avoid redirect loops through the OAuth callback, unapproved /auth/ endpoints, or login/signup screens
   if (
-    trimmed.startsWith("/auth/") ||
+    (trimmed.startsWith("/auth/") && !isResetPasswordPath) ||
     trimmed.startsWith("/customer/login") ||
     trimmed.startsWith("/customer/signup") ||
     trimmed.startsWith("/customer/forgot-password") ||

@@ -50,3 +50,18 @@ test("sanitizeRedirectPath: blocks callback loops and non-string input", () => {
   assert.equal(sanitizeRedirectPath(undefined, FALLBACK), FALLBACK);
   assert.equal(sanitizeRedirectPath(42 as unknown as string, FALLBACK), FALLBACK);
 });
+
+test("sanitizeRedirectPath: explicitly allows /auth/reset-password with and without parameters", () => {
+  assert.equal(sanitizeRedirectPath("/auth/reset-password", FALLBACK), "/auth/reset-password");
+  assert.equal(
+    sanitizeRedirectPath("/auth/reset-password?role=customer", FALLBACK),
+    "/auth/reset-password?role=customer"
+  );
+  assert.equal(
+    sanitizeRedirectPath("/auth/reset-password?role=astrologer", FALLBACK),
+    "/auth/reset-password?role=astrologer"
+  );
+  // Still blocks other /auth/ endpoints (like /auth/callback or /auth/admin)
+  assert.equal(sanitizeRedirectPath("/auth/something-else", FALLBACK), FALLBACK);
+  assert.equal(sanitizeRedirectPath("/auth/callback", FALLBACK), FALLBACK);
+});

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
 /**
@@ -47,26 +48,46 @@ function getCanonicalOrigin(request: NextRequest): string {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const type = requestUrl.searchParams.get("type"); // e.g. "recovery", "signup", "email_change", etc.
   const errorParam = requestUrl.searchParams.get("error");
   const errorDesc = requestUrl.searchParams.get("error_description");
   const rawNext = requestUrl.searchParams.get("next");
-  const oauthRole = requestUrl.searchParams.get("role"); // Hint from signin button (customer or astrologer)
+  const oauthRole = requestUrl.searchParams.get("role"); // Hint from signin button or recovery form (customer or astrologer)
   const oauthMode = requestUrl.searchParams.get("mode"); // Hint from signin button (login or signup)
+
+  // Identify whether this callback represents a password recovery flow
+  const isRecovery =
+    type === "recovery" ||
+    rawNext === "/auth/reset-password" ||
+    rawNext?.startsWith("/auth/reset-password?") ||
+    rawNext?.startsWith("/auth/reset-password/");
 
   const canonicalOrigin = getCanonicalOrigin(request);
   const fallbackLogin = oauthRole === "astrologer" ? "/astrologer/login" : "/customer/login";
+  const fallbackForgot = oauthRole === "astrologer" ? "/astrologer/forgot-password" : "/customer/forgot-password";
 
   // 1. Handle OAuth provider errors or user cancellation
   if (errorParam) {
-    console.warn("[Auth Callback] OAuth provider error:", {
+    console.warn("[Auth Callback] OAuth/Recovery provider error:", {
       error: errorParam,
       description: errorDesc,
+      isRecovery,
     });
+    if (isRecovery) {
+      return NextResponse.redirect(
+        new URL(`${fallbackForgot}?error=recovery_cancelled&desc=${encodeURIComponent(errorDesc || errorParam)}`, canonicalOrigin)
+      );
+    }
     const reasonCode = errorParam === "access_denied" ? "oauth_cancelled" : "auth_callback_failed";
     return NextResponse.redirect(new URL(`${fallbackLogin}?error=${reasonCode}`, canonicalOrigin));
   }
 
-  if (!code) {
+  // 2. Validate that either PKCE code or token_hash is present
+  if (!code && !tokenHash) {
+    if (isRecovery) {
+      return NextResponse.redirect(new URL(`${fallbackForgot}?error=missing_recovery_token`, canonicalOrigin));
+    }
     return NextResponse.redirect(new URL(`${fallbackLogin}?error=auth_callback_failed`, canonicalOrigin));
   }
 
@@ -107,17 +128,35 @@ export async function GET(request: NextRequest) {
     }
   );
 
-  const { data: authData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+  let exchangeError: Error | null = null;
+  let authUser = null;
 
-  if (exchangeError || !authData?.user) {
-    console.error("[Auth Callback] exchangeCodeForSession failed:", {
+  if (code) {
+    const { data: authData, error } = await supabase.auth.exchangeCodeForSession(code);
+    exchangeError = error;
+    authUser = authData?.user;
+  } else if (tokenHash && type) {
+    const { data: authData, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as EmailOtpType,
+    });
+    exchangeError = error;
+    authUser = authData?.user;
+  }
+
+  if (exchangeError || !authUser) {
+    console.error("[Auth Callback] Session exchange failed:", {
       code: (exchangeError as { code?: string })?.code ?? "unknown",
       message: exchangeError?.message,
+      isRecovery,
     });
+    if (isRecovery) {
+      return NextResponse.redirect(new URL(`${fallbackForgot}?error=invalid_or_expired_link`, canonicalOrigin));
+    }
     return NextResponse.redirect(new URL(`${fallbackLogin}?error=session_exchange_failed`, canonicalOrigin));
   }
 
-  const user = authData.user;
+  const user = authUser;
 
   // Resolve trusted server database client (createAdminClient bypasses client-side RLS and column restrictions)
   let dbClient = supabase;
@@ -139,7 +178,50 @@ export async function GET(request: NextRequest) {
 
   if (profileError) {
     console.error("[Auth Callback] Failed to query user profile:", profileError);
+    if (isRecovery) {
+      return NextResponse.redirect(new URL(`${fallbackForgot}?error=database_error`, canonicalOrigin));
+    }
     return NextResponse.redirect(new URL(`${fallbackLogin}?error=database_error`, canonicalOrigin));
+  }
+
+  // ─── 3. PASSWORD RECOVERY PRIORITY HANDLING ─────────────────────────────────────
+  // If the incoming callback is for password recovery, NEVER redirect to a dashboard.
+  // Immediately redirect to /auth/reset-password while preserving the authentic role.
+  if (isRecovery) {
+    const resolvedRole = profile?.role || (oauthRole === "astrologer" ? "astrologer" : "customer");
+    const recoveryDestination = `/auth/reset-password?role=${resolvedRole}`;
+
+    const recoveryResponse = NextResponse.redirect(new URL(recoveryDestination, canonicalOrigin), 303);
+
+    // Transfer session cookies with path "/" so the reset password page is authenticated
+    if (cookiesToSetList.length > 0) {
+      cookiesToSetList.forEach(({ name, value, options }) => {
+        const isDeleting = options?.maxAge === 0;
+        const sessionOptions = isDeleting
+          ? options
+          : {
+              ...(options ?? {}),
+              maxAge: undefined,
+              expires: undefined,
+            };
+        recoveryResponse.cookies.set(name, value, {
+          sameSite: "lax",
+          ...sessionOptions,
+          path: "/",
+        });
+      });
+    }
+
+    response.cookies.getAll().forEach((c) => {
+      if (!cookiesToSetList.some((item) => item.name === c.name)) {
+        recoveryResponse.cookies.set(c.name, c.value, {
+          path: "/",
+          sameSite: "lax",
+        });
+      }
+    });
+
+    return recoveryResponse;
   }
 
   const metaName = (

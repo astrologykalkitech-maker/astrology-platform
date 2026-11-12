@@ -19,7 +19,11 @@ test("Auth Loop Protection: sanitizeRedirectPath prevents redirect loops back to
   assert.equal(sanitizeRedirectPath("/astrologer/signup", fallback), fallback);
   assert.equal(sanitizeRedirectPath("/astrologer/forgot-password", fallback), fallback);
   assert.equal(sanitizeRedirectPath("/auth/callback?code=123", fallback), fallback);
-  assert.equal(sanitizeRedirectPath("/auth/reset-password", fallback), fallback);
+  assert.equal(sanitizeRedirectPath("/auth/admin", fallback), fallback);
+
+  // Must allow legitimate internal reset-password interface
+  assert.equal(sanitizeRedirectPath("/auth/reset-password", fallback), "/auth/reset-password");
+  assert.equal(sanitizeRedirectPath("/auth/reset-password?role=customer", fallback), "/auth/reset-password?role=customer");
 
   // Must allow valid intended dashboards
   assert.equal(sanitizeRedirectPath("/customer/astrologers", fallback), "/customer/astrologers");

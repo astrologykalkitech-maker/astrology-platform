@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { requireAstrologer } from "@/lib/auth/session";
-import { getProtectionRitualsAction } from "@/app/actions/protection-rituals";
-import { ProtectionRitualsClient } from "@/components/customer/ProtectionRitualsClient";
+import { getAstrologerProtectionRitualsAction } from "@/app/actions/protection-rituals";
+import { AstrologerProtectionRitualsClient } from "@/components/astrologer/AstrologerProtectionRitualsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +12,17 @@ export const metadata: Metadata = {
 
 export default async function AstrologerProtectionRitualsPage() {
   await requireAstrologer();
-  const ritualsRes = await getProtectionRitualsAction();
-  const rituals = ritualsRes.success && ritualsRes.data ? ritualsRes.data : [];
+
+  const ritualsRes = await getAstrologerProtectionRitualsAction();
+  const rituals = ritualsRes.success && ritualsRes.data ? ritualsRes.data.rituals : [];
+  const astrologerProfileId = ritualsRes.success && ritualsRes.data ? ritualsRes.data.astrologerProfileId : "";
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      <ProtectionRitualsClient initialRituals={rituals} />
+      <AstrologerProtectionRitualsClient
+        initialRituals={rituals}
+        astrologerProfileId={astrologerProfileId}
+      />
     </div>
   );
 }
-
