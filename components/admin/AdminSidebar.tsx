@@ -72,6 +72,13 @@ export function AdminSidebar({
       ],
     },
     {
+      title: "Finance & Subscriptions",
+      items: [
+        { href: "/super-admin/financials", label: "Financial Ledger & Payouts", icon: Sliders },
+        { href: "/super-admin/plans", label: "Subscription Plans Builder", icon: Sparkles },
+      ],
+    },
+    {
       title: "Operations & Bookings",
       items: [
         { href: "/super-admin/leads", label: "Central Lead Pipeline", icon: Inbox },

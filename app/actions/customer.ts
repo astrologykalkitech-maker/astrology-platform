@@ -1515,8 +1515,38 @@ export async function getCustomerBillingHistory(): Promise<
       }
     }
 
+    // Query any payments for these bookings via payment_orders
+    const bookingIds = bookings.map((b) => b.id);
+    const paymentMap: Record<string, { receipt_number: string; payment_id: string }> = {};
+    if (bookingIds.length > 0) {
+      const adminClient = await createAdminClient("main");
+      const { data: orders } = await adminClient
+        .from("payment_orders")
+        .select(`
+          entity_id,
+          payments(receipt_number, payment_id)
+        `)
+        .eq("entity_type", "consultation")
+        .in("entity_id", bookingIds);
+
+      if (orders) {
+        for (const o of orders) {
+          const pays = Array.isArray(o.payments) ? o.payments : (o.payments ? [o.payments] : []);
+          if (pays.length > 0 && pays[0]) {
+            paymentMap[o.entity_id] = {
+              receipt_number: (pays[0] as { receipt_number: string }).receipt_number,
+              payment_id: (pays[0] as { payment_id: string }).payment_id,
+            };
+          }
+        }
+      }
+    }
+
     const billingRecords: CustomerBillingRecord[] = bookings.map((b) => {
       const priceNum = Number(b.price) || 0;
+      const paymentInfo = paymentMap[b.id];
+      const isPaid = b.status === "confirmed" || b.status === "completed" || !!paymentInfo;
+
       return {
         id: `tx-${b.id.slice(0, 8)}`,
         booking_id: b.id,
@@ -1525,8 +1555,10 @@ export async function getCustomerBillingHistory(): Promise<
         astrologer_name: astroMap[b.astrologer_id] || "Vedic Astrologer",
         amount: priceNum,
         currency: "INR",
-        payment_status: priceNum === 0 ? "complimentary" : b.status === "completed" ? "paid" : "pending",
-        transaction_ref: `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
+        payment_status: priceNum === 0 ? "complimentary" : isPaid ? "paid" : "pending",
+        transaction_ref: paymentInfo?.receipt_number || `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
+        receipt_number: paymentInfo?.receipt_number,
+        payment_id: paymentInfo?.payment_id,
         created_at: b.created_at,
       };
     });
