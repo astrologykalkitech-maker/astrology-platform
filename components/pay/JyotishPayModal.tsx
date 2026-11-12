@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { 
   X, 
   ShieldCheck, 
@@ -12,7 +12,10 @@ import {
   FileText,
   Clock,
   Smartphone,
-  QrCode
+  RotateCcw,
+  MonitorSmartphone,
+  ChevronRight,
+  Info
 } from "lucide-react";
 import { formatPaiseToInr } from "@/lib/financial/pricing";
 
@@ -46,7 +49,14 @@ export function JyotishPayModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedVpa, setCopiedVpa] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  
+  // App launch handoff states
+  const [appLaunchStatus, setAppLaunchStatus] = useState<"idle" | "launching" | "unsupported">("idle");
+  const [launchMessage, setLaunchMessage] = useState<string | null>(null);
+
+  // Manual UTR submission
   const [showManualUtrInput, setShowManualUtrInput] = useState(false);
   const [manualUtr, setManualUtr] = useState("");
   const [submittingUtr, setSubmittingUtr] = useState(false);
@@ -59,8 +69,11 @@ export function JyotishPayModal({
   const [secondsRemaining, setSecondsRemaining] = useState(600);
   const [simulating, setSimulating] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
-  // Detect Mobile device on mount
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Detect mobile vs desktop
   useEffect(() => {
     if (typeof window !== "undefined") {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
@@ -69,7 +82,54 @@ export function JyotishPayModal({
     }
   }, []);
 
-  // Initialize payment intent and QR when modal opens
+  // Lock background scroll when modal is active
+  useEffect(() => {
+    if (isOpen) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [isOpen]);
+
+  // Initialize payment intent and dynamic QR
+  const initializeIntent = async () => {
+    setLoading(true);
+    setError(null);
+    setAppLaunchStatus("idle");
+    setLaunchMessage(null);
+    try {
+      const res = await fetch("/api/pay/intent/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount_paise: amountPaise,
+          entity_type: entityType,
+          booking_id: bookingId,
+          plan_id: planId,
+          astrologer_id: astrologerId,
+          customer_id: customerId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to initialize JyotishSetu Pay");
+      }
+
+      setSessionCode(data.qrSession.sessionCode);
+      setUpiUri(data.qrSession.upiUri);
+      setQrSvg(data.qrSession.qrSvg);
+      setStatus("active");
+      setSecondsRemaining(600); // 10 minutes
+    } catch (err: any) {
+      setError(err.message || "Failed to start payment session");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setSessionCode(null);
@@ -80,80 +140,48 @@ export function JyotishPayModal({
       setReceiptNumber(null);
       setShowManualUtrInput(false);
       setManualUtr("");
+      setAppLaunchStatus("idle");
+      setLaunchMessage(null);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       return;
     }
 
-    let active = true;
-
-    async function initIntent() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/pay/intent/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount_paise: amountPaise,
-            entity_type: entityType,
-            booking_id: bookingId,
-            plan_id: planId,
-            astrologer_id: astrologerId,
-            customer_id: customerId,
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to initialize JyotishSetu Pay");
-        }
-
-        if (active) {
-          setSessionCode(data.qrSession.sessionCode);
-          setUpiUri(data.qrSession.upiUri);
-          setQrSvg(data.qrSession.qrSvg);
-          setStatus("active");
-          setSecondsRemaining(600); // 10 minutes
-        }
-      } catch (err: any) {
-        if (active) {
-          setError(err.message || "Failed to start payment session");
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    initIntent();
+    initializeIntent();
 
     return () => {
-      active = false;
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     };
   }, [isOpen, amountPaise, entityType, bookingId, planId, astrologerId, customerId]);
 
   // Polling for QR Payment Status
+  const checkPaymentStatus = async (isManual = false) => {
+    if (!sessionCode) return;
+    if (isManual) setCheckingStatus(true);
+    try {
+      const res = await fetch(`/api/pay/qr/${sessionCode}/status`);
+      const data = await res.json();
+      if (data.success && data.status === "completed") {
+        setStatus("completed");
+        setReceiptNumber(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
+        onSuccess(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
+      } else if (data.status === "expired") {
+        setStatus("expired");
+      }
+    } catch (e) {
+      // silent
+    } finally {
+      if (isManual) setCheckingStatus(false);
+    }
+  };
+
   useEffect(() => {
     if (!sessionCode || status !== "active") return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/pay/qr/${sessionCode}/status`);
-        const data = await res.json();
-        if (data.success && data.status === "completed") {
-          setStatus("completed");
-          setReceiptNumber(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
-          clearInterval(interval);
-          onSuccess(data.receiptNumber || `JSP-REC-${sessionCode.slice(-6)}`);
-        } else if (data.status === "expired") {
-          setStatus("expired");
-          clearInterval(interval);
-        }
-      } catch (e) {
-        // silent polling error
-      }
+    const interval = setInterval(() => {
+      checkPaymentStatus(false);
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [sessionCode, status, onSuccess]);
+  }, [sessionCode, status]);
 
   // Countdown timer
   useEffect(() => {
@@ -172,21 +200,54 @@ export function JyotishPayModal({
     return () => clearInterval(timer);
   }, [status]);
 
-  // Handle Pay via UPI App button click
+  /**
+   * Universal UPI App Launch (Desktop & Mobile)
+   * Attempts standard protocol handoff (upi://pay?...) while listening for window blur.
+   * If on desktop and no protocol handler accepts the link, graceful fallback alert appears.
+   */
   const handlePayViaUpiApp = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!upiUri) return;
 
-    // Check if on desktop vs mobile
-    if (!isMobileDevice) {
-      // On desktop, PC browsers cannot handle upi:// intent schemes directly.
-      // We inform the user to scan via mobile camera or use their phone UPI app.
-      setError("Desktop notice: 'Pay via UPI App' requires a mobile device with GPay, PhonePe, or Paytm installed. On desktop, please scan the QR code using your phone's camera or UPI app.");
-      return;
+    setError(null);
+    setAppLaunchStatus("launching");
+    setLaunchMessage("Opening supported UPI payment application...");
+
+    let didBlur = false;
+    const onBlur = () => {
+      didBlur = true;
+      setLaunchMessage("UPI application launched. Complete payment in your app; this window will update automatically.");
+    };
+
+    window.addEventListener("blur", onBlur, { once: true });
+
+    // Attempt protocol handoff
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    try {
+      window.location.assign(upiUri);
+    } catch (err) {
+      // fallback
     }
 
-    // On mobile devices, launch the native OS UPI Intent chooser
-    window.location.href = upiUri;
+    // Evaluate handoff after 2.2 seconds
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    fallbackTimerRef.current = setTimeout(() => {
+      window.removeEventListener("blur", onBlur);
+      try {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      } catch (e) {}
+
+      if (!didBlur && !isMobileDevice) {
+        setAppLaunchStatus("unsupported");
+        setLaunchMessage("No compatible UPI payment application was detected on this computer. Scan the QR code using your mobile UPI app to complete payment.");
+      } else if (!didBlur && isMobileDevice) {
+        setAppLaunchStatus("unsupported");
+        setLaunchMessage("Unable to trigger default UPI app. Please scan the QR code or copy the UPI ID below.");
+      }
+    }, 2200);
   };
 
   const handleSimulatePayment = async () => {
@@ -206,6 +267,8 @@ export function JyotishPayModal({
         setStatus("completed");
         setReceiptNumber(data.receiptNumber);
         onSuccess(data.receiptNumber);
+      } else {
+        setError(data.error || "Simulation failed");
       }
     } catch (e: any) {
       setError(e.message || "Simulation failed");
@@ -249,171 +312,227 @@ export function JyotishPayModal({
     setTimeout(() => setCopiedVpa(false), 2000);
   };
 
+  const copyRef = () => {
+    if (!sessionCode) return;
+    navigator.clipboard.writeText(sessionCode);
+    setCopiedRef(true);
+    setTimeout(() => setCopiedRef(false), 2000);
+  };
+
   if (!isOpen) return null;
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden text-slate-100">
+    <div 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="relative w-full max-w-xl max-h-[92dvh] flex flex-col bg-slate-900 border border-amber-500/35 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden text-slate-100 my-auto">
         
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
-          <div className="flex items-center space-x-2">
+        {/* Sticky Header */}
+        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/90 z-10">
+          <div className="flex items-center space-x-2.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="font-semibold text-lg text-amber-200 tracking-wide">
+            <h3 className="font-semibold text-base sm:text-lg text-amber-200 tracking-wide">
               JyotishSetu Pay
             </h3>
-            <span className="text-xs bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
+            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
               UPI DIRECT
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close modal"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="p-6 space-y-6">
-          {/* Order Summary */}
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">{title}</p>
-              <p className="text-sm text-slate-200 truncate max-w-xs">{description}</p>
+        {/* Scrollable Body Container */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+          
+          {/* Order Summary Compact Box */}
+          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-medium truncate">{title}</p>
+              <p className="text-xs sm:text-sm text-slate-200 truncate">{description}</p>
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-400">Total Payable</span>
-              <p className="text-xl font-bold text-emerald-400">{formatPaiseToInr(amountPaise)}</p>
+            <div className="text-right shrink-0">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Total Payable</span>
+              <p className="text-lg sm:text-xl font-bold text-emerald-400">{formatPaiseToInr(amountPaise)}</p>
             </div>
           </div>
 
-          {/* Error Message */}
+          {/* Error Notice */}
           {error && (
-            <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl flex items-start space-x-3 text-red-200 text-xs">
+            <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl flex items-start space-x-2.5 text-red-200 text-xs">
               <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* State 1: Initiating / Loading */}
-          {loading && (
-            <div className="py-12 flex flex-col items-center justify-center space-y-3">
-              <RefreshCw className="h-8 w-8 text-amber-400 animate-spin" />
-              <p className="text-sm text-slate-300">Generating secure dynamic UPI QR session...</p>
+          {/* App Handoff Status Message */}
+          {launchMessage && (
+            <div className={`p-3 rounded-xl flex items-start space-x-2.5 text-xs border ${
+              appLaunchStatus === "unsupported" 
+                ? "bg-amber-950/40 border-amber-500/40 text-amber-200" 
+                : "bg-blue-950/40 border-blue-500/40 text-blue-200"
+            }`}>
+              <Info className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span>{launchMessage}</span>
+                {appLaunchStatus === "unsupported" && (
+                  <button
+                    onClick={handlePayViaUpiApp}
+                    className="block mt-1 font-semibold underline text-amber-300 hover:text-amber-100"
+                  >
+                    Try launching app again
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* State 2: Active QR Session */}
+          {/* State 1: Initiating / Loading */}
+          {loading && (
+            <div className="py-10 flex flex-col items-center justify-center space-y-3">
+              <RefreshCw className="h-8 w-8 text-amber-400 animate-spin" />
+              <p className="text-xs sm:text-sm text-slate-300">Generating secure dynamic UPI QR session...</p>
+            </div>
+          )}
+
+          {/* State 2: Active QR & Payment Actions */}
           {!loading && status === "active" && qrSvg && (
             <div className="flex flex-col items-center space-y-4">
-              {/* QR Code Container */}
-              <div className="relative p-3 bg-white rounded-2xl shadow-xl border-4 border-amber-500/40">
-                <div 
-                  className="w-56 h-56 flex items-center justify-center"
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                />
-              </div>
-
-              {/* Instructions Pill */}
-              <div className="flex items-center space-x-2 text-xs text-amber-300/80 bg-amber-950/40 px-3 py-1.5 rounded-full border border-amber-500/30">
-                <Clock className="h-3.5 w-3.5 text-amber-400" />
-                <span>QR expires in: <strong className="font-mono text-amber-200">{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</strong></span>
-              </div>
-
-              {/* Desktop vs Mobile Hint */}
-              {!isMobileDevice && (
-                <div className="w-full text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
-                  <Smartphone className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Scan QR with <strong>Google Pay</strong>, <strong>PhonePe</strong>, or <strong>Paytm</strong></span>
+              
+              {/* Dynamic QR Code Box - Sized responsively to never clip */}
+              <div className="flex flex-col items-center">
+                <div className="p-2 sm:p-2.5 bg-white rounded-xl shadow-xl border-2 border-amber-500/40">
+                  <div 
+                    className="w-40 h-40 sm:w-48 sm:h-48 md:w-52 md:h-52 flex items-center justify-center"
+                    dangerouslySetInnerHTML={{ __html: qrSvg }}
+                  />
                 </div>
-              )}
 
-              {/* UPI Intent Trigger Links (Mobile App Deep Links) */}
-              {upiUri && (
-                <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
-                  <button
-                    onClick={handlePayViaUpiApp}
-                    className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all"
-                  >
-                    <span>Pay via UPI App</span>
-                    <ExternalLink className="h-4 w-4" />
-                  </button>
+                {/* Expiry Countdown & Recipient */}
+                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+                  <div className="flex items-center space-x-1.5 text-amber-300 bg-amber-950/50 px-2.5 py-1 rounded-full border border-amber-500/30">
+                    <Clock className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Expires in: <strong className="font-mono text-amber-200">{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</strong></span>
+                  </div>
+                  <span className="text-slate-400">Payee: <strong className="text-slate-200">JyotishSetu</strong></span>
+                </div>
+              </div>
 
+              {/* Primary Payment Action: Pay via UPI App (Desktop & Mobile) */}
+              <div className="w-full space-y-2 pt-1">
+                <button
+                  onClick={handlePayViaUpiApp}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all"
+                >
+                  <MonitorSmartphone className="h-4 w-4" />
+                  <span>Pay via UPI App</span>
+                  <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+                </button>
+
+                {/* Action Secondary Grid: Copy UPI ID, Copy Ref, Refresh */}
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={copyVpa}
-                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl flex items-center justify-center space-x-2 border border-slate-700 transition-colors"
+                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
                   >
-                    {copiedVpa ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                    <span>{copiedVpa ? "VPA Copied" : "Copy UPI ID"}</span>
+                    {copiedVpa ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span className="truncate">{copiedVpa ? "Copied" : "Copy UPI"}</span>
+                  </button>
+
+                  <button
+                    onClick={copyRef}
+                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
+                  >
+                    {copiedRef ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span className="truncate">{copiedRef ? "Copied" : "Copy Ref"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => checkPaymentStatus(true)}
+                    disabled={checkingStatus}
+                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors disabled:opacity-60"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${checkingStatus ? "animate-spin" : ""}`} />
+                    <span className="truncate">Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Manual Bank UTR Submission */}
+              <div className="w-full pt-1">
+                {!showManualUtrInput ? (
+                  <button
+                    onClick={() => setShowManualUtrInput(true)}
+                    className="w-full text-center text-xs text-amber-300/80 hover:text-amber-200 underline"
+                  >
+                    Already paid? Enter 12-digit Bank UTR / Reference ID
+                  </button>
+                ) : (
+                  <form onSubmit={handleSubmitManualUtr} className="w-full p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-2">
+                    <label className="text-[11px] font-medium text-slate-300 block">
+                      Enter 12-Digit Bank UTR / Reference ID:
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. 431289123456"
+                        value={manualUtr}
+                        onChange={(e) => setManualUtr(e.target.value)}
+                        className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                      <button
+                        type="submit"
+                        disabled={submittingUtr || !manualUtr.trim()}
+                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-50"
+                      >
+                        {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Dev Mode Simulation Button (Only shown in non-production) */}
+              {process.env.NODE_ENV !== "production" && (
+                <div className="w-full pt-1 border-t border-slate-800">
+                  <button
+                    onClick={handleSimulatePayment}
+                    disabled={simulating}
+                    className="w-full py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 text-[11px] font-medium rounded-lg flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {simulating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
+                    <span>[Dev Mode] Simulate Instant Banking Credit & Confirm</span>
                   </button>
                 </div>
               )}
-
-              {/* Manual Bank UTR Submission (If User already paid via mobile app and wants instant clearance) */}
-              {!showManualUtrInput ? (
-                <button
-                  onClick={() => setShowManualUtrInput(true)}
-                  className="text-xs text-amber-300/80 hover:text-amber-200 underline pt-1"
-                >
-                  Already paid? Enter 12-digit Bank UTR / Reference ID
-                </button>
-              ) : (
-                <form onSubmit={handleSubmitManualUtr} className="w-full p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-2">
-                  <label className="text-[11px] font-medium text-slate-300 block">
-                    Enter Bank Reference / UTR Number:
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 431289123456"
-                      value={manualUtr}
-                      onChange={(e) => setManualUtr(e.target.value)}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={submittingUtr || !manualUtr.trim()}
-                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-50"
-                    >
-                      {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Instant Sandbox Clearance Button for Testing/Dev Mode */}
-              <div className="w-full pt-2 border-t border-slate-800/80">
-                <button
-                  onClick={handleSimulatePayment}
-                  disabled={simulating}
-                  className="w-full py-2 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 text-xs font-medium rounded-lg flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
-                >
-                  {simulating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
-                  <span>[Dev Mode] Simulate Instant Banking Credit & Confirm</span>
-                </button>
-              </div>
             </div>
           )}
 
           {/* State 3: Payment Completed */}
           {status === "completed" && (
-            <div className="py-8 flex flex-col items-center text-center space-y-4">
-              <div className="h-16 w-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center border-2 border-emerald-500/40">
-                <Check className="h-8 w-8 stroke-[3]" />
+            <div className="py-6 flex flex-col items-center text-center space-y-4">
+              <div className="h-14 w-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center border-2 border-emerald-500/40">
+                <Check className="h-7 w-7 stroke-[3]" />
               </div>
 
               <div>
-                <h4 className="text-xl font-bold text-slate-100">Payment Confirmed!</h4>
-                <p className="text-sm text-slate-400 mt-1">
+                <h4 className="text-lg font-bold text-slate-100">Payment Confirmed!</h4>
+                <p className="text-xs sm:text-sm text-slate-400 mt-1">
                   Your transaction has been securely cleared and verified.
                 </p>
                 {receiptNumber && (
-                  <p className="text-xs font-mono text-amber-300 mt-2">
+                  <p className="text-xs font-mono text-amber-300 mt-2 bg-slate-950 px-3 py-1 rounded-md inline-block border border-slate-800">
                     Receipt: {receiptNumber}
                   </p>
                 )}
@@ -424,15 +543,15 @@ export function JyotishPayModal({
                   href={`/api/pay/receipt/download?session_code=${sessionCode}&receipt_number=${receiptNumber}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-sm font-semibold rounded-xl flex items-center space-x-2 transition-colors"
+                  className="py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl flex items-center space-x-2 transition-colors"
                 >
                   <FileText className="h-4 w-4 text-amber-400" />
-                  <span>Download Tax Invoice</span>
+                  <span>Download Invoice</span>
                 </a>
 
                 <button
                   onClick={onClose}
-                  className="py-2.5 px-6 bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-bold rounded-xl shadow-lg transition-colors"
+                  className="py-2 px-5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl shadow-lg transition-colors"
                 >
                   Done
                 </button>
@@ -442,27 +561,28 @@ export function JyotishPayModal({
 
           {/* State 4: Expired */}
           {status === "expired" && (
-            <div className="py-8 flex flex-col items-center text-center space-y-3">
-              <AlertCircle className="h-12 w-12 text-amber-500" />
-              <h4 className="text-lg font-bold text-slate-200">Session Expired</h4>
-              <p className="text-sm text-slate-400 max-w-xs">
-                This dynamic QR session has timed out. Please initiate a new payment session.
+            <div className="py-6 flex flex-col items-center text-center space-y-3">
+              <AlertCircle className="h-10 w-10 text-amber-500" />
+              <h4 className="text-base font-bold text-slate-200">Session Expired</h4>
+              <p className="text-xs text-slate-400 max-w-xs">
+                This dynamic QR session has timed out. Click below to regenerate a new secure session.
               </p>
               <button
-                onClick={onClose}
-                className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg"
+                onClick={initializeIntent}
+                className="py-2 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center space-x-1.5 shadow"
               >
-                Close
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Regenerate Payment Session</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Footer Guarantee */}
-        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+        {/* Sticky Footer */}
+        <div className="shrink-0 px-4 py-2.5 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 z-10">
           <div className="flex items-center space-x-1.5">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            <span>256-Bit Encrypted Banking Pipeline</span>
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            <span>256-Bit Encrypted Pipeline</span>
           </div>
           <span>NPCI UPI Verified</span>
         </div>

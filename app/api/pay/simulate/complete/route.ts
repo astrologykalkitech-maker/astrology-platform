@@ -5,6 +5,13 @@ import { JyotishSimulatorStore } from "@/lib/pay/simulator";
 
 export async function POST(req: NextRequest) {
   try {
+    // Strict production guard: Disallow simulation in live production mode
+    if (process.env.NODE_ENV === "production" && process.env.PAYMENT_GATEWAY_MODE === "live") {
+      return NextResponse.json(
+        { success: false, error: "Payment simulation is strictly forbidden in production mode." },
+        { status: 403 }
+      );
+    }
     const body = await req.json();
     const { session_code, utr } = body;
 
