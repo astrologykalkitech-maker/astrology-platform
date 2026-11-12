@@ -274,7 +274,7 @@ export interface CustomerBillingRecord {
   astrologer_name: string;
   amount: number;
   currency: string;
-  payment_status: "paid" | "pending" | "complimentary";
+  payment_status: "paid" | "pending" | "complimentary" | "refunded";
   transaction_ref: string;
   receipt_number?: string;
   payment_id?: string;

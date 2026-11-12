@@ -5,7 +5,7 @@ import { Check, Sparkles, AlertCircle, RefreshCw, Shield, Zap, CreditCard, Lock 
 import type { AstrologerSubscriptionRecord, PaymentPlanRecord } from "@/lib/financial/types";
 import { formatPaiseToInr } from "@/lib/financial/pricing";
 import { formatExactDateTime } from "@/lib/astrologer/format";
-import { initiateSubscriptionPaymentAction } from "@/app/actions/payments";
+import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
 
 export function AstrologerSubscriptionClient({
   subscription,
@@ -14,9 +14,9 @@ export function AstrologerSubscriptionClient({
   subscription: AstrologerSubscriptionRecord | null;
   availablePlans: PaymentPlanRecord[];
 }) {
-  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [pendingConfirmPlan, setPendingConfirmPlan] = useState<PaymentPlanRecord | null>(null);
+  const [selectedPlanForPay, setSelectedPlanForPay] = useState<PaymentPlanRecord | null>(null);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
 
   const activePlan = subscription?.plan || availablePlans.find((p) => p.is_default);
   const leadsAllocated = subscription?.leads_allocated || activePlan?.lead_quota || 0;
@@ -26,30 +26,14 @@ export function AstrologerSubscriptionClient({
 
   const handleInitiateUpgrade = (plan: PaymentPlanRecord) => {
     setErrorMsg(null);
-    if (plan.price_paise === 0) {
-      handleProceedPayment(plan);
-    } else {
-      setPendingConfirmPlan(plan);
-    }
+    setSelectedPlanForPay(plan);
+    setIsPayModalOpen(true);
   };
 
-  const handleProceedPayment = async (plan: PaymentPlanRecord) => {
-    try {
-      setLoadingPlanId(plan.id);
-      setErrorMsg(null);
-      const res = await initiateSubscriptionPaymentAction({ planId: plan.id });
-      if (res.success && res.data?.paymentUrl) {
-        window.location.href = res.data.paymentUrl;
-      } else {
-        setErrorMsg(res.error || "Failed to initialize payment request with gateway.");
-        setPendingConfirmPlan(null);
-      }
-    } catch {
-      setErrorMsg("An unexpected network error occurred while contacting payment server.");
-      setPendingConfirmPlan(null);
-    } finally {
-      setLoadingPlanId(null);
-    }
+  const handlePaymentSuccess = (receiptNo: string) => {
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   };
 
   return (
@@ -78,97 +62,81 @@ export function AstrologerSubscriptionClient({
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted">Platform Commission:</span>
             <span className="text-sm font-bold text-midnight">
-              {activePlan?.commission_percent !== undefined ? `${activePlan.commission_percent}%` : "10%"}
+              {activePlan?.commission_percent ?? 10}%
             </span>
           </div>
         </div>
 
-        {/* Lead Allocation Progress Bar */}
-        <div className="mt-6 rounded-xl border border-gold/20 bg-parchment/40 p-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-midnight flex items-center gap-1.5">
-              <Zap className="h-3.5 w-3.5 text-gold-deep" />
-              Client Lead Quota Usage
+        {/* Lead Quota Usage Progress */}
+        <div className="mt-6 pt-6 border-t border-gold/20">
+          <div className="flex items-center justify-between text-xs mb-2">
+            <span className="font-medium text-midnight">
+              Monthly Verified Leads Quota: <strong className="text-gold-deep">{remainingLeads}</strong> remaining of {leadsAllocated}
             </span>
-            <span className="font-medium text-ink">
-              {leadsConsumed} / {leadsAllocated} Leads Used ({remainingLeads} Remaining)
-            </span>
+            <span className="text-muted">{quotaPercent}% consumed</span>
           </div>
-          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gold/15">
+          <div className="w-full bg-parchment h-2 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-gold to-amber-600 transition-all duration-500 rounded-full"
+              className="bg-gradient-to-r from-gold to-gold-deep h-full rounded-full transition-all duration-300"
               style={{ width: `${quotaPercent}%` }}
             />
           </div>
-          <p className="text-[11px] text-muted mt-2">
-            {leadsAllocated === 0
-              ? "Free plan includes 0 platform-assigned leads. Upgrade to Professional for 10 verified client leads per month."
-              : `${remainingLeads} verified consultation leads remaining in your monthly billing period.`}
-          </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {/* Available Plans Grid */}
+      {/* Available Plans Catalog */}
       <div>
-        <h3 className="text-sm font-bold text-midnight mb-3">Available Astrologer Plans</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <h3 className="text-base font-bold text-midnight mb-3">Available Membership Plans</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {availablePlans.map((plan) => {
-            const isCurrent = subscription?.plan_id === plan.id || (!subscription && plan.is_default);
+            const isCurrent = activePlan?.id === plan.id;
             return (
               <div
                 key={plan.id}
-                className={`relative flex flex-col justify-between rounded-2xl border p-5 transition-all ${
+                className={`relative flex flex-col justify-between rounded-2xl border p-6 transition-all ${
                   isCurrent
-                    ? "border-gold bg-gradient-to-b from-parchment/60 to-white shadow-md ring-2 ring-gold/20"
-                    : "border-gold/20 bg-white hover:border-gold/40 shadow-sm"
+                    ? "border-gold bg-parchment/30 shadow-md ring-1 ring-gold/40"
+                    : "border-gold/30 bg-white hover:border-gold/60 hover:shadow-sm"
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <h4 className="text-base font-bold text-midnight">{plan.name}</h4>
-                    {plan.is_default && (
-                      <span className="rounded-md bg-gold/15 px-2 py-0.5 text-[10px] font-semibold text-gold-deep">
-                        Standard
+                    {plan.slug === "professional" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2 py-0.5 text-[11px] font-bold text-gold-deep">
+                        <Zap className="h-3 w-3" /> Recommended
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted mt-1">{plan.description}</p>
+                  <p className="text-xs text-muted mb-4">{plan.description}</p>
 
-                  <div className="mt-4 flex items-baseline gap-1">
+                  <div className="mb-6">
                     <span className="text-2xl font-black text-midnight">
-                      {plan.price_paise === 0 ? "₹0" : formatPaiseToInr(plan.price_paise, false)}
+                      {formatPaiseToInr(plan.price_paise, false)}
                     </span>
-                    <span className="text-xs text-muted">/ month</span>
+                    <span className="text-xs text-muted"> / month</span>
                   </div>
 
-                  <ul className="mt-4 space-y-2 text-xs text-ink/80">
-                    <li className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span>{plan.lead_quota} Verified Client Leads / mo</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                      <span>{plan.commission_percent}% Marketplace Commission</span>
-                    </li>
-                    {plan.features?.map((feat, i) => (
-                      <li key={i} className="flex items-center gap-2">
+                  <ul className="space-y-2 mb-6">
+                    {(plan.features as string[]).map((feature, idx) => (
+                      <li key={idx} className="flex items-center gap-2 text-xs text-ink/80">
                         <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                        <span>{feat}</span>
+                        <span>{feature}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gold/15">
+                <div>
                   <button
-                    disabled={isCurrent || loadingPlanId === plan.id}
+                    disabled={isCurrent}
                     onClick={() => handleInitiateUpgrade(plan)}
                     className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-2 px-4 text-xs font-semibold shadow transition-all ${
                       isCurrent
@@ -176,13 +144,7 @@ export function AstrologerSubscriptionClient({
                         : "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight hover:opacity-95"
                     } disabled:opacity-60`}
                   >
-                    {loadingPlanId === plan.id ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : isCurrent ? (
-                      "Active Plan"
-                    ) : (
-                      `Upgrade to ${plan.name}`
-                    )}
+                    {isCurrent ? "Active Plan" : `Upgrade to ${plan.name}`}
                   </button>
                 </div>
               </div>
@@ -191,64 +153,25 @@ export function AstrologerSubscriptionClient({
         </div>
       </div>
 
-      {/* Confirmation Modal for Paid Upgrade */}
-      {pendingConfirmPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-gold/30 bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-2 text-midnight">
-              <Lock className="h-5 w-5 text-gold-deep" />
-              <h3 className="text-base font-bold">Confirm Subscription Upgrade</h3>
-            </div>
-            <p className="text-xs text-muted mt-2">
-              You are upgrading to <strong className="text-midnight">{pendingConfirmPlan.name}</strong> for{" "}
-              <strong className="text-midnight">{formatPaiseToInr(pendingConfirmPlan.price_paise, false)}/month</strong>.
-            </p>
-            <div className="mt-4 rounded-xl border border-gold/20 bg-parchment/40 p-3 text-xs text-ink/80 space-y-1.5">
-              <div className="flex justify-between">
-                <span>Monthly Verified Leads:</span>
-                <span className="font-bold text-midnight">{pendingConfirmPlan.lead_quota} leads</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Marketplace Commission:</span>
-                <span className="font-bold text-emerald-700">{pendingConfirmPlan.commission_percent}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Renewal Policy:</span>
-                <span className="font-semibold text-muted">100% Manual (No Auto-Debit)</span>
-              </div>
-            </div>
-            <p className="text-[11px] text-muted mt-3">
-              Clicking below will securely redirect you to the Instamojo payment gateway. Your plan will activate only after successful payment verification.
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                disabled={loadingPlanId === pendingConfirmPlan.id}
-                onClick={() => setPendingConfirmPlan(null)}
-                className="rounded-xl border border-gold/30 px-3 py-1.5 text-xs font-medium text-ink hover:bg-parchment"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={loadingPlanId === pendingConfirmPlan.id}
-                onClick={() => handleProceedPayment(pendingConfirmPlan)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-4 py-1.5 text-xs font-bold text-midnight shadow hover:opacity-95 disabled:opacity-50"
-              >
-                {loadingPlanId === pendingConfirmPlan.id ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CreditCard className="h-3.5 w-3.5" />
-                )}
-                Proceed to Payment ({formatPaiseToInr(pendingConfirmPlan.price_paise, false)})
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* JyotishSetu Pay Native Payment Modal */}
+      {selectedPlanForPay && (
+        <JyotishPayModal
+          isOpen={isPayModalOpen}
+          onClose={() => setIsPayModalOpen(false)}
+          amountPaise={selectedPlanForPay.price_paise}
+          entityType="subscription"
+          title={`Membership: ${selectedPlanForPay.name}`}
+          description={`Activate monthly subscription for ${selectedPlanForPay.name} with ${selectedPlanForPay.lead_quota} verified leads.`}
+          planId={selectedPlanForPay.id}
+          astrologerId={subscription?.astrologer_id}
+          onSuccess={handlePaymentSuccess}
+        />
       )}
 
       <div className="flex items-center gap-2 p-3 rounded-xl border border-gold/20 bg-parchment/40 text-[11px] text-muted">
         <Shield className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>
-          Policy: Subscriptions use 100% manual renewal. No auto-deductions occur on your payment card or bank.
+          Policy: Subscriptions use 100% manual renewal powered by JyotishSetu Pay. No auto-deductions occur on your payment card or bank.
         </span>
       </div>
     </div>

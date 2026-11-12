@@ -207,3 +207,36 @@ export async function recordSubscriptionPaymentInLedger(params: {
     ],
   });
 }
+
+/**
+ * General financial transaction recorder for JyotishSetu Pay orchestration.
+ */
+export async function recordFinancialTransaction(params: {
+  entityType: "consultation" | "subscription";
+  referenceId: string;
+  amountPaise: number;
+  commissionPaise?: number;
+  astrologerPaise?: number;
+  astrologerId?: string;
+  description: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (params.entityType === "consultation") {
+    const commission = params.commissionPaise ?? Math.round(params.amountPaise * 0.1);
+    const astrologerAmount = params.astrologerPaise ?? params.amountPaise - commission;
+    return recordConsultationPaymentInLedger({
+      paymentId: params.referenceId,
+      grossPaise: params.amountPaise,
+      platformFeePaise: commission,
+      astrologerPayablePaise: astrologerAmount,
+      description: params.description,
+    });
+  } else {
+    return recordSubscriptionPaymentInLedger({
+      paymentId: params.referenceId,
+      amountPaise: params.amountPaise,
+      description: params.description,
+    });
+  }
+}
+
+

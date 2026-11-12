@@ -143,3 +143,58 @@ export async function togglePlanActiveStatus(
   }
   return { success: true };
 }
+
+/**
+ * Activates or renews an astrologer's subscription following verified payment credit.
+ */
+export async function activateSubscriptionOnPayment(params: {
+  astrologerId: string;
+  planId: string;
+  paymentId: string;
+  billingCycle?: "monthly" | "quarterly" | "annual";
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createAdminClient("main");
+  const billingCycle = params.billingCycle || "monthly";
+
+  // 1. Fetch Plan details
+  const { data: plan, error: planErr } = await supabase
+    .from("payment_plans")
+    .select("*")
+    .eq("id", params.planId)
+    .single();
+
+  if (planErr || !plan) {
+    return { success: false, error: "Payment plan not found." };
+  }
+
+  const periodDays = billingCycle === "annual" ? 365 : billingCycle === "quarterly" ? 90 : 30;
+  const now = new Date();
+  const periodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
+
+  // 2. Upsert subscription record
+  const { error: upsertErr } = await supabase
+    .from("astrologer_subscriptions")
+    .upsert(
+      {
+        astrologer_id: params.astrologerId,
+        plan_id: params.planId,
+        status: "active",
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+        billing_cycle: billingCycle,
+        auto_renew: false, // Strict policy: No auto-debit
+        leads_allocated: plan.lead_quota || 0,
+        leads_consumed: 0,
+        last_payment_id: params.paymentId,
+        updated_at: now.toISOString(),
+      },
+      { onConflict: "astrologer_id" }
+    );
+
+  if (upsertErr) {
+    return { success: false, error: upsertErr.message };
+  }
+
+  return { success: true };
+}
+

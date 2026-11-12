@@ -6,7 +6,8 @@ import type { CustomerBillingRecord } from "@/lib/types/database.types";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
 import { generatePaymentReceiptPdf } from "@/lib/financial/receipt";
-import { initiateConsultationPaymentAction, requestCustomerRefundAction } from "@/app/actions/payments";
+import { requestCustomerRefundAction } from "@/app/actions/payments";
+import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
 
 export function CustomerBillingClient({
   records,
@@ -17,7 +18,7 @@ export function CustomerBillingClient({
   customerName: string;
   customerEmail?: string | null;
 }) {
-  const [loadingBookingId, setLoadingBookingId] = useState<string | null>(null);
+  const [selectedBookingForPay, setSelectedBookingForPay] = useState<CustomerBillingRecord | null>(null);
   const [refundModalRecord, setRefundModalRecord] = useState<CustomerBillingRecord | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [submittingRefund, setSubmittingRefund] = useState(false);
@@ -41,20 +42,8 @@ export function CustomerBillingClient({
     doc.save(`JyotishSetu_Receipt_${record.receipt_number || record.booking_id.slice(0, 8)}.pdf`);
   };
 
-  const handlePayNow = async (bookingId: string) => {
-    try {
-      setLoadingBookingId(bookingId);
-      const res = await initiateConsultationPaymentAction({ bookingId });
-      if (res.success && res.data?.paymentUrl) {
-        window.location.href = res.data.paymentUrl;
-      } else {
-        alert(res.error || "Failed to initiate payment. Please try again.");
-      }
-    } catch {
-      alert("An unexpected error occurred while contacting payment gateway.");
-    } finally {
-      setLoadingBookingId(null);
-    }
+  const handlePayNow = (record: CustomerBillingRecord) => {
+    setSelectedBookingForPay(record);
   };
 
   const handleSubmitRefund = async () => {
@@ -70,18 +59,24 @@ export function CustomerBillingClient({
       if (res.success) {
         setRefundStatusMsg({
           type: "success",
-          text: "Refund request submitted. Our admin desk will review it shortly.",
+          text: "Refund request submitted successfully. It will be reviewed by admin within 24-48 business hours.",
         });
         setTimeout(() => {
           setRefundModalRecord(null);
           setRefundReason("");
           setRefundStatusMsg(null);
-        }, 2000);
+        }, 3000);
       } else {
-        setRefundStatusMsg({ type: "error", text: res.error || "Failed to submit refund request." });
+        setRefundStatusMsg({
+          type: "error",
+          text: res.error || "Failed to submit refund request.",
+        });
       }
     } catch {
-      setRefundStatusMsg({ type: "error", text: "Error submitting refund request." });
+      setRefundStatusMsg({
+        type: "error",
+        text: "An error occurred while submitting refund request.",
+      });
     } finally {
       setSubmittingRefund(false);
     }
@@ -89,64 +84,61 @@ export function CustomerBillingClient({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-2xl border border-gold/25 bg-white shadow-sm">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="border-b border-gold/15 bg-parchment/40 text-[11px] font-semibold text-midnight">
-              <th className="py-3 px-4">Receipt / Order Ref</th>
-              <th className="py-3 px-4">Astrologer</th>
-              <th className="py-3 px-4">Service & Mode</th>
-              <th className="py-3 px-4">Date</th>
-              <th className="py-3 px-4 text-right">Fee (INR)</th>
-              <th className="py-3 px-4 text-center">Status</th>
-              <th className="py-3 px-4 text-right">Actions</th>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs text-ink/80">
+          <thead className="bg-parchment/60 text-[11px] uppercase tracking-wider text-muted">
+            <tr>
+              <th className="px-4 py-3">Consultation Service</th>
+              <th className="px-4 py-3">Astrologer</th>
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Amount</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gold/10 text-ink/80">
+          <tbody className="divide-y divide-gold/10">
             {records.map((r) => (
-              <tr key={r.id} className="hover:bg-gold/5 transition-colors">
-                <td className="py-3 px-4 font-mono font-medium text-midnight">
-                  {r.receipt_number || r.transaction_ref}
+              <tr key={r.id} className="hover:bg-parchment/20 transition-colors">
+                <td className="px-4 py-3.5">
+                  <div className="font-semibold text-midnight">{r.service_type}</div>
+                  <div className="text-[11px] text-muted capitalize">{r.consultation_mode} Call</div>
                 </td>
-                <td className="py-3 px-4 font-medium text-midnight">{r.astrologer_name}</td>
-                <td className="py-3 px-4">
-                  <span className="capitalize">{r.service_type}</span>
-                  <span className="ml-1 text-[10px] text-muted">({r.consultation_mode})</span>
+                <td className="px-4 py-3.5">
+                  <div className="font-medium text-midnight">{r.astrologer_name}</div>
+                  <div className="text-[10px] text-muted font-mono">{r.transaction_ref}</div>
                 </td>
-                <td className="py-3 px-4 text-muted">{formatExactDateTime(r.created_at)}</td>
-                <td className="py-3 px-4 text-right font-medium text-midnight">
+                <td className="px-4 py-3.5 text-[11px] text-muted">
+                  {formatExactDateTime(r.created_at)}
+                </td>
+                <td className="px-4 py-3.5 font-bold text-midnight">
                   {formatPaiseToInr(rupeesToPaise(r.amount))}
                 </td>
-                <td className="py-3 px-4 text-center">
-                  {r.payment_status === "paid" ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Paid
-                    </span>
-                  ) : r.payment_status === "complimentary" ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                      Complimentary
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      Payment Pending
-                    </span>
-                  )}
+                <td className="px-4 py-3.5">
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      r.payment_status === "paid"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : r.payment_status === "refunded"
+                        ? "bg-purple-50 text-purple-700 border border-purple-200"
+                        : "bg-amber-50 text-amber-700 border border-amber-200"
+                    }`}
+                  >
+                    {r.payment_status.toUpperCase()}
+                  </span>
                 </td>
-                <td className="py-3 px-4 text-right space-x-2">
+                <td className="px-4 py-3.5 text-right space-x-2">
                   {r.payment_status === "paid" ? (
                     <>
                       <button
                         onClick={() => handleDownloadReceipt(r)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gold/40 bg-gold/10 px-2.5 py-1 text-[11px] font-semibold text-gold-deep hover:bg-gold/20 transition-colors"
-                        title="Download PDF Tax Invoice & Payment Receipt"
+                        className="inline-flex items-center gap-1 rounded-lg border border-gold/30 bg-parchment/40 px-2 py-1 text-[10px] font-medium text-midnight hover:bg-parchment transition-colors"
                       >
                         <Download className="h-3 w-3" />
-                        Receipt
+                        Invoice
                       </button>
                       <button
                         onClick={() => {
                           setRefundModalRecord(r);
-                          setRefundReason("");
                           setRefundStatusMsg(null);
                         }}
                         className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
@@ -156,16 +148,11 @@ export function CustomerBillingClient({
                     </>
                   ) : (
                     <button
-                      disabled={loadingBookingId === r.booking_id}
-                      onClick={() => handlePayNow(r.booking_id)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity disabled:opacity-50"
+                      onClick={() => handlePayNow(r)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
                     >
-                      {loadingBookingId === r.booking_id ? (
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <CreditCard className="h-3 w-3" />
-                      )}
-                      Pay Now
+                      <CreditCard className="h-3 w-3" />
+                      Pay via UPI (JyotishSetu Pay)
                     </button>
                   )}
                 </td>
@@ -174,6 +161,24 @@ export function CustomerBillingClient({
           </tbody>
         </table>
       </div>
+
+      {/* JyotishSetu Pay Modal for Customer Consultations */}
+      {selectedBookingForPay && (
+        <JyotishPayModal
+          isOpen={!!selectedBookingForPay}
+          onClose={() => setSelectedBookingForPay(null)}
+          amountPaise={rupeesToPaise(selectedBookingForPay.amount)}
+          entityType="consultation"
+          title={`${selectedBookingForPay.service_type} Consultation`}
+          description={`Direct astrological session with ${selectedBookingForPay.astrologer_name}`}
+          bookingId={selectedBookingForPay.booking_id}
+          onSuccess={() => {
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          }}
+        />
+      )}
 
       {/* Refund Request Modal */}
       {refundModalRecord && (
@@ -233,4 +238,3 @@ export function CustomerBillingClient({
     </>
   );
 }
-
