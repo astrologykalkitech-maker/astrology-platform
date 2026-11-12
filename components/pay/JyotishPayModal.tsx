@@ -293,16 +293,26 @@ export function JyotishPayModal({
 
   const handleSubmitManualUtr = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sessionCode || !manualUtr.trim()) return;
+    const cleanUtr = manualUtr.trim();
+    if (!cleanUtr) {
+      setError("Please enter the 12-digit Bank UTR / Reference ID.");
+      return;
+    }
+    if (cleanUtr.length !== 12 || !/^[A-Za-z0-9]{12}$/.test(cleanUtr)) {
+      setError("Invalid UTR: Bank UTR must be exactly 12 alphanumeric characters.");
+      return;
+    }
+    if (!sessionCode) return;
+
     setSubmittingUtr(true);
     setError(null);
     try {
-      const res = await fetch("/api/pay/simulate/complete", {
+      const res = await fetch("/api/pay/verify-utr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_code: sessionCode,
-          utr: manualUtr.trim(),
+          utr: cleanUtr,
         }),
       });
       const data = await res.json();
@@ -311,7 +321,7 @@ export function JyotishPayModal({
         setReceiptNumber(data.receiptNumber);
         onSuccess(data.receiptNumber);
       } else {
-        setError(data.error || "Failed to verify UTR reference");
+        setError(data.error || "Failed to verify UTR reference.");
       }
     } catch (e: any) {
       setError(e.message || "UTR confirmation error");
@@ -500,6 +510,8 @@ export function JyotishPayModal({
                       <input
                         type="text"
                         required
+                        minLength={12}
+                        maxLength={12}
                         placeholder="e.g. 431289123456"
                         value={manualUtr}
                         onChange={(e) => setManualUtr(e.target.value)}
@@ -507,7 +519,7 @@ export function JyotishPayModal({
                       />
                       <button
                         type="submit"
-                        disabled={submittingUtr || !manualUtr.trim()}
+                        disabled={submittingUtr || manualUtr.trim().length !== 12}
                         className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-50"
                       >
                         {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
