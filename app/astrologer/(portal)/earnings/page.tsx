@@ -47,7 +47,7 @@ export default async function AstrologerEarningsPage() {
       <div className="flex items-center gap-2 p-3.5 rounded-xl border border-gold/20 bg-parchment/50 text-xs text-ink/80">
         <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>
-          Automated payout processing is scheduled for our upcoming release. Consultation fees shown below reflect your authoritative booking rate schedules.
+          Earnings are accrued after 10% platform commission and verified via Instamojo. Payout settlements are processed directly to your bank account via NEFT/RTGS.
         </span>
       </div>
 

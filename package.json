@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "diagnose:instamojo": "tsx scripts/diagnose-instamojo.ts",
     "ci": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {

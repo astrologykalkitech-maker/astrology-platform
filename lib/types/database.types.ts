@@ -276,6 +276,8 @@ export interface CustomerBillingRecord {
   currency: string;
   payment_status: "paid" | "pending" | "complimentary";
   transaction_ref: string;
+  receipt_number?: string;
+  payment_id?: string;
   created_at: string;
 }
 

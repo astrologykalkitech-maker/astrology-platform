@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Users,
   Clock,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
   { href: "/astrologer/availability", label: "Working Hours", icon: Clock },
   { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
+  { href: "/astrologer/subscription", label: "Subscription", icon: Sparkles },
   { href: "/astrologer/reviews", label: "Reviews", icon: Star },
   { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
   { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
