@@ -134,3 +134,4 @@ export interface JyotishGatewayConfig {
   webhookSecret: string;
   autoApproveSandbox: boolean;
 }
+

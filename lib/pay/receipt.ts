@@ -168,3 +168,4 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
 
   return doc.output("arraybuffer") as unknown as Uint8Array;
 }
+

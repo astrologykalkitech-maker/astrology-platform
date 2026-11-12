@@ -13,3 +13,4 @@ export function getJyotishPayConfig(): JyotishGatewayConfig {
     autoApproveSandbox: mode === "sandbox",
   };
 }
+

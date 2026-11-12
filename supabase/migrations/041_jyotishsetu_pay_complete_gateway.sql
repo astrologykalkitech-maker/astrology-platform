@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.payment_intents (
     intent_number TEXT NOT NULL UNIQUE, -- e.g. JSP_INT_20261112_XXXX
     customer_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     astrologer_id UUID REFERENCES public.astrologer_profiles(id) ON DELETE SET NULL,
-    booking_id UUID REFERENCES public.consultation_bookings(id) ON DELETE SET NULL,
+    booking_id UUID REFERENCES public.customer_bookings(id) ON DELETE SET NULL,
     plan_id UUID REFERENCES public.payment_plans(id) ON DELETE SET NULL,
     entity_type TEXT NOT NULL, -- 'consultation' or 'subscription'
     amount_paise BIGINT NOT NULL CHECK (amount_paise > 0),
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS public.payment_receipts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     receipt_number TEXT NOT NULL UNIQUE, -- e.g. JSP-REC-202611-XXXX
     intent_id UUID NOT NULL REFERENCES public.payment_intents(id) ON DELETE CASCADE,
-    booking_id UUID REFERENCES public.consultation_bookings(id) ON DELETE SET NULL,
+    booking_id UUID REFERENCES public.customer_bookings(id) ON DELETE SET NULL,
     customer_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     astrologer_id UUID REFERENCES public.astrologer_profiles(id) ON DELETE SET NULL,
     amount_paise BIGINT NOT NULL,
@@ -246,3 +246,4 @@ DO $$ BEGIN
             USING (auth.jwt() ->> 'role' = 'service_role');
     END IF;
 END $$;
+

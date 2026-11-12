@@ -116,7 +116,7 @@ export async function completePaymentIntent(
   if (intent.entity_type === "consultation" && intent.booking_id && options?.supabaseClient) {
     try {
       await options.supabaseClient
-        .from("consultation_bookings")
+        .from("customer_bookings")
         .update({
           payment_status: "paid",
           status: "confirmed",
@@ -133,3 +133,4 @@ export async function completePaymentIntent(
     receiptNumber: receiptNo,
   };
 }
+

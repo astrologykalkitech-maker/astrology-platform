@@ -71,3 +71,4 @@ export async function generateUPIDataUrl(upiUri: string): Promise<string> {
     errorCorrectionLevel: "M",
   });
 }
+
