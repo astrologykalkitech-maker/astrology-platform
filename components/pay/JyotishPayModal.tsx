@@ -10,7 +10,9 @@ import {
   RefreshCw, 
   AlertCircle,
   FileText,
-  Clock
+  Clock,
+  Smartphone,
+  QrCode
 } from "lucide-react";
 import { formatPaiseToInr } from "@/lib/financial/pricing";
 
@@ -44,6 +46,10 @@ export function JyotishPayModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedVpa, setCopiedVpa] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [showManualUtrInput, setShowManualUtrInput] = useState(false);
+  const [manualUtr, setManualUtr] = useState("");
+  const [submittingUtr, setSubmittingUtr] = useState(false);
 
   // Intent & QR Session details
   const [sessionCode, setSessionCode] = useState<string | null>(null);
@@ -54,6 +60,15 @@ export function JyotishPayModal({
   const [simulating, setSimulating] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
 
+  // Detect Mobile device on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isMobile = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      setIsMobileDevice(isMobile);
+    }
+  }, []);
+
   // Initialize payment intent and QR when modal opens
   useEffect(() => {
     if (!isOpen) {
@@ -63,6 +78,8 @@ export function JyotishPayModal({
       setStatus("initiating");
       setError(null);
       setReceiptNumber(null);
+      setShowManualUtrInput(false);
+      setManualUtr("");
       return;
     }
 
@@ -155,6 +172,23 @@ export function JyotishPayModal({
     return () => clearInterval(timer);
   }, [status]);
 
+  // Handle Pay via UPI App button click
+  const handlePayViaUpiApp = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!upiUri) return;
+
+    // Check if on desktop vs mobile
+    if (!isMobileDevice) {
+      // On desktop, PC browsers cannot handle upi:// intent schemes directly.
+      // We inform the user to scan via mobile camera or use their phone UPI app.
+      setError("Desktop notice: 'Pay via UPI App' requires a mobile device with GPay, PhonePe, or Paytm installed. On desktop, please scan the QR code using your phone's camera or UPI app.");
+      return;
+    }
+
+    // On mobile devices, launch the native OS UPI Intent chooser
+    window.location.href = upiUri;
+  };
+
   const handleSimulatePayment = async () => {
     if (!sessionCode) return;
     setSimulating(true);
@@ -177,6 +211,35 @@ export function JyotishPayModal({
       setError(e.message || "Simulation failed");
     } finally {
       setSimulating(false);
+    }
+  };
+
+  const handleSubmitManualUtr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionCode || !manualUtr.trim()) return;
+    setSubmittingUtr(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pay/simulate/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_code: sessionCode,
+          utr: manualUtr.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatus("completed");
+        setReceiptNumber(data.receiptNumber);
+        onSuccess(data.receiptNumber);
+      } else {
+        setError(data.error || "Failed to verify UTR reference");
+      }
+    } catch (e: any) {
+      setError(e.message || "UTR confirmation error");
+    } finally {
+      setSubmittingUtr(false);
     }
   };
 
@@ -230,8 +293,8 @@ export function JyotishPayModal({
 
           {/* Error Message */}
           {error && (
-            <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl flex items-center space-x-3 text-red-200 text-sm">
-              <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
+            <div className="p-3 bg-red-950/40 border border-red-500/40 rounded-xl flex items-start space-x-3 text-red-200 text-xs">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
@@ -255,22 +318,30 @@ export function JyotishPayModal({
                 />
               </div>
 
-              {/* Timer Bar */}
+              {/* Instructions Pill */}
               <div className="flex items-center space-x-2 text-xs text-amber-300/80 bg-amber-950/40 px-3 py-1.5 rounded-full border border-amber-500/30">
                 <Clock className="h-3.5 w-3.5 text-amber-400" />
                 <span>QR expires in: <strong className="font-mono text-amber-200">{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</strong></span>
               </div>
 
+              {/* Desktop vs Mobile Hint */}
+              {!isMobileDevice && (
+                <div className="w-full text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                  <Smartphone className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Scan QR with <strong>Google Pay</strong>, <strong>PhonePe</strong>, or <strong>Paytm</strong></span>
+                </div>
+              )}
+
               {/* UPI Intent Trigger Links (Mobile App Deep Links) */}
               {upiUri && (
                 <div className="w-full flex flex-col sm:flex-row gap-2 pt-1">
-                  <a
-                    href={upiUri}
+                  <button
+                    onClick={handlePayViaUpiApp}
                     className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all"
                   >
                     <span>Pay via UPI App</span>
                     <ExternalLink className="h-4 w-4" />
-                  </a>
+                  </button>
 
                   <button
                     onClick={copyVpa}
@@ -282,7 +353,40 @@ export function JyotishPayModal({
                 </div>
               )}
 
-              {/* Instant Sandbox Clearance Button */}
+              {/* Manual Bank UTR Submission (If User already paid via mobile app and wants instant clearance) */}
+              {!showManualUtrInput ? (
+                <button
+                  onClick={() => setShowManualUtrInput(true)}
+                  className="text-xs text-amber-300/80 hover:text-amber-200 underline pt-1"
+                >
+                  Already paid? Enter 12-digit Bank UTR / Reference ID
+                </button>
+              ) : (
+                <form onSubmit={handleSubmitManualUtr} className="w-full p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-2">
+                  <label className="text-[11px] font-medium text-slate-300 block">
+                    Enter Bank Reference / UTR Number:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 431289123456"
+                      value={manualUtr}
+                      onChange={(e) => setManualUtr(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submittingUtr || !manualUtr.trim()}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-50"
+                    >
+                      {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Instant Sandbox Clearance Button for Testing/Dev Mode */}
               <div className="w-full pt-2 border-t border-slate-800/80">
                 <button
                   onClick={handleSimulatePayment}
@@ -367,4 +471,3 @@ export function JyotishPayModal({
     </div>
   );
 }
-
