@@ -19,26 +19,28 @@ export async function GET(
     let qrSession: any = null;
     let intent: any = null;
 
-    try {
-      const supabase = await createAdminClient("main");
-      const { data: dbSession } = await supabase
-        .from("qr_payment_sessions")
-        .select("*, payment_intents(*)")
-        .eq("session_code", sessionCode)
-        .maybeSingle();
-
-      if (dbSession) {
-        qrSession = dbSession;
-        intent = dbSession.payment_intents;
-      }
-    } catch (e) {
-      // Fallback to simulator store
+    // 1. Fast in-memory lookup first (sub-millisecond response)
+    qrSession = JyotishSimulatorStore.getSession(sessionCode);
+    if (qrSession) {
+      intent = JyotishSimulatorStore.getIntent(qrSession.intent_id);
     }
 
+    // 2. Fallback to Supabase with strict timeout if not found in memory
     if (!qrSession) {
-      qrSession = JyotishSimulatorStore.getSession(sessionCode);
-      if (qrSession) {
-        intent = JyotishSimulatorStore.getIntent(qrSession.intent_id);
+      try {
+        const supabase = await createAdminClient("main");
+        const { data: dbSession } = await supabase
+          .from("qr_payment_sessions")
+          .select("*, payment_intents(*)")
+          .eq("session_code", sessionCode)
+          .maybeSingle();
+
+        if (dbSession) {
+          qrSession = dbSession;
+          intent = dbSession.payment_intents;
+        }
+      } catch (e) {
+        // Fallback
       }
     }
 

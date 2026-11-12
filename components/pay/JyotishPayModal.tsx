@@ -158,11 +158,19 @@ export function JyotishPayModal({
   }, [isOpen, amountPaise, entityType, bookingId, planId, astrologerId, customerId]);
 
   // Polling for QR Payment Status
+  const isPollingRef = useRef(false);
   const checkPaymentStatus = async (isManual = false) => {
-    if (!sessionCode) return;
+    if (!sessionCode || isPollingRef.current) return;
+    isPollingRef.current = true;
     if (isManual) setCheckingStatus(true);
     try {
-      const res = await fetch(`/api/pay/qr/${sessionCode}/status`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`/api/pay/qr/${sessionCode}/status`, {
+        signal: controller.signal,
+        headers: { "Cache-Control": "no-cache" }
+      });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success && data.status === "completed") {
         setStatus("completed");
@@ -174,6 +182,7 @@ export function JyotishPayModal({
     } catch (e) {
       // silent
     } finally {
+      isPollingRef.current = false;
       if (isManual) setCheckingStatus(false);
     }
   };
@@ -182,7 +191,7 @@ export function JyotishPayModal({
     if (!sessionCode || status !== "active") return;
     const interval = setInterval(() => {
       checkPaymentStatus(false);
-    }, 2500);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [sessionCode, status]);
