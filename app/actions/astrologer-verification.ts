@@ -32,7 +32,7 @@ export type VerificationStatus =
   | "expired"
   | "failed";
 
-export const ALL_VERIFICATION_STAGES: readonly VerificationStageName[] = [
+const ALL_VERIFICATION_STAGES: readonly VerificationStageName[] = [
   "registration",
   "personal_info",
   "qualifications",
