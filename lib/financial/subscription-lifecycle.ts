@@ -65,7 +65,7 @@ export async function executeSubscriptionCancellation(
   // 1. Fetch current subscription and astrologer user details
   const { data: subData, error: fetchErr } = await supabase
     .from("astrologer_subscriptions")
-    .select("*, plan:payment_plans(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
+    .select("*, plan:payment_plans!astrologer_subscriptions_plan_id_fkey(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
     .eq("astrologer_id", params.astrologerId)
     .maybeSingle();
 
@@ -190,7 +190,7 @@ export async function executeAdminPlanChange(
 
   const { data: subData } = await supabase
     .from("astrologer_subscriptions")
-    .select("*, plan:payment_plans(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
+    .select("*, plan:payment_plans!astrologer_subscriptions_plan_id_fkey(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
     .eq("astrologer_id", params.astrologerId)
     .maybeSingle();
 
@@ -277,7 +277,7 @@ export async function executeSubscriptionExtension(
 
   const { data: subData } = await supabase
     .from("astrologer_subscriptions")
-    .select("*, plan:payment_plans(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
+    .select("*, plan:payment_plans!astrologer_subscriptions_plan_id_fkey(*), astrologer:astrologer_profiles!astrologer_subscriptions_astrologer_id_fkey(user_id, display_name)")
     .eq("astrologer_id", params.astrologerId)
     .maybeSingle();
 

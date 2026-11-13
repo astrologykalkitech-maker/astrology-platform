@@ -10,7 +10,7 @@ export async function GET() {
     // Fetch all astrologer subscriptions
     const { data: subs, error: subsErr } = await supabase
       .from("astrologer_subscriptions")
-      .select("*, plan:payment_plans(*)");
+      .select("*, plan:payment_plans!astrologer_subscriptions_plan_id_fkey(*)");
 
     if (subsErr) {
       return NextResponse.json({ success: false, error: subsErr.message }, { status: 500 });

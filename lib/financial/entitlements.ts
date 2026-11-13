@@ -84,7 +84,7 @@ export async function getAstrologerEffectiveSubscription(
   // 2. Fetch current subscription
   const { data: subData } = await supabase
     .from("astrologer_subscriptions")
-    .select("*, plan:payment_plans(*)")
+    .select("*, plan:payment_plans!astrologer_subscriptions_plan_id_fkey(*)")
     .eq("astrologer_id", astrologerId)
     .maybeSingle();
 

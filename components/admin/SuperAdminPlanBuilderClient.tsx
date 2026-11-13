@@ -376,7 +376,7 @@ export function SuperAdminPlanBuilderClient({
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 pt-2">
+              <div className="flex flex-wrap items-center gap-6 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer font-semibold text-ink">
                   <input
                     type="checkbox"
@@ -397,7 +397,7 @@ export function SuperAdminPlanBuilderClient({
                 </label>
               </div>
 
-              <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-gold/15">
+              <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-gold/15 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
