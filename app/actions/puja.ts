@@ -70,6 +70,11 @@ export interface SubmitPujaBookingInput {
   specialInstructions?: string;
   idempotencyKey?: string;
   astrologerId?: string;
+  venueAddress?: string;
+  landmark?: string;
+  latitude?: number;
+  longitude?: number;
+  paymentMethod?: "pay_at_drop" | "online_prepaid";
 }
 
 import {
@@ -333,6 +338,12 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
         fulfilment_status: initialFulfilmentStatus,
         darshan_room_name: darshanRoom,
         idempotency_key: idempotencyKey,
+        venue_address: params.venueAddress?.trim() || null,
+        landmark: params.landmark?.trim() || null,
+        latitude: typeof params.latitude === "number" ? params.latitude : null,
+        longitude: typeof params.longitude === "number" ? params.longitude : null,
+        payment_method: params.paymentMethod || "pay_at_drop",
+        payment_collection_status: "pending",
       })
       .select("*, puja:puja_catalog(*), astrologer:astrologer_profiles(id, display_name, profile_photo_url)")
       .single();

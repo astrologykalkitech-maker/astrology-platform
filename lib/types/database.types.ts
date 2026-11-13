@@ -84,6 +84,12 @@ export interface AstrologerProfile {
   state: string | null;
   address: string | null;
   consultation_fee: number | null;
+  voice_price_per_minute?: number | null;
+  chat_price_per_minute?: number | null;
+  video_price_per_minute?: number | null;
+  voice_enabled?: boolean;
+  chat_enabled?: boolean;
+  video_enabled?: boolean;
   profile_photo_url: string | null;
   approval_status: ApprovalStatus;
   ranking_priority?: number;

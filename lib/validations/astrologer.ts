@@ -20,6 +20,12 @@ const ALLOWED_FIELDS = new Set([
   "state",
   "address",
   "consultation_fee",
+  "voice_price_per_minute",
+  "chat_price_per_minute",
+  "video_price_per_minute",
+  "voice_enabled",
+  "chat_enabled",
+  "video_enabled",
   "profile_photo_url",
   "slug",
 ]);
@@ -353,6 +359,33 @@ export function validateUpdateAstrologerProfileInput(
       result.consultation_fee = Math.round(num * 100) / 100;
     }
   }
+
+  // 6b. Validate per-minute consultation rates & toggles
+  const parseRate = (field: "voice_price_per_minute" | "chat_price_per_minute" | "video_price_per_minute", name: string) => {
+    if (field in rawObj) {
+      if (rawObj[field] === null || rawObj[field] === "") {
+        result[field] = null;
+      } else {
+        const num = Number(rawObj[field]);
+        if (isNaN(num) || num < 0 || num > 10000) {
+          return `${name} price per minute must be between 0 and 10,000.`;
+        }
+        result[field] = Math.round(num * 100) / 100;
+      }
+    }
+    return null;
+  };
+
+  const vErr = parseRate("voice_price_per_minute", "Voice");
+  if (vErr) return { valid: false, error: vErr };
+  const cErr = parseRate("chat_price_per_minute", "Chat");
+  if (cErr) return { valid: false, error: cErr };
+  const vidErr = parseRate("video_price_per_minute", "Video");
+  if (vidErr) return { valid: false, error: vidErr };
+
+  if ("voice_enabled" in rawObj) result.voice_enabled = Boolean(rawObj.voice_enabled);
+  if ("chat_enabled" in rawObj) result.chat_enabled = Boolean(rawObj.chat_enabled);
+  if ("video_enabled" in rawObj) result.video_enabled = Boolean(rawObj.video_enabled);
 
   // 7. Validate specializations if provided
   if ("specializations" in rawObj) {

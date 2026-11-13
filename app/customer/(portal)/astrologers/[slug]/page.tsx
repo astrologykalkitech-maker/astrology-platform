@@ -182,34 +182,51 @@ export default async function AstrologerProfilePage({
             </div>
           </div>
 
-          {/* Consultation Modes */}
+          {/* Consultation Modes & Live Per-Minute Pricing */}
           <div className={`${CARD} p-6 sm:p-7`}>
-            <h3 className="text-base font-display font-bold text-midnight mb-4">
-              Available Consultation Formats
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-display font-bold text-midnight">
+                Consultation Modes & Transparent Per-Minute Pricing
+              </h3>
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                Pay Direct to Mentor
+              </span>
+            </div>
+            <p className="text-xs text-muted mb-4">
+              All online consultation channels are billed strictly per minute. No hidden platform markup—you pay the pandit directly.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div className="rounded-xl border border-gold/20 bg-white p-4 text-center">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold-deep mb-2">
-                  <Video className="h-5 w-5" />
-                </span>
-                <p className="text-xs font-bold text-midnight">Video Consultation</p>
-                <p className="text-[11px] text-muted mt-1">1-on-1 encrypted live session</p>
-              </div>
-
               <div className="rounded-xl border border-gold/20 bg-white p-4 text-center">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold-deep mb-2">
                   <PhoneCall className="h-5 w-5" />
                 </span>
                 <p className="text-xs font-bold text-midnight">Voice Call</p>
-                <p className="text-[11px] text-muted mt-1">Direct telephonic consultation</p>
+                <p className="text-base font-display font-bold text-gold-deep mt-1">
+                  ₹{astro.voice_price_per_minute ?? 15}<span className="text-[11px] text-muted font-normal">/min</span>
+                </p>
+                <p className="text-[10px] text-muted mt-1">Billed on billable call duration</p>
               </div>
 
               <div className="rounded-xl border border-gold/20 bg-white p-4 text-center">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold-deep mb-2">
                   <MessageSquare className="h-5 w-5" />
                 </span>
-                <p className="text-xs font-bold text-midnight">Written Thread</p>
-                <p className="text-[11px] text-muted mt-1">Detailed written prediction</p>
+                <p className="text-xs font-bold text-midnight">Live Chat</p>
+                <p className="text-base font-display font-bold text-gold-deep mt-1">
+                  ₹{astro.chat_price_per_minute ?? 10}<span className="text-[11px] text-muted font-normal">/min</span>
+                </p>
+                <p className="text-[10px] text-muted mt-1">Continuous live pandit interaction</p>
+              </div>
+
+              <div className="rounded-xl border border-gold/20 bg-white p-4 text-center">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/15 text-gold-deep mb-2">
+                  <Video className="h-5 w-5" />
+                </span>
+                <p className="text-xs font-bold text-midnight">Video Darshan</p>
+                <p className="text-base font-display font-bold text-gold-deep mt-1">
+                  ₹{astro.video_price_per_minute ?? 25}<span className="text-[11px] text-muted font-normal">/min</span>
+                </p>
+                <p className="text-[10px] text-muted mt-1">Encrypted 1-on-1 visual consultation</p>
               </div>
             </div>
           </div>
@@ -219,13 +236,18 @@ export default async function AstrologerProfilePage({
         <div className="space-y-6">
           <div className={`${CARD} p-6 sm:p-7 bg-gradient-to-b from-white to-amber-50/50 sticky top-20`}>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-              Personalized Consultation
+              Direct Consultation Rates
             </span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-display text-3xl font-bold text-midnight">
-                ₹{astro.consultation_fee ?? 499}
-              </span>
-              <span className="text-xs text-muted">/ consultation session</span>
+            <div className="mt-1 flex flex-col gap-1">
+              <div className="flex items-baseline gap-2">
+                <span className="font-display text-2xl font-bold text-midnight">
+                  ₹{astro.voice_price_per_minute ?? 15} - ₹{astro.video_price_per_minute ?? 25}
+                </span>
+                <span className="text-xs text-muted">/ min</span>
+              </div>
+              <p className="text-[11px] text-emerald-700 font-medium">
+                Direct customer-to-consultant payment model
+              </p>
             </div>
 
             <ul className="mt-5 space-y-2.5 text-xs text-ink/80 border-t border-gold/15 pt-4">

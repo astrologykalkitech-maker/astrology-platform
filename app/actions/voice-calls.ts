@@ -314,6 +314,41 @@ export async function updateVoiceCallStatusAction(
       } catch (roomError) {
         console.warn("[updateVoiceCallStatusAction] LiveKit room cleanup notice:", roomError);
       }
+
+      // Mandatory Per-Minute Voice Call Commission & Billing Calculation
+      if (status === "ended" && updates.duration_seconds && updates.duration_seconds > 0) {
+        try {
+          // 1. Resolve conversation & astrologer profile
+          const { data: conv } = await admin
+            .from("conversations")
+            .select("astrologer_id")
+            .eq("id", currentCall.conversation_id)
+            .maybeSingle();
+
+          if (conv?.astrologer_id) {
+            const { data: astro } = await admin
+              .from("astrologer_profiles")
+              .select("id, display_name, voice_price_per_minute")
+              .eq("id", conv.astrologer_id)
+              .maybeSingle();
+
+            const voiceRate = Number(astro?.voice_price_per_minute) || 15;
+            // Billable minutes with ceiling rounding
+            const billableMinutes = Math.max(1, Math.ceil(updates.duration_seconds / 60));
+            const totalBillableRupees = billableMinutes * voiceRate;
+            const grossPaise = totalBillableRupees * 100;
+
+            const { postCommissionLedgerEntry } = await import("@/lib/financial/commission-engine");
+            await postCommissionLedgerEntry({
+              consultantId: conv.astrologer_id,
+              grossAmountPaise: grossPaise,
+              description: `Platform 10% commission on ${billableMinutes}m Voice Call consultation with ${astro?.display_name || "Pandit"} (#${currentCall.id.slice(0, 8)})`,
+            });
+          }
+        } catch (commErr) {
+          console.warn("[updateVoiceCallStatusAction] Commission accrual notice:", commErr);
+        }
+      }
     }
 
     return { success: true, call: updatedCall as VoiceCall };
