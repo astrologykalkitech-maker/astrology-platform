@@ -24,29 +24,32 @@ import {
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Ornament } from "@/components/astrologer/ui/Ornament";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type NavItem = {
   href: string;
   label: string;
+  i18nKey: string;
   icon: LucideIcon;
   exact?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/astrologer/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/astrologer/chat", label: "Live Chat", icon: MessageSquare },
-  { href: "/astrologer/leads", label: "My Leads", icon: MessageSquareText },
-  { href: "/astrologer/crm", label: "Client CRM", icon: Users },
-  { href: "/astrologer/bookings", label: "Bookings", icon: CalendarClock },
-  { href: "/astrologer/availability", label: "Working Hours", icon: Clock },
-  { href: "/astrologer/profile", label: "My Profile", icon: UserRound, exact: true },
-  { href: "/astrologer/subscription", label: "Subscription", icon: Sparkles },
-  { href: "/astrologer/reviews", label: "Reviews", icon: Star },
-  { href: "/astrologer/earnings", label: "Earnings", icon: Wallet },
-  { href: "/astrologer/notifications", label: "Notifications", icon: Bell },
-  { href: "/astrologer/support", label: "Support", icon: LifeBuoy },
-  { href: "/astrologer/protection-rituals", label: "Protection Rituals", icon: ShieldCheck },
-  { href: "/astrologer/profile/edit", label: "Edit Profile", icon: SquarePen },
+  { href: "/astrologer/dashboard", label: "Dashboard", i18nKey: "dashboard", icon: LayoutDashboard },
+  { href: "/astrologer/broadcast", label: "Live Broadcast", i18nKey: "broadcasts", icon: Sparkles },
+  { href: "/astrologer/chat", label: "Live Chat", i18nKey: "liveChat", icon: MessageSquare },
+  { href: "/astrologer/leads", label: "My Leads", i18nKey: "enquiries", icon: MessageSquareText },
+  { href: "/astrologer/crm", label: "Client CRM", i18nKey: "clients", icon: Users },
+  { href: "/astrologer/bookings", label: "Bookings", i18nKey: "bookings", icon: CalendarClock },
+  { href: "/astrologer/availability", label: "Working Hours", i18nKey: "availability", icon: Clock },
+  { href: "/astrologer/profile", label: "My Profile", i18nKey: "profile", icon: UserRound, exact: true },
+  { href: "/astrologer/subscription", label: "Subscription", i18nKey: "subscription", icon: Sparkles },
+  { href: "/astrologer/reviews", label: "Reviews", i18nKey: "support", icon: Star },
+  { href: "/astrologer/earnings", label: "Earnings", i18nKey: "earnings", icon: Wallet },
+  { href: "/astrologer/notifications", label: "Notifications", i18nKey: "notifications", icon: Bell },
+  { href: "/astrologer/support", label: "Support", i18nKey: "support", icon: LifeBuoy },
+  { href: "/astrologer/protection-rituals", label: "Protection Rituals", i18nKey: "protectionRituals", icon: ShieldCheck },
+  { href: "/astrologer/profile/edit", label: "Edit Profile", i18nKey: "profile", icon: SquarePen },
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [];
@@ -64,6 +67,12 @@ type SidebarProps = {
 
 export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { t } = useLanguage();
+
+  const getTranslatedLabel = (key: string, defaultLabel: string) => {
+    const nav = t.navigation as Record<string, string>;
+    return nav[key] || defaultLabel;
+  };
 
   return (
     <aside
@@ -129,7 +138,7 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
                 }`}
               >
                 <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                {item.label}
+                {getTranslatedLabel(item.i18nKey, item.label)}
               </Link>
             );
           })}

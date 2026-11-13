@@ -8,6 +8,7 @@ import { Logo } from "@/components/astrologer/Logo";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
+import { LanguageSelector } from "@/components/common/LanguageSelector";
 
 type CustomerHeaderProps = {
   customerName: string;
@@ -154,6 +155,7 @@ export function CustomerHeader({
         </div>
 
         <div className="flex items-center gap-5">
+          <LanguageSelector />
           {isLoggedIn ? (
             <>
               <Link
