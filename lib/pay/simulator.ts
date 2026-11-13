@@ -22,6 +22,19 @@ export const JyotishSimulatorStore = {
   getSessionByIntent(intentId: string) {
     return inMemorySessions.get(`intent_${intentId}`) || null;
   },
+  findActiveSessionByAmount(amountPaise: number) {
+    const now = Date.now();
+    for (const session of inMemorySessions.values()) {
+      if (
+        session.status === "active" &&
+        session.amount_paise === amountPaise &&
+        new Date(session.expires_at).getTime() > now
+      ) {
+        return session;
+      }
+    }
+    return null;
+  },
   markSessionCompleted(sessionCode: string, utr: string) {
     const session = inMemorySessions.get(sessionCode);
     if (session) {

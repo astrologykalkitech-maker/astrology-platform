@@ -277,11 +277,42 @@ export function validatePlatformSettingValue(
 ): AdminValidationResult<{ key: string; value: unknown }> {
   switch (key) {
     case "lead_auto_distribution_enabled":
-    case "maintenance_mode": {
+    case "maintenance_mode":
+    case "payment_testing_mode_enabled": {
       if (typeof value !== "boolean") {
         return { valid: false, error: `Setting '${key}' must be a boolean (true or false).` };
       }
       return { valid: true, data: { key, value } };
+    }
+
+    case "payment_upi_vpa": {
+      if (typeof value !== "string" || !value.trim() || !value.includes("@")) {
+        return {
+          valid: false,
+          error: "Setting 'payment_upi_vpa' must be a valid UPI ID (e.g., yourname@okhdfcbank or business@upi).",
+        };
+      }
+      return { valid: true, data: { key, value: value.trim() } };
+    }
+
+    case "payment_merchant_name": {
+      if (typeof value !== "string" || !value.trim() || value.length > 50) {
+        return {
+          valid: false,
+          error: "Setting 'payment_merchant_name' must be a string up to 50 characters.",
+        };
+      }
+      return { valid: true, data: { key, value: value.trim() } };
+    }
+
+    case "payment_merchant_code": {
+      if (typeof value !== "string") {
+        return {
+          valid: false,
+          error: "Setting 'payment_merchant_code' must be a string (use '8299' for merchant or '0000' for personal).",
+        };
+      }
+      return { valid: true, data: { key, value: value.trim() } };
     }
 
     case "max_open_leads_per_consultant": {

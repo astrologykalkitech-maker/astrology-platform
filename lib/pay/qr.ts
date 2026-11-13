@@ -8,27 +8,39 @@ export interface BuildUPIUriOptions {
   transactionNote: string;
   merchantVpa?: string;
   merchantName?: string;
+  merchantCode?: string;
+  isPersonalUPI?: boolean;
 }
 
 /**
  * Builds standard NPCI-compliant UPI Intent URI.
- * Format: upi://pay?pa=...&pn=...&mc=...&tr=...&tn=...&am=...&cu=INR
+ * Works seamlessly with both:
+ * 1. Merchant UPIs (PhonePe Business, Google Pay for Business, Paytm Business, Cashfree) - includes mc, tr, tn
+ * 2. Personal UPIs (e.g. mobile@okaxis, user@ybl, name@icici) - cleans non-standard params so banking apps don't throw "Merchant format error"
  */
 export function buildUPIUri(options: BuildUPIUriOptions): string {
   const config = getJyotishPayConfig();
-  const vpa = options.merchantVpa || config.merchantVpa;
-  const name = options.merchantName || config.merchantName;
+  const vpa = (options.merchantVpa || config.merchantVpa).trim();
+  const name = (options.merchantName || config.merchantName).trim();
   const inrAmount = (options.amountPaise / 100).toFixed(2);
+  const isPersonal = options.isPersonalUPI ?? (config.merchantCode === "0000" || !config.merchantCode);
 
-  const params = new URLSearchParams({
-    pa: vpa,
-    pn: name,
-    mc: config.merchantCode,
-    tr: options.transactionReference,
-    tn: options.transactionNote.slice(0, 50),
-    am: inrAmount,
-    cu: "INR",
-  });
+  const params = new URLSearchParams();
+  params.set("pa", vpa);
+  params.set("pn", name);
+
+  // If merchant, pass Merchant Category Code (MCC)
+  if (!isPersonal && config.merchantCode && config.merchantCode !== "0000") {
+    params.set("mc", options.merchantCode || config.merchantCode);
+  }
+
+  // Transaction reference (sessionCode) used by aggregators & payment verification
+  params.set("tr", options.transactionReference);
+  // Transaction note displayed on payer's screen
+  params.set("tn", options.transactionNote.slice(0, 50));
+  // Exact amount in INR
+  params.set("am", inrAmount);
+  params.set("cu", "INR");
 
   return `upi://pay?${params.toString()}`;
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  X, 
-  ShieldCheck, 
-  Copy, 
-  Check, 
-  ExternalLink, 
-  RefreshCw, 
+import { createPortal } from "react-dom";
+import {
+  X,
+  ShieldCheck,
+  Copy,
+  Check,
+  ExternalLink,
+  RefreshCw,
   AlertCircle,
   FileText,
   Clock,
@@ -46,12 +47,17 @@ export function JyotishPayModal({
   customerId,
   onSuccess,
 }: JyotishPayModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedVpa, setCopiedVpa] = useState(false);
   const [copiedRef, setCopiedRef] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
-  
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // App launch handoff states
   const [appLaunchStatus, setAppLaunchStatus] = useState<"idle" | "launching" | "unsupported">("idle");
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
@@ -69,6 +75,7 @@ export function JyotishPayModal({
   const [status, setStatus] = useState<"initiating" | "active" | "completed" | "expired">("initiating");
   const [secondsRemaining, setSecondsRemaining] = useState(600);
   const [simulating, setSimulating] = useState(false);
+  const [testingModeEnabled, setTestingModeEnabled] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
@@ -83,16 +90,33 @@ export function JyotishPayModal({
     }
   }, []);
 
-  // Lock background scroll when modal is active
+  // Lock background scroll without layout shift when modal is active
   useEffect(() => {
-    if (isOpen) {
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollBarWidth > 0) {
+      document.body.style.paddingRight = `${scrollBarWidth}px`;
     }
-  }, [isOpen]);
+    document.body.style.overflow = "hidden";
+
+    // Escape key closes modal if status is not completed
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   // Initialize payment intent and dynamic QR
   const initializeIntent = async () => {
@@ -122,6 +146,7 @@ export function JyotishPayModal({
       setSessionCode(data.qrSession.sessionCode);
       setUpiUri(data.qrSession.upiUri);
       setQrSvg(data.qrSession.qrSvg);
+      setTestingModeEnabled(Boolean(data.testingModeEnabled));
       if (data.qrSession.merchantVpa) {
         setMerchantVpa(data.qrSession.merchantVpa);
       }
@@ -192,7 +217,7 @@ export function JyotishPayModal({
     if (!sessionCode || status !== "active") return;
     const interval = setInterval(() => {
       checkPaymentStatus(false);
-    }, 4000);
+    }, 2500);
 
     return () => clearInterval(interval);
   }, [sessionCode, status]);
@@ -252,7 +277,7 @@ export function JyotishPayModal({
       window.removeEventListener("blur", onBlur);
       try {
         if (document.body.contains(iframe)) document.body.removeChild(iframe);
-      } catch (e) {}
+      } catch (e) { }
 
       if (!didBlur && !isMobileDevice) {
         setAppLaunchStatus("unsupported");
@@ -343,51 +368,59 @@ export function JyotishPayModal({
     setTimeout(() => setCopiedRef(false), 2000);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
 
-  return (
-    <div 
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-md overflow-hidden"
       role="dialog"
       aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && status !== "completed") {
+          onClose();
+        }
+      }}
     >
-      <div className="relative w-full max-w-xl max-h-[92dvh] flex flex-col bg-slate-900 border border-amber-500/35 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden text-slate-100 my-auto">
-        
-        {/* Sticky Header */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/90 z-10">
+      <div
+        className="relative w-full max-w-[540px] max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-36px)] flex flex-col bg-slate-900 border border-amber-500/35 rounded-2xl shadow-2xl shadow-amber-500/10 overflow-hidden text-slate-100 my-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+
+        {/* Sticky Header: flex: 0 0 auto */}
+        <div className="shrink-0 flex-none flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-800 bg-slate-950 z-20">
           <div className="flex items-center space-x-2.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="font-semibold text-base sm:text-lg text-amber-200 tracking-wide">
+            <h3 className="font-semibold text-sm sm:text-base text-amber-200 tracking-wide">
               JyotishSetu Pay
             </h3>
-            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
+            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded-full border border-amber-500/30 font-medium">
               UPI DIRECT
             </span>
           </div>
           <button
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500/50 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Scrollable Body Container */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          
+        {/* Scrollable Body Container: flex: 1 1 auto, min-height: 0, overflow-y: auto, overflow-x: hidden */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-3.5 sm:p-5 pb-8 space-y-4">
+
           {/* Order Summary Compact Box */}
-          <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3">
+          <div className="bg-slate-800/70 border border-slate-700/60 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-inner">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-medium truncate">{title}</p>
-              <p className="text-xs sm:text-sm text-slate-200 truncate">{description}</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold truncate">{title}</p>
+              <p className="text-xs text-slate-200 truncate mt-0.5">{description}</p>
             </div>
             <div className="text-right shrink-0">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Total Payable</span>
-              <p className="text-lg sm:text-xl font-bold text-emerald-400">{formatPaiseToInr(amountPaise)}</p>
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">Total Payable</span>
+              <p className="text-base sm:text-lg font-bold text-emerald-400 leading-tight">{formatPaiseToInr(amountPaise)}</p>
             </div>
           </div>
 
@@ -401,11 +434,10 @@ export function JyotishPayModal({
 
           {/* App Handoff Status Message */}
           {launchMessage && (
-            <div className={`p-3 rounded-xl flex items-start space-x-2.5 text-xs border ${
-              appLaunchStatus === "unsupported" 
-                ? "bg-amber-950/40 border-amber-500/40 text-amber-200" 
+            <div className={`p-3 rounded-xl flex items-start space-x-2.5 text-xs border ${appLaunchStatus === "unsupported"
+                ? "bg-amber-950/40 border-amber-500/40 text-amber-200"
                 : "bg-blue-950/40 border-blue-500/40 text-blue-200"
-            }`}>
+              }`}>
               <Info className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <span>{launchMessage}</span>
@@ -431,32 +463,32 @@ export function JyotishPayModal({
 
           {/* State 2: Active QR & Payment Actions */}
           {!loading && status === "active" && qrSvg && (
-            <div className="flex flex-col items-center space-y-4">
-              
-              {/* Dynamic QR Code Box - Sized responsively to never clip */}
+            <div className="flex flex-col items-center space-y-3.5">
+
+              {/* Dynamic QR Code Box - Clamped dimensions with strict aspect-square */}
               <div className="flex flex-col items-center">
-                <div className="p-2 sm:p-2.5 bg-white rounded-xl shadow-xl border-2 border-amber-500/40">
-                  <div 
-                    className="w-40 h-40 sm:w-48 sm:h-48 md:w-52 md:h-52 flex items-center justify-center"
+                <div className="p-2 bg-white rounded-xl shadow-xl border-2 border-amber-500/40 shrink-0">
+                  <div
+                    className="w-[clamp(140px,36vw,190px)] h-[clamp(140px,36vw,190px)] aspect-square flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
                     dangerouslySetInnerHTML={{ __html: qrSvg }}
                   />
                 </div>
 
                 {/* Expiry Countdown & Recipient */}
-                <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 text-[11px]">
-                  <div className="flex items-center space-x-1.5 text-amber-300 bg-amber-950/50 px-2.5 py-1 rounded-full border border-amber-500/30">
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+                  <div className="flex items-center space-x-1.5 text-amber-300 bg-amber-950/50 px-2.5 py-0.5 rounded-full border border-amber-500/30">
                     <Clock className="h-3.5 w-3.5 text-amber-400" />
                     <span>Expires in: <strong className="font-mono text-amber-200">{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</strong></span>
                   </div>
-                  <span className="text-slate-400">Payee: <strong className="text-slate-200">JyotishSetu</strong></span>
+                  <span className="text-slate-400 text-[11px]">Payee: <strong className="text-slate-200">JyotishSetu</strong></span>
                 </div>
               </div>
 
               {/* Primary Payment Action: Pay via UPI App (Desktop & Mobile) */}
-              <div className="w-full space-y-2 pt-1">
+              <div className="w-full space-y-2 pt-0.5">
                 <button
                   onClick={handlePayViaUpiApp}
-                  className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all"
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all active:scale-[0.99]"
                 >
                   <MonitorSmartphone className="h-4 w-4" />
                   <span>Pay via UPI App</span>
@@ -467,7 +499,7 @@ export function JyotishPayModal({
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={copyVpa}
-                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
+                    className="py-1.5 sm:py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] sm:text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
                   >
                     {copiedVpa ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     <span className="truncate">{copiedVpa ? "Copied" : "Copy UPI"}</span>
@@ -475,7 +507,7 @@ export function JyotishPayModal({
 
                   <button
                     onClick={copyRef}
-                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
+                    className="py-1.5 sm:py-2 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] sm:text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors"
                   >
                     {copiedRef ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     <span className="truncate">{copiedRef ? "Copied" : "Copy Ref"}</span>
@@ -484,7 +516,7 @@ export function JyotishPayModal({
                   <button
                     onClick={() => checkPaymentStatus(true)}
                     disabled={checkingStatus}
-                    className="py-2 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors disabled:opacity-60"
+                    className="py-1.5 sm:py-2 px-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] sm:text-xs font-medium rounded-lg flex items-center justify-center space-x-1 border border-slate-700 transition-colors disabled:opacity-60"
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${checkingStatus ? "animate-spin" : ""}`} />
                     <span className="truncate">Refresh</span>
@@ -528,17 +560,21 @@ export function JyotishPayModal({
                 </form>
               </div>
 
-              {/* Dev Mode Simulation Button (Only shown in non-production) */}
-              {process.env.NODE_ENV !== "production" && (
+              {/* Test Sandbox Simulation Action (Only shown when Super Admin enables Testing Mode or in dev) */}
+              {(testingModeEnabled || process.env.NODE_ENV !== "production") && (
                 <div className="w-full pt-1 border-t border-slate-800">
                   <button
+                    type="button"
                     onClick={handleSimulatePayment}
                     disabled={simulating}
-                    className="w-full py-1.5 bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 text-emerald-300 text-[11px] font-medium rounded-lg flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50"
+                    className="w-full py-2 bg-emerald-950/70 hover:bg-emerald-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-colors disabled:opacity-50 shadow-md"
                   >
-                    {simulating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
-                    <span>[Dev Mode] Simulate Instant Banking Credit & Confirm</span>
+                    {simulating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 text-emerald-400" />}
+                    <span>Test Sandbox: Simulate Successful Payment & Upgrade</span>
                   </button>
+                  <p className="text-[10px] text-center text-slate-400 mt-1">
+                    Super Admin Testing Mode Active: Test the full payment confirmation, auto-close, and plan upgrade without real money.
+                  </p>
                 </div>
               )}
             </div>
@@ -565,7 +601,7 @@ export function JyotishPayModal({
                   </p>
                 )}
                 <p className="text-[11px] text-slate-400 italic pt-1">
-                  Updating your dashboard and closing in 3 seconds...
+                  Updating your dashboard and closing in 10 seconds...
                 </p>
               </div>
 
@@ -609,16 +645,18 @@ export function JyotishPayModal({
           )}
         </div>
 
-        {/* Sticky Footer */}
-        <div className="shrink-0 px-4 py-2.5 bg-slate-950 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 z-10">
+        {/* Sticky Footer: flex: 0 0 auto, intrinsic height, completely outside the scrollable body */}
+        <div className="shrink-0 flex-none px-4 py-2.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 z-20">
           <div className="flex items-center space-x-1.5">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-            <span>256-Bit Encrypted Pipeline</span>
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span>End-to-End Encrypted Session</span>
           </div>
-          <span>NPCI UPI Verified</span>
+          <span className="font-medium text-slate-300">Standard UPI Direct</span>
         </div>
 
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : null;
 }

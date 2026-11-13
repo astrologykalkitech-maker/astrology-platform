@@ -3,10 +3,47 @@ import { z } from "zod";
 // Base entity statuses
 export type PaymentStatus = "created" | "pending" | "successful" | "failed" | "refunded" | "cancelled" | "expired";
 export type PaymentEntityType = "consultation" | "subscription";
-export type SubscriptionStatus = "active" | "past_due" | "cancelled" | "expired" | "grace_period";
+export type SubscriptionStatus =
+  | "active"
+  | "past_due"
+  | "cancelled"
+  | "expired"
+  | "grace_period"
+  | "suspended"
+  | "complimentary"
+  | "pending"
+  | "payment_failed"
+  | "refund_pending"
+  | "refunded";
 export type BillingCycle = "monthly" | "quarterly" | "annual";
 export type SettlementStatus = "pending" | "processing" | "completed" | "rejected";
 export type RefundStatus = "requested" | "approved" | "processed" | "rejected";
+
+export type CancellationSource = "astrologer_self_service" | "super_admin_manual" | "system_expiry" | "payment_failure";
+
+export interface SubscriptionAuditLogRecord {
+  id: string;
+  astrologer_id: string;
+  subscription_id?: string | null;
+  action:
+    | "activated"
+    | "cancelled"
+    | "downgraded"
+    | "upgraded"
+    | "extended"
+    | "suspended"
+    | "restored"
+    | "complimentary_granted";
+  previous_plan_id?: string | null;
+  new_plan_id?: string | null;
+  previous_status?: string | null;
+  new_status: string;
+  actor_id?: string | null;
+  actor_role: "astrologer" | "super_admin" | "system";
+  reason?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
 
 export type FinancialAccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
 
@@ -52,10 +89,23 @@ export interface AstrologerSubscriptionRecord {
   leads_consumed: number;
   last_payment_id: string | null;
   cancelled_at: string | null;
+  cancellation_reason?: string | null;
+  cancellation_feedback?: string | null;
+  cancelled_by?: string | null;
+  cancellation_source?: CancellationSource | null;
+  previous_plan_id?: string | null;
+  suspended_at?: string | null;
+  restored_at?: string | null;
+  is_complimentary?: boolean;
+  complimentary_reason?: string | null;
+  admin_internal_notes?: string | null;
+  subscription_version?: number;
+  extension_days_total?: number;
   created_at: string;
   updated_at: string;
   // Joins
   plan?: PaymentPlanRecord;
+  previous_plan?: PaymentPlanRecord;
 }
 
 export interface PaymentOrderRecord {

@@ -46,13 +46,22 @@ export function generateClientSecret(intentId: string): string {
  */
 export async function createDynamicQRSession(
   intent: JyotishPaymentIntent,
-  note: string = "JyotishSetu Astrology Consultation"
+  note: string = "JyotishSetu Astrology Consultation",
+  customConfig?: {
+    merchantVpa?: string;
+    merchantName?: string;
+    merchantCode?: string;
+  }
 ): Promise<{ sessionCode: string; upiUri: string; qrSvg: string; expiresAt: string }> {
   const sessionCode = generateSessionCode();
   const upiUri = buildUPIUri({
     transactionReference: sessionCode,
     amountPaise: intent.amount_paise,
     transactionNote: note,
+    merchantVpa: customConfig?.merchantVpa,
+    merchantName: customConfig?.merchantName,
+    merchantCode: customConfig?.merchantCode,
+    isPersonalUPI: customConfig?.merchantCode === "0000",
   });
 
   const qrSvg = await generateUPISvg(upiUri);
