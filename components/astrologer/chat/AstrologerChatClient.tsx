@@ -47,7 +47,7 @@ import {
   parseDirectMessageRow,
 } from "@/lib/chat/meta";
 import { createClient } from "@/lib/supabase/client";
-import { playChatNotificationChime } from "@/lib/chat/audio-notification";
+import { playChatNotificationChime, startContinuousChatRinging, type ContinuousRingerController } from "@/lib/chat/audio-notification";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
@@ -126,6 +126,7 @@ export function AstrologerChatClient({
   const messagesRef = useRef<DirectMessage[]>(messages);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
+  const ringerControllerRef = useRef<ContinuousRingerController | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -276,6 +277,10 @@ export function AstrologerChatClient({
       if (newMsg.sender_role === "customer" && !isCurrentChat) {
         setToastMessage(`Seeker message: "${newMsg.message.slice(0, 45)}"`);
         setTimeout(() => setToastMessage(null), 4000);
+        // Requirement: Incoming chat triggers continuous ringing on the consultant web app until opened
+        if (!ringerControllerRef.current?.isRinging()) {
+          ringerControllerRef.current = startContinuousChatRinging(isMuted);
+        }
       }
     },
     [isMuted, isUserNearBottom, resyncConversations, resyncSeekers, scrollToBottom]
@@ -293,6 +298,12 @@ export function AstrologerChatClient({
       setSearchResults(null);
       setIsSearchingChat(false);
       setUnreadScrolledCount(0);
+
+      // Stop continuous ringing when consultant opens/answers the chat
+      if (ringerControllerRef.current?.isRinging()) {
+        ringerControllerRef.current.stop();
+        ringerControllerRef.current = null;
+      }
 
       try {
         const res = await getConversationMessagesAction(convoId, null, 50);
@@ -500,6 +511,10 @@ export function AstrologerChatClient({
 
     return () => {
       channelRef.current = null;
+      if (ringerControllerRef.current?.isRinging()) {
+        ringerControllerRef.current.stop();
+        ringerControllerRef.current = null;
+      }
       void supabase.removeChannel(channel);
     };
   }, [currentUserId, handleIncomingMessage, resyncConversations, resyncSeekers]);
@@ -1501,6 +1516,10 @@ export function AstrologerChatClient({
               onCancelEdit={() => setEditingMessage(null)}
               onCancelReply={() => setReplyingTo(null)}
               isSending={isSending}
+              onSharePaymentQR={() => {
+                const qrText = `[JyotishSetu Direct Payment Request]\nScan & Pay via UPI:\nupi://pay?pa=jyotishsetu@icici&pn=JyotishSetu&cu=INR\nPlease complete payment to proceed with your booking.`;
+                void handleSendMessage(qrText, []);
+              }}
             />
           </>
         ) : (

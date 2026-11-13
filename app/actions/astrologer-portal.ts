@@ -224,6 +224,22 @@ export async function updateAstrologerBookingStatusAction(params: {
     revalidatePath("/customer/bookings");
     revalidatePath("/customer");
 
+    // Automatically post 10% platform commission on completed consultations
+    if (params.status === "completed" && beforeBooking.price) {
+      try {
+        const { postCommissionLedgerEntry } = await import("@/lib/financial/commission-engine");
+        const { rupeesToPaise } = await import("@/lib/financial/pricing");
+        await postCommissionLedgerEntry({
+          consultantId: profile.id,
+          bookingId: beforeBooking.id,
+          grossAmountPaise: rupeesToPaise(beforeBooking.price),
+          description: `Platform 10% commission on completed ${beforeBooking.service_type || "consultation"} #${beforeBooking.id.slice(0, 8)}`,
+        });
+      } catch (commErr) {
+        console.warn("[updateAstrologerBookingStatusAction] commission accrual notice:", commErr);
+      }
+    }
+
     return {
       success: true,
       data: updatedBooking as CustomerBooking,

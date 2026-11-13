@@ -17,7 +17,9 @@ import {
   RefreshCw,
   Sparkles,
   ChevronRight,
+  MapPin,
 } from "lucide-react";
+import { OlaMap } from "@/components/maps/OlaMap";
 import {
   respondToPujaAssignment,
   updatePujaFulfilmentProgress,
@@ -31,8 +33,10 @@ const CARD =
 
 export function AstrologerPujasClient({
   initialBookings,
+  profileHint,
 }: {
   initialBookings: AstrologerAssignedPujaItem[];
+  profileHint?: string;
 }) {
   const [bookings, setBookings] = useState<AstrologerAssignedPujaItem[]>(initialBookings);
 
@@ -46,7 +50,7 @@ export function AstrologerPujasClient({
     let active = true;
     const interval = setInterval(async () => {
       try {
-        const res = await getAstrologerAssignedPujas();
+        const res = await getAstrologerAssignedPujas(profileHint);
         if (active && res.success && res.data) {
           setBookings(res.data);
         }
@@ -57,7 +61,7 @@ export function AstrologerPujasClient({
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [profileHint]);
   const [selectedBooking, setSelectedBooking] = useState<AstrologerAssignedPujaItem | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -208,6 +212,16 @@ export function AstrologerPujasClient({
                       {b.special_instructions}
                     </div>
                   )}
+
+                  {/* Interactive Ola Maps Venue Visualizer */}
+                  <div className="mt-2.5">
+                    <OlaMap
+                      latitude={b.latitude}
+                      longitude={b.longitude}
+                      address={b.venue_address || "Designated Holy Venue (Vedic Ritual Grounds)"}
+                      landmark={b.landmark || "Main Sanctum / Puja Mandap"}
+                    />
+                  </div>
                 </div>
 
                 <div className="pt-3 border-t border-gold/15 flex items-center justify-between gap-2">

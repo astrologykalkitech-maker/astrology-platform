@@ -1,30 +1,51 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Wallet, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Wallet, ShieldCheck, Scale } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerEarningsAction } from "@/app/actions/astrologer-portal";
+import { getConsultantCommissionStatement } from "@/lib/financial/commission-engine";
+import { AstrologerCommissionBalanceClient } from "@/components/astrologer/AstrologerCommissionBalanceClient";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Earnings & Consultation Breakdown | JyotishSetu",
-  description: "View verified consultation fees and performance breakdown.",
+  title: "Earnings & Commission Float | JyotishSetu",
+  description: "View verified consultation fees, 10% platform commission ledger, and settle dues.",
 };
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function AstrologerEarningsPage() {
-  const [, res] = await Promise.all([
+  const [, res, commissionRes] = await Promise.all([
     requireAstrologerPage(),
     getAstrologerEarningsAction(),
+    getConsultantCommissionStatement(),
   ]);
   const summary =
     res.success && res.data
       ? res.data
       : { totalConsultations: 0, completedConsultations: 0, totalEarningsValue: 0, pendingEarningsValue: 0, records: [] };
+
+  const defaultSummary = {
+    consultant_id: "",
+    total_gross_paise: 0,
+    total_commission_earned_paise: 0,
+    total_settled_paise: 0,
+    total_reversed_paise: 0,
+    outstanding_commission_paise: 0,
+    last_calculated_at: new Date().toISOString(),
+  };
+
+  const commissionData = commissionRes.success && commissionRes.data ? {
+    summary: commissionRes.data.summary ?? defaultSummary,
+    ledger: commissionRes.data.ledger ?? [],
+  } : {
+    summary: defaultSummary,
+    ledger: [],
+  };
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -124,6 +145,25 @@ export default async function AstrologerEarningsPage() {
           </div>
         </div>
       )}
+
+      {/* Platform 10% Commission Float & Dues Ledger */}
+      <div className="pt-6 border-t border-gold/20">
+        <div className="flex items-center gap-2 mb-4">
+          <Scale className="h-5 w-5 text-gold-deep" />
+          <div>
+            <h2 className="font-display text-lg font-bold text-midnight">
+              Marketplace Commission & Float Management
+            </h2>
+            <p className="text-xs text-muted">
+              Official 10% JyotishSetu platform commission ledger, negative balance tracking, and instant dues settlement.
+            </p>
+          </div>
+        </div>
+        <AstrologerCommissionBalanceClient
+          summary={commissionData.summary}
+          ledger={commissionData.ledger}
+        />
+      </div>
     </div>
   );
 }

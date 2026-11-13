@@ -21,6 +21,10 @@ export interface AstrologerAssignedPujaItem {
   completion_notes: string | null;
   completed_at: string | null;
   created_at: string;
+  venue_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  landmark?: string | null;
   puja?: {
     id: string;
     title: string;
@@ -126,9 +130,44 @@ export async function getAstrologerAssignedPujas(profileHint?: string): Promise<
     }
 
     // Query strictly all rituals assigned to this authenticated astrologer
-    const { data: bookings, error } = await admin
+    // Defensive select: if venue columns have not yet been migrated, fallback safely
+    let bookingsData: any[] = [];
+    const fullSelect = `
+      id,
+      puja_id,
+      customer_id,
+      preferred_date,
+      time_slot,
+      sankalp_name,
+      gotra,
+      special_instructions,
+      status,
+      fulfilment_status,
+      darshan_room_name,
+      evidence_photos,
+      evidence_video_url,
+      completion_notes,
+      completed_at,
+      created_at,
+      venue_address,
+      latitude,
+      longitude,
+      landmark,
+      puja:puja_catalog(id, title, category, duration_minutes, image_url, samagri_details, preparation_instructions)
+    `;
+
+    const { data: fullBookings, error: fullError } = await admin
       .from("puja_bookings")
-      .select(`
+      .select(fullSelect)
+      .eq("astrologer_id", astrologerProfileId)
+      .not("status", "in", '("cancelled")')
+      .order("preferred_date", { ascending: true });
+
+    if (!fullError && fullBookings) {
+      bookingsData = fullBookings;
+    } else {
+      // Fallback query without new columns if 053 migration has not been executed yet in DB1
+      const baseSelect = `
         id,
         puja_id,
         customer_id,
@@ -146,16 +185,23 @@ export async function getAstrologerAssignedPujas(profileHint?: string): Promise<
         completed_at,
         created_at,
         puja:puja_catalog(id, title, category, duration_minutes, image_url, samagri_details, preparation_instructions)
-      `)
-      .eq("astrologer_id", astrologerProfileId)
-      .not("status", "in", '("cancelled")')
-      .order("preferred_date", { ascending: true });
+      `;
+      const { data: baseBookings, error: baseError } = await admin
+        .from("puja_bookings")
+        .select(baseSelect)
+        .eq("astrologer_id", astrologerProfileId)
+        .not("status", "in", '("cancelled")')
+        .order("preferred_date", { ascending: true });
 
-    if (error) return { success: false, data: [], error: error.message };
+      if (baseError) {
+        return { success: false, data: [], error: baseError.message };
+      }
+      bookingsData = baseBookings || [];
+    }
 
     return {
       success: true,
-      data: (bookings as any[]) || [],
+      data: bookingsData,
     };
   } catch (err: any) {
     return { success: false, data: [], error: err.message || "Failed to load assigned Pujas" };
@@ -295,6 +341,31 @@ export async function updatePujaFulfilmentProgress(params: {
     }
 
     await admin.from("puja_bookings").update(updates).eq("id", params.bookingId);
+
+    // Accrue 10% platform commission on completed offline/online Puja ceremony
+    if (params.stage === "completed") {
+      try {
+        const { data: bookingData } = await admin
+          .from("puja_bookings")
+          .select("id, astrologer_id, amount_paid, puja:pujas(title)")
+          .eq("id", params.bookingId)
+          .single();
+
+        if (bookingData?.astrologer_id && bookingData.amount_paid) {
+          const { postCommissionLedgerEntry } = await import("@/lib/financial/commission-engine");
+          const { rupeesToPaise } = await import("@/lib/financial/pricing");
+          const pujaTitle = Array.isArray(bookingData.puja) ? bookingData.puja[0]?.title : (bookingData.puja as any)?.title;
+          await postCommissionLedgerEntry({
+            consultantId: bookingData.astrologer_id,
+            pujaBookingId: bookingData.id,
+            grossAmountPaise: rupeesToPaise(bookingData.amount_paid),
+            description: `Platform 10% commission on completed Puja: ${pujaTitle || "Sacred Ritual"} #${bookingData.id.slice(0, 8)}`,
+          });
+        }
+      } catch (commErr) {
+        console.warn("[updatePujaFulfilmentProgress] commission accrual notice:", commErr);
+      }
+    }
 
     revalidatePath("/astrologer/pujas");
     revalidatePath("/customer/puja");

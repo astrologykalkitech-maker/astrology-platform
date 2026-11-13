@@ -1,12 +1,13 @@
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval';
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.jsdelivr.net;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net;
   font-src 'self' https://fonts.gstatic.com data:;
-  img-src 'self' blob: data: https://images.unsplash.com https://*.supabase.co https://lh3.googleusercontent.com https://*.googleusercontent.com;
+  img-src 'self' blob: data: https://images.unsplash.com https://*.supabase.co https://lh3.googleusercontent.com https://*.googleusercontent.com https://api.olamaps.io https://*.olamaps.io https://*.tile.openstreetmap.org https://tile.openstreetmap.org;
   media-src 'self' blob: data: mediastream:;
   worker-src 'self' blob:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://astrosetu-3dx4gffs.livekit.cloud wss://astrosetu-3dx4gffs.livekit.cloud https://*.livekit.cloud wss://*.livekit.cloud;
+  connect-src 'self' https://*.supabase.co wss://*.supabase.co https://astrosetu-3dx4gffs.livekit.cloud wss://astrosetu-3dx4gffs.livekit.cloud https://*.livekit.cloud wss://*.livekit.cloud https://api.olamaps.io https://*.olamaps.io;
+  frame-src 'self' https://www.openstreetmap.org;
   frame-ancestors 'none';
   form-action 'self';
   base-uri 'self';

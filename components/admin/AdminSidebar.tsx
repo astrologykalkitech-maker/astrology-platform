@@ -78,6 +78,7 @@ function AdminSidebarComponent({
     {
       title: "Finance & Subscriptions",
       items: [
+        { href: "/super-admin/financials/commissions", label: "Commission & Float Ledger", icon: Award },
         { href: "/super-admin/subscriptions", label: "Astrologer Subscriptions", icon: Users2 },
         { href: "/super-admin/subscription-audits", label: "Subscription Audit Trail", icon: ScrollText },
         { href: "/super-admin/financials", label: "Financial Ledger & Payouts", icon: Sliders },
