@@ -1,10 +1,10 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { AccessToken } from "livekit-server-sdk";
 import { getLiveKitConfig } from "@/lib/consultation/token";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export interface PujaItem {
   id: string;
@@ -124,10 +124,7 @@ export async function getCustomerPujaBookings(): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, data: [], error: "Authentication required" };
@@ -161,13 +158,9 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
 }> {
   try {
     // 1. Authenticate customer
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-      error: authErr,
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
-    if (authErr || !user) {
+    if (!user) {
       return { success: false, error: "Authentication required. Please log in to book a Puja." };
     }
 
@@ -326,10 +319,7 @@ export async function reschedulePujaBooking(params: {
   newTimeSlot: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const newDateObj = new Date(params.newDate);
@@ -381,10 +371,7 @@ export async function reschedulePujaBooking(params: {
 
 export async function cancelPujaBooking(bookingId: string, reason?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const admin = await createAdminClient("main");
@@ -434,10 +421,7 @@ export async function getPujaDarshanToken(bookingId: string): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const admin = await createAdminClient("main");
@@ -520,10 +504,7 @@ export async function submitPujaReview(params: {
   reviewText: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const rating = Math.min(5, Math.max(1, Math.round(params.rating)));

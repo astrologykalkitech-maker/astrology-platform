@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 import {
   calculateKPChart,
   calculateAllDivisionalCharts,
@@ -41,10 +41,7 @@ export async function getTarotReadingAction(params: {
 
     if (params.saveToHistory) {
       try {
-        const supabase = await createPublicServerClient();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = await getCurrentUser();
 
         if (user) {
           const admin = await createAdminClient("main");

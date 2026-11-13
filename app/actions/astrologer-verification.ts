@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type VerificationStageName =
   | "registration"
@@ -60,10 +60,7 @@ export interface VerificationDocumentRecord {
  */
 export async function getAstrologerVerificationOverview(targetAstrologerId?: string) {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Authentication required", data: null };
@@ -131,10 +128,7 @@ export async function submitVerificationStageAction(
   metadata: Record<string, any> = {}
 ) {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Authentication required" };
@@ -179,12 +173,9 @@ export async function updateVerificationStageReviewAction({
   stageName: VerificationStageName;
   status: VerificationStatus;
   reviewerNotes?: string;
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Authentication required" };
@@ -252,12 +243,9 @@ export async function scheduleAstrologerInterviewAction({
   scheduledAt: string;
   meetingUrl?: string;
   timezone?: string;
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 

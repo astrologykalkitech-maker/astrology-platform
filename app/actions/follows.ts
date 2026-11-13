@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export async function toggleFollowAstrologer(astrologerId: string): Promise<{
   success: boolean;
@@ -10,10 +10,7 @@ export async function toggleFollowAstrologer(astrologerId: string): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Please log in to follow astrologers." };
@@ -70,10 +67,7 @@ export async function getCustomerFollowedAstrologers(): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: true, astrologerIds: [] };
 

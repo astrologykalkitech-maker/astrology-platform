@@ -1,11 +1,12 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { getLiveKitConfig } from "@/lib/consultation/token";
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
+import { getAuthSession, getCurrentUser, requireAstrologer } from "@/lib/auth/session";
 
 export interface BroadcastTokenResult {
   token: string;
@@ -42,10 +43,7 @@ export async function createLiveBroadcast(params: {
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Authentication required." };
@@ -148,10 +146,7 @@ export async function createLiveBroadcast(params: {
  */
 export async function confirmBroadcastLive(broadcastId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required." };
 
@@ -228,10 +223,7 @@ export async function confirmBroadcastLive(broadcastId: string): Promise<{ succe
  */
 export async function sendHostHeartbeat(broadcastId: string): Promise<{ success: boolean }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false };
 
     const admin = await createAdminClient("main");
@@ -256,10 +248,7 @@ export async function endLiveBroadcast(
   reason = "Broadcast ended by host"
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Authentication required." };
@@ -344,10 +333,7 @@ export async function getBroadcastViewerToken(broadcastId: string): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     const admin = await createAdminClient("main");
 
@@ -482,10 +468,7 @@ export async function sendBroadcastComment(params: {
   comment: string;
 }): Promise<{ success: boolean; comment?: BroadcastComment; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Please log in to participate in live discussion." };
 
@@ -593,10 +576,7 @@ export async function moderateBroadcastComment(params: {
   action: "pin" | "unpin" | "delete";
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const admin = await createAdminClient("main");
@@ -668,10 +648,7 @@ export async function reportBroadcastAbuse(params: {
   reason: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Please log in to submit a report." };
 
     const admin = await createAdminClient("main");
@@ -697,10 +674,7 @@ export async function toggleBroadcastComments(
   enabled: boolean
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required." };
 
     const admin = await createAdminClient("main");
@@ -726,10 +700,7 @@ export async function scheduleBroadcast(params: {
   durationMinutes?: number;
 }): Promise<{ success: boolean; broadcast?: any; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required." };
 
@@ -829,10 +800,7 @@ export async function getActiveLiveBroadcasts() {
  */
 export async function getAstrologerBroadcastHistory() {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required", data: [] };
 
     const admin = await createAdminClient("main");

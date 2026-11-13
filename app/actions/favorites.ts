@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export interface PublicFavoriteAstrologer {
   id: string;
@@ -34,10 +34,7 @@ export async function toggleFavoriteAstrologer(astrologerId: string): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) {
       return { success: false, error: "Please log in to save favourite astrologers." };
@@ -123,10 +120,7 @@ export async function getCustomerFavoriteAstrologers(): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: true, data: [] };
 
@@ -194,10 +188,7 @@ export async function getCustomerFavoriteAstrologers(): Promise<{
  */
 export async function checkIsAstrologerFavorited(astrologerId: string): Promise<boolean> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user || !astrologerId) return false;
 

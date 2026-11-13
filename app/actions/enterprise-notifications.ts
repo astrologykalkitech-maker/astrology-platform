@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export type NotificationChannel = "in_app" | "web_push" | "email" | "sms" | "whatsapp";
 export type NotificationDeliveryStatus =
@@ -164,12 +164,9 @@ export async function updateNotificationPreferencesAction(settings: {
   booking_reminders?: boolean;
   broadcast_alerts?: boolean;
   marketing_consent?: boolean;
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 

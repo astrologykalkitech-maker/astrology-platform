@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export interface PrivacyConsentRecord {
   purpose: string;
@@ -23,12 +23,9 @@ export async function updateUserConsentAction({
   purpose: string;
   isGranted: boolean;
   version?: string;
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 
@@ -57,10 +54,7 @@ export async function updateUserConsentAction({
  */
 export async function requestCustomerDataExportAction() {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 
@@ -110,10 +104,7 @@ export async function requestCustomerDataExportAction() {
  */
 export async function requestAccountDeletionAction(reason?: string) {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 

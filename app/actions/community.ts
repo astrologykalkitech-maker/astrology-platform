@@ -1,8 +1,8 @@
 "use server";
 
-import { createPublicServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export interface CommunityPostRecord {
   id: string;
@@ -69,12 +69,9 @@ export async function createCommunityPostAction({
   content: string;
   category?: "general" | "astrology_insights" | "vedic_philosophy" | "broadcast_announcement" | "daily_guidance";
   mediaUrls?: string[];
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 
@@ -117,12 +114,9 @@ export async function reportCommunityContentAction({
   targetType: "post" | "comment" | "broadcast";
   targetId: string;
   reason: string;
-}) {
+}): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createPublicServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
 
     if (!user) return { success: false, error: "Authentication required" };
 
