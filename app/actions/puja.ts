@@ -71,12 +71,21 @@ export interface SubmitPujaBookingInput {
   idempotencyKey?: string;
 }
 
-export const VALID_PUJA_TIME_SLOTS = [
+const VALID_PUJA_TIME_SLOTS = [
   "Brahma Muhurat (04:30 AM - 06:00 AM)",
   "Morning (07:00 AM - 10:00 AM)",
   "Abhijit Muhurat (11:45 AM - 12:35 PM)",
   "Evening Pradosh (05:30 PM - 07:30 PM)",
 ];
+
+export async function getValidPujaTimeSlots(): Promise<string[]> {
+  return [
+    "Brahma Muhurat (04:30 AM - 06:00 AM)",
+    "Morning (07:00 AM - 10:00 AM)",
+    "Abhijit Muhurat (11:45 AM - 12:35 PM)",
+    "Evening Pradosh (05:30 PM - 07:30 PM)",
+  ];
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

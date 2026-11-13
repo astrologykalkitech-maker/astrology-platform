@@ -23,10 +23,16 @@ import {
   cancelPujaBooking,
   getPujaDarshanToken,
   submitPujaReview,
-  VALID_PUJA_TIME_SLOTS,
   type PujaItem,
   type PujaBookingRecord,
 } from "@/app/actions/puja";
+
+const VALID_PUJA_TIME_SLOTS = [
+  "Brahma Muhurat (04:30 AM - 06:00 AM)",
+  "Morning (07:00 AM - 10:00 AM)",
+  "Abhijit Muhurat (11:45 AM - 12:35 PM)",
+  "Evening Pradosh (05:30 PM - 07:30 PM)",
+];
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] p-5";
