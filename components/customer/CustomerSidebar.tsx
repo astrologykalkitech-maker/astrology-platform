@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -57,7 +58,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/billing", label: "Billing & Receipts", i18nKey: "billing", icon: Receipt },
   { href: "/customer/notification", label: "Notifications", i18nKey: "notifications", icon: Bell },
   { href: "/customer/offers", label: "Special Offers", i18nKey: "specialOffers", icon: Gift },
-  { href: "/customer/community", label: "Community Feed", i18nKey: "community", icon: MessageSquare },
   { href: "/customer/ai-services", label: "AI Recommendations", i18nKey: "aiServices", icon: Sparkles },
   { href: "/customer/privacy", label: "Privacy & Data", i18nKey: "privacy", icon: ShieldCheck },
   { href: "/customer/support", label: "Support & Help", i18nKey: "support", icon: LifeBuoy },
@@ -77,7 +77,7 @@ type SidebarProps = {
   onClose: () => void;
 };
 
-export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }: SidebarProps) {
+function CustomerSidebarComponent({ open, isLoggedIn = true, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
 
@@ -196,3 +196,5 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
     </aside>
   );
 }
+
+export const CustomerSidebar = memo(CustomerSidebarComponent);

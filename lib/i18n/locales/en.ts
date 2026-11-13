@@ -46,6 +46,7 @@ export const en = {
     availability: "Availability",
     pricing: "Consultation Rates",
     subscription: "Subscription & Plan",
+    reviews: "Client Reviews",
     earnings: "Earnings & Records",
   },
   customer: {

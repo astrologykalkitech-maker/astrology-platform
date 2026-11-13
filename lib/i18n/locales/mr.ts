@@ -47,6 +47,7 @@ export const mr: TranslationSchema = {
     availability: "उपलब्धता",
     pricing: "सल्लामसलत दर",
     subscription: "सदस्यता आणि योजना",
+    reviews: "ग्राहक पुनरावलोकने",
     earnings: "कमाई आणि नोंदी",
   },
   customer: {

@@ -47,6 +47,7 @@ export const ml: TranslationSchema = {
     availability: "ലഭ്യത",
     pricing: "ഫീസ്",
     subscription: "പ്ലാൻ",
+    reviews: "ഉപഭോക്തൃ അവലോകനങ്ങൾ",
     earnings: "വരുമാനം",
   },
   customer: {

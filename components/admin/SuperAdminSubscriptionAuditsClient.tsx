@@ -9,9 +9,10 @@ export function SuperAdminSubscriptionAuditsClient({ initialAudits }: { initialA
   const [actionFilter, setActionFilter] = useState("all");
 
   const filtered = audits.filter((a) => {
+    const actorStr = a.actor?.display_name || a.actor?.full_name || a.actor_role || "";
     const matchesSearch =
       (a.astrologer?.display_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (a.actor?.email || "").toLowerCase().includes(search.toLowerCase()) ||
+      actorStr.toLowerCase().includes(search.toLowerCase()) ||
       (a.reason || "").toLowerCase().includes(search.toLowerCase());
     const matchesAction = actionFilter === "all" || a.action === actionFilter;
     return matchesSearch && matchesAction;
@@ -25,7 +26,7 @@ export function SuperAdminSubscriptionAuditsClient({ initialAudits }: { initialA
       a.action,
       `"${a.previous_plan?.name || "None"}"`,
       `"${a.new_plan?.name || "None"}"`,
-      `"${a.actor?.email || a.actor_role}"`,
+      `"${a.actor?.display_name || a.actor?.full_name || a.actor_role}"`,
       `"${a.reason || ""}"`,
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
@@ -114,7 +115,7 @@ export function SuperAdminSubscriptionAuditsClient({ initialAudits }: { initialA
                     {a.previous_plan?.name || "None"} → <strong>{a.new_plan?.name || "None"}</strong>
                   </td>
                   <td className="p-3.5 text-muted text-[11px]">
-                    {a.actor?.email || a.actor_role}
+                    {a.actor?.display_name || a.actor?.full_name || a.actor_role}
                   </td>
                   <td className="p-3.5 text-[11px] text-slate-700">
                     {a.reason || "—"}

@@ -47,6 +47,7 @@ export const hi: TranslationSchema = {
     availability: "उपलब्धता",
     pricing: "परामर्श दरें",
     subscription: "सदस्यता व योजना",
+    reviews: "ग्राहक समीक्षाएं",
     earnings: "कमाई व रिकॉर्ड",
   },
   customer: {

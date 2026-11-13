@@ -47,6 +47,7 @@ export const bn: TranslationSchema = {
     availability: "উপলব্ধতা",
     pricing: "পরামর্শের হার",
     subscription: "সাবস্ক্রিপশন ও প্ল্যান",
+    reviews: "গ্রাহক পর্যালোচনা",
     earnings: "উপার্জন ও হিসাব",
   },
   customer: {

@@ -27,6 +27,7 @@ import { Room, RoomEvent, RemoteTrackPublication, RemoteParticipant, Track } fro
 import {
   getBroadcastViewerToken,
   getAuthoritativeBroadcastViewerCount,
+  getActiveLiveBroadcasts,
   sendBroadcastComment,
   getBroadcastComments,
   reportBroadcastAbuse,
@@ -34,6 +35,7 @@ import {
   type BroadcastComment,
 } from "@/app/actions/broadcast";
 import { toggleFollowAstrologer } from "@/app/actions/follows";
+import { useRouter } from "next/navigation";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] p-5 transition hover:shadow-lg";
@@ -47,6 +49,8 @@ export function CustomerBroadcastListClient({
   upcomingBroadcasts?: any[];
   followedAstrologerIds?: string[];
 }) {
+  const router = useRouter();
+  const [liveList, setLiveList] = useState<any[]>(initialBroadcasts);
   const [activeTab, setActiveTab] = useState<"live" | "upcoming">("live");
   const [activeBroadcast, setActiveBroadcast] = useState<any | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -98,22 +102,65 @@ export function CustomerBroadcastListClient({
     };
   }, [disconnectStream]);
 
-  // Periodic Viewer Count Poller
+  // Sync initialBroadcasts prop changes
+  useEffect(() => {
+    setLiveList(initialBroadcasts);
+  }, [initialBroadcasts]);
+
+  // Periodic Poller to sync active broadcasts and end session immediately if astrologer ended broadcast
+  useEffect(() => {
+    const pollBroadcasts = async () => {
+      const liveRes = await getActiveLiveBroadcasts();
+      if (liveRes.success && liveRes.data) {
+        setLiveList(liveRes.data);
+
+        // If currently viewing a broadcast that is no longer in liveList, terminate customer viewing session
+        if (activeBroadcast) {
+          const stillActive = liveRes.data.some((b: any) => b.id === activeBroadcast.id);
+          if (!stillActive) {
+            setViewerError("This live broadcast has ended. The astrologer concluded the session.");
+            if (roomRef.current) {
+              await roomRef.current.disconnect(true).catch(() => {});
+              roomRef.current = null;
+            }
+            if (videoContainerRef.current) videoContainerRef.current.innerHTML = "";
+            if (audioContainerRef.current) audioContainerRef.current.innerHTML = "";
+            setActiveBroadcast(null);
+            setViewerCount(null);
+          }
+        }
+      }
+    };
+
+    const interval = setInterval(pollBroadcasts, 4000);
+    return () => clearInterval(interval);
+  }, [activeBroadcast]);
+
+  // Periodic Viewer Count & Stream Active Poller
   useEffect(() => {
     if (!activeBroadcast) return;
     const interval = setInterval(async () => {
       const res = await getAuthoritativeBroadcastViewerCount(activeBroadcast.room_name);
-      if (res.success && res.viewerCount !== null) {
-        setViewerCount(res.viewerCount);
-        if (!res.isHostOnline) {
-          setViewerError("Astrologer has temporarily paused transmission. Reconnecting...");
-        } else if (viewerError?.includes("paused")) {
-          setViewerError(null);
+      if (res.success) {
+        // If broadcast status is ended or not live in database
+        if (res.isLive === false) {
+          setViewerError("This live broadcast has ended. The astrologer concluded the session.");
+          await disconnectStream();
+          return;
+        }
+
+        if (res.viewerCount !== null) {
+          setViewerCount(res.viewerCount);
+          if (!res.isHostOnline) {
+            setViewerError("Astrologer has temporarily paused transmission. Reconnecting...");
+          } else if (viewerError?.includes("paused")) {
+            setViewerError(null);
+          }
         }
       }
-    }, 5000);
+    }, 4000);
     return () => clearInterval(interval);
-  }, [activeBroadcast, viewerError]);
+  }, [activeBroadcast, viewerError, disconnectStream]);
 
   // Comments Poller
   useEffect(() => {
@@ -287,7 +334,7 @@ export function CustomerBroadcastListClient({
               : "border-transparent text-muted hover:text-midnight"
           }`}
         >
-          <Radio className="h-4 w-4 text-red-500 animate-pulse" /> Live Now ({initialBroadcasts.length})
+          <Radio className="h-4 w-4 text-red-500 animate-pulse" /> Live Now ({liveList.length})
         </button>
         <button
           onClick={() => setActiveTab("upcoming")}
@@ -358,12 +405,31 @@ export function CustomerBroadcastListClient({
                     <>
                       <AlertCircle className="h-10 w-10 text-red-400 mb-3" />
                       <p className="text-sm font-semibold text-champagne">{viewerError}</p>
-                      <button
-                        onClick={() => void handleJoinStream(activeBroadcast)}
-                        className="mt-3 rounded-xl bg-gold/20 border border-gold/40 px-3 py-1.5 text-xs text-champagne hover:bg-gold/30 cursor-pointer"
-                      >
-                        Retry Connection
-                      </button>
+                      {viewerError?.includes("ended") || viewerError?.includes("concluded") ? (
+                        <div className="flex items-center gap-2 mt-4">
+                          <button
+                            onClick={() => void disconnectStream()}
+                            className="rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-4 py-2 text-xs font-bold text-midnight shadow hover:opacity-95 cursor-pointer"
+                          >
+                            Return to Live Broadcasts
+                          </button>
+                          {activeBroadcast?.astrologer_id && (
+                            <Link
+                              href={`/customer/astrologers/${activeBroadcast.astrologer_id}`}
+                              className="rounded-xl border border-gold/40 bg-gold/15 px-4 py-2 text-xs font-semibold text-champagne hover:bg-gold/25"
+                            >
+                              View Astrologer Profile
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => void handleJoinStream(activeBroadcast)}
+                          className="mt-3 rounded-xl bg-gold/20 border border-gold/40 px-3 py-1.5 text-xs text-champagne hover:bg-gold/30 cursor-pointer"
+                        >
+                          Retry Connection
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -472,7 +538,7 @@ export function CustomerBroadcastListClient({
       {/* TAB 1: LIVE BROADCASTS GRID */}
       {activeTab === "live" && (
         <div>
-          {initialBroadcasts.length === 0 ? (
+          {liveList.length === 0 ? (
             <div className={`${CARD} py-16 px-6 text-center`}>
               <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 mb-4 border border-amber-200">
                 <Radio className="h-8 w-8" />
@@ -498,7 +564,7 @@ export function CustomerBroadcastListClient({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {initialBroadcasts.map((b) => (
+              {liveList.map((b) => (
                 <div key={b.id} className={CARD}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-[10px] font-black text-red-600 uppercase">

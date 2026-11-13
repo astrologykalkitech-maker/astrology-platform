@@ -1,7 +1,9 @@
-import { AdminShell } from "@/components/admin/AdminShell";
 import { SuperAdminNotificationDispatchClient } from "@/components/admin/SuperAdminNotificationDispatchClient";
 import { requireSuperAdminPage } from "@/lib/auth/admin-guard";
-import { getNotificationDeliveryMetrics } from "@/app/actions/enterprise-notifications";
+import {
+  getNotificationDeliveryMetrics,
+  getEligibleAstrologerRecipients,
+} from "@/app/actions/enterprise-notifications";
 
 export const metadata = {
   title: "Multi-Channel Notification Infrastructure | Super Admin",
@@ -9,21 +11,18 @@ export const metadata = {
 };
 
 export default async function SuperAdminNotificationsPage() {
-  const { profile, permissions } = await requireSuperAdminPage();
-  const res = await getNotificationDeliveryMetrics();
+  await requireSuperAdminPage();
+  const [metricsRes, astrosRes] = await Promise.all([
+    getNotificationDeliveryMetrics(),
+    getEligibleAstrologerRecipients(),
+  ]);
 
   return (
-    <AdminShell
-      displayName={profile.full_name || "Platform Owner"}
-      role={profile.role}
-      isSuperAdmin={true}
-      permissions={permissions}
-    >
-      <SuperAdminNotificationDispatchClient
-        stats={res.stats}
-        recentFailures={res.stats?.recentFailures || []}
-      />
-    </AdminShell>
+    <SuperAdminNotificationDispatchClient
+      stats={metricsRes.stats}
+      recentFailures={metricsRes.stats?.recentFailures || []}
+      astrologers={astrosRes.success ? astrosRes.data : []}
+    />
   );
 }
 

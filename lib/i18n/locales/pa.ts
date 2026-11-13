@@ -47,6 +47,7 @@ export const pa: TranslationSchema = {
     availability: "ਉਪਲਬਧਤਾ",
     pricing: "ਦਰਾਂ",
     subscription: "ਯੋਜਨਾ",
+    reviews: "ਗਾਹਕ ਸਮੀਖਿਆਵਾਂ",
     earnings: "ਕਮਾਈ",
   },
   customer: {

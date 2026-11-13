@@ -13,6 +13,35 @@ export interface PrivacyConsentRecord {
 }
 
 /**
+ * Fetches the currently authenticated customer's privacy consent records.
+ */
+export async function getCustomerPrivacyConsentsAction(): Promise<{
+  success: boolean;
+  consents?: PrivacyConsentRecord[];
+  error?: string;
+}> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Authentication required" };
+
+    const admin = await createAdminClient("main");
+    const { data, error } = await admin
+      .from("privacy_consents")
+      .select("purpose, is_granted, version, revoked_at, created_at")
+      .eq("user_id", user.id);
+
+    if (error) return { success: false, error: error.message };
+
+    return {
+      success: true,
+      consents: data || [],
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to load consents" };
+  }
+}
+
+/**
  * Records or revokes user consent for a specific processing purpose.
  */
 export async function updateUserConsentAction({
@@ -65,7 +94,7 @@ export async function requestCustomerDataExportAction() {
       admin.from("profiles").select("*").eq("id", user.id).maybeSingle(),
       admin.from("customer_bookings").select("*").eq("customer_id", user.id),
       admin.from("puja_bookings").select("*").eq("customer_id", user.id),
-      admin.from("saved_kundlis").select("*").eq("user_id", user.id),
+      admin.from("kundlis").select("*").eq("user_id", user.id),
     ]);
 
     const exportPackage = {

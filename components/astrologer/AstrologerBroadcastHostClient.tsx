@@ -21,7 +21,7 @@ import {
   History,
   ShieldAlert,
 } from "lucide-react";
-import { Room, RoomEvent, createLocalTracks, LocalVideoTrack, LocalAudioTrack } from "livekit-client";
+import { Room, RoomEvent, createLocalTracks, LocalVideoTrack, LocalAudioTrack, setLogLevel } from "livekit-client";
 import {
   createLiveBroadcast,
   confirmBroadcastLive,
@@ -37,6 +37,13 @@ import {
   type BroadcastTokenResult,
   type BroadcastComment,
 } from "@/app/actions/broadcast";
+
+// Suppress expected WebRTC transport disconnect and teardown abort noise from the browser console
+if (typeof window !== "undefined") {
+  try {
+    setLogLevel("warn");
+  } catch {}
+}
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] p-6";
@@ -101,19 +108,25 @@ export function AstrologerBroadcastHostClient({
 
   // Cleanup LiveKit room and local tracks
   const teardownMedia = useCallback(async () => {
-    if (localTracksRef.current.videoTrack) {
-      localTracksRef.current.videoTrack.stop();
-      localTracksRef.current.videoTrack.detach();
-    }
-    if (localTracksRef.current.audioTrack) {
-      localTracksRef.current.audioTrack.stop();
-      localTracksRef.current.audioTrack.detach();
-    }
-    localTracksRef.current = {};
+    try {
+      if (localTracksRef.current.videoTrack) {
+        localTracksRef.current.videoTrack.stop();
+        localTracksRef.current.videoTrack.detach();
+      }
+      if (localTracksRef.current.audioTrack) {
+        localTracksRef.current.audioTrack.stop();
+        localTracksRef.current.audioTrack.detach();
+      }
+      localTracksRef.current = {};
 
-    if (roomRef.current) {
-      await roomRef.current.disconnect();
-      roomRef.current = null;
+      if (roomRef.current) {
+        const room = roomRef.current;
+        roomRef.current = null;
+        // Cleanly disconnect without throwing or triggering abort noise
+        await room.disconnect(true).catch(() => {});
+      }
+    } catch {
+      // Ignore normal teardown aborts
     }
   }, []);
 
@@ -192,15 +205,52 @@ export function AstrologerBroadcastHostClient({
 
       // 2. Request Camera & Mic Permissions
       setStreamStatus("requesting_permissions");
-      const tracks = await createLocalTracks({
-        audio: true,
-        video: {
-          resolution: { width: 1280, height: 720 },
-        },
-      });
+      let videoTrack: LocalVideoTrack | undefined;
+      let audioTrack: LocalAudioTrack | undefined;
 
-      const videoTrack = tracks.find((t) => t.kind === "video") as LocalVideoTrack | undefined;
-      const audioTrack = tracks.find((t) => t.kind === "audio") as LocalAudioTrack | undefined;
+      try {
+        const tracks = await createLocalTracks({
+          audio: true,
+          video: {
+            resolution: { width: 1280, height: 720 },
+          },
+        });
+        videoTrack = tracks.find((t) => t.kind === "video") as LocalVideoTrack | undefined;
+        audioTrack = tracks.find((t) => t.kind === "audio") as LocalAudioTrack | undefined;
+      } catch (trackErr: any) {
+        // Fallback 1: Try video with lower constraints or audio-only
+        try {
+          const fallbackTracks = await createLocalTracks({ audio: true, video: false });
+          audioTrack = fallbackTracks.find((t) => t.kind === "audio") as LocalAudioTrack | undefined;
+        } catch (audioOnlyErr: any) {
+          // If user blocked permission or no media devices available
+          if (
+            trackErr?.name === "NotAllowedError" ||
+            trackErr?.name === "PermissionDeniedError" ||
+            trackErr?.message?.includes("Permission denied") ||
+            audioOnlyErr?.name === "NotAllowedError" ||
+            audioOnlyErr?.message?.includes("Permission denied")
+          ) {
+            setError(
+              "Camera or microphone permission was blocked. Please click the lock or camera icon in your browser address bar to allow access, then click 'Go Live Now' again."
+            );
+          } else if (
+            trackErr?.name === "NotFoundError" ||
+            trackErr?.name === "DevicesNotFoundError" ||
+            audioOnlyErr?.name === "NotFoundError"
+          ) {
+            setError(
+              "No camera or microphone found. Please connect an audio input or webcam and refresh the page."
+            );
+          } else {
+            setError(trackErr?.message || "Could not access camera or microphone.");
+          }
+          setStreamStatus("failed");
+          setLoading(false);
+          return;
+        }
+      }
+
       localTracksRef.current = { videoTrack, audioTrack };
 
       // Attach video to local monitor preview
@@ -243,8 +293,17 @@ export function AstrologerBroadcastHostClient({
       await confirmBroadcastLive(activeBroadcast.id);
       setStreamStatus("live");
     } catch (err: any) {
-      console.error("[BroadcastHost] Streaming startup failed:", err);
-      setError(err.message || "Failed to establish live stream. Check camera/microphone permissions.");
+      if (
+        err?.name === "NotAllowedError" ||
+        err?.name === "PermissionDeniedError" ||
+        err?.message?.includes("Permission denied")
+      ) {
+        setError(
+          "Camera or microphone permission was blocked. Please click the lock or camera icon in your browser address bar to allow access, then click 'Go Live Now' again."
+        );
+      } else {
+        setError(err?.message || "Failed to establish live stream. Check camera/microphone permissions.");
+      }
       setStreamStatus("failed");
       await teardownMedia();
     } finally {

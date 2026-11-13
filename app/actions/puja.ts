@@ -69,14 +69,16 @@ export interface SubmitPujaBookingInput {
   gotra?: string;
   specialInstructions?: string;
   idempotencyKey?: string;
+  astrologerId?: string;
 }
 
-const VALID_PUJA_TIME_SLOTS = [
-  "Brahma Muhurat (04:30 AM - 06:00 AM)",
-  "Morning (07:00 AM - 10:00 AM)",
-  "Abhijit Muhurat (11:45 AM - 12:35 PM)",
-  "Evening Pradosh (05:30 PM - 07:30 PM)",
-];
+import {
+  VALID_PUJA_TIME_SLOTS,
+  evaluatePujaDarshanEligibility,
+  type PujaDarshanEligibility,
+} from "@/lib/astrology/puja-darshan-access";
+
+export type { PujaDarshanEligibility };
 
 export async function getValidPujaTimeSlots(): Promise<string[]> {
   return [
@@ -112,6 +114,47 @@ export async function getPujaCatalog(): Promise<{
     return { success: true, data: data || [] };
   } catch {
     return { success: false, data: [], error: "Unable to load Pujas right now. Please try again later." };
+  }
+}
+
+/**
+ * Fetch available/approved Vedic Astrologers & Priests so customer can choose their presiding Pandit during booking.
+ */
+export async function getAvailablePujaPriests(): Promise<{
+  success: boolean;
+  data: {
+    id: string;
+    display_name: string;
+    profile_photo_url: string | null;
+    specializations: string[] | null;
+    experience_years?: number | null;
+  }[];
+  error?: string;
+}> {
+  try {
+    const admin = await createAdminClient("main");
+    const { data, error } = await admin
+      .from("astrologer_profiles")
+      .select("id, display_name, profile_photo_url, specializations, experience_years, approval_status")
+      .eq("approval_status", "approved")
+      .order("display_name", { ascending: true });
+
+    if (error) {
+      return { success: false, data: [], error: error.message };
+    }
+
+    return {
+      success: true,
+      data: (data || []).map((a) => ({
+        id: a.id,
+        display_name: a.display_name,
+        profile_photo_url: a.profile_photo_url,
+        specializations: a.specializations,
+        experience_years: a.experience_years,
+      })),
+    };
+  } catch (err: any) {
+    return { success: false, data: [], error: err.message || "Failed to load priests" };
   }
 }
 
@@ -254,23 +297,44 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
     // Generate dedicated LiveKit darshan room name
     const darshanRoom = `puja_darshan_${user.id.slice(0, 8)}_${Date.now()}`;
 
+    // Verify chosen astrologer if provided
+    let assignedAstrologerId: string | null = null;
+    let initialFulfilmentStatus = "booking_received";
+    let initialStatus: "pending" | "confirmed" = "pending";
+
+    if (params.astrologerId && UUID_REGEX.test(params.astrologerId)) {
+      const { data: chosenAstro } = await admin
+        .from("astrologer_profiles")
+        .select("id, display_name, approval_status")
+        .eq("id", params.astrologerId)
+        .eq("approval_status", "approved")
+        .maybeSingle();
+
+      if (chosenAstro) {
+        assignedAstrologerId = chosenAstro.id;
+        initialFulfilmentStatus = "assigned";
+        // Remains pending until accepted or confirmed
+      }
+    }
+
     // 5. Insert booking with strict column mapping (puja_id, time_slot, fulfilment_status)
     const { data: insertedBooking, error: insertErr } = await admin
       .from("puja_bookings")
       .insert({
         customer_id: user.id,
         puja_id: pujaId,
+        astrologer_id: assignedAstrologerId,
         preferred_date: preferredDate,
         time_slot: timeSlot,
         sankalp_name: sankalpName,
         gotra: gotra,
         special_instructions: specialInstructions,
-        status: "pending",
-        fulfilment_status: "booking_received",
+        status: initialStatus,
+        fulfilment_status: initialFulfilmentStatus,
         darshan_room_name: darshanRoom,
         idempotency_key: idempotencyKey,
       })
-      .select("*, puja:puja_catalog(*)")
+      .select("*, puja:puja_catalog(*), astrologer:astrologer_profiles(id, display_name, profile_photo_url)")
       .single();
 
     // 6. Strict error verification
@@ -281,19 +345,42 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
       };
     }
 
-    // FEATURE-12: NOTIFY CUSTOMER & COORDINATORS
+    // FEATURE-12: NOTIFY CUSTOMER & ASSIGNED ASTROLOGER
     try {
       await admin.from("customer_notifications").insert({
         customer_id: user.id,
         title: `🪔 Puja Booking Received`,
-        message: `Your booking for ${existingPuja.title} on ${preferredDate} (${timeSlot}) has been registered with Reference #${insertedBooking.id.slice(0, 8).toUpperCase()}. A consecrated priest will be assigned shortly.`,
+        message: `Your booking for ${existingPuja.title} on ${preferredDate} (${timeSlot}) has been registered with Reference #${insertedBooking.id.slice(0, 8).toUpperCase()}.${
+          assignedAstrologerId ? " Presiding Pandit has been assigned." : " A consecrated priest will be assigned shortly."
+        }`,
         link_url: `/customer/puja`,
         event_type: "puja_booking",
         metadata: { booking_id: insertedBooking.id },
       });
+
+      // If an astrologer was assigned, notify their user account
+      if (assignedAstrologerId) {
+        const { data: astroProf } = await admin
+          .from("astrologer_profiles")
+          .select("user_id, display_name")
+          .eq("id", assignedAstrologerId)
+          .maybeSingle();
+
+        if (astroProf?.user_id) {
+          await admin.from("customer_notifications").insert({
+            customer_id: astroProf.user_id,
+            title: `🪔 New Assigned Puja Ceremony`,
+            message: `You have been selected to preside over a sacred ${existingPuja.title} ceremony for ${sankalpName} on ${preferredDate} (${timeSlot}).`,
+            link_url: `/astrologer/pujas`,
+            event_type: "puja_assignment",
+            metadata: { booking_id: insertedBooking.id },
+          });
+        }
+      }
     } catch {}
 
     revalidatePath("/customer/puja");
+    revalidatePath("/astrologer/pujas");
     revalidatePath("/super-admin/puja-bookings");
 
     return {
@@ -362,6 +449,7 @@ export async function reschedulePujaBooking(params: {
     if (updateErr) return { success: false, error: updateErr.message };
 
     revalidatePath("/customer/puja");
+    revalidatePath("/astrologer/pujas");
     revalidatePath("/super-admin/puja-bookings");
     return { success: true };
   } catch (err: any) {
@@ -399,6 +487,7 @@ export async function cancelPujaBooking(bookingId: string, reason?: string): Pro
       .eq("id", bookingId);
 
     revalidatePath("/customer/puja");
+    revalidatePath("/astrologer/pujas");
     revalidatePath("/super-admin/puja-bookings");
     return { success: true };
   } catch (err: any) {
@@ -407,8 +496,59 @@ export async function cancelPujaBooking(bookingId: string, reason?: string): Pro
 }
 
 /**
+ * FEATURE-13: AUTHORITATIVE DARSHAN ACCESS VALIDATION
+ * Evaluates whether the devotee, astrologer, or admin is permitted to enter the Live Video Darshan.
+ */
+export async function validatePujaDarshanAccess(bookingId: string): Promise<{
+  success: boolean;
+  eligibility?: PujaDarshanEligibility;
+  error?: string;
+}> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return { success: false, error: "Authentication required." };
+
+    const admin = await createAdminClient("main");
+    const { data: booking } = await admin
+      .from("puja_bookings")
+      .select("id, customer_id, astrologer_id, status, fulfilment_status, preferred_date, time_slot")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (!booking) return { success: false, error: "Booking not found." };
+
+    // Check authorization: customer, assigned astrologer, or super_admin
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isCustomer = booking.customer_id === user.id;
+    const isAssignedPriest = Boolean(astroProfile && astroProfile.id === booking.astrologer_id);
+
+    const { data: userProfile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isSuperAdmin = userProfile?.role === "super_admin";
+
+    if (!isCustomer && !isAssignedPriest && !isSuperAdmin) {
+      return { success: false, error: "Unauthorized access to this booking." };
+    }
+
+    const eligibility = evaluatePujaDarshanEligibility(booking);
+    return { success: true, eligibility };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to validate Darshan access." };
+  }
+}
+
+/**
  * FEATURE-14: LIVE VIDEO DARSHAN TOKEN ISSUANCE
  * Mints secure LiveKit tokens for customers and assigned Pandits.
+ * STRICTLY ENFORCES TIME-BASED & STATUS-BASED ACCESS CONTROL.
  */
 export async function getPujaDarshanToken(bookingId: string): Promise<{
   success: boolean;
@@ -419,6 +559,7 @@ export async function getPujaDarshanToken(bookingId: string): Promise<{
     isHost: boolean;
   };
   error?: string;
+  code?: string;
 }> {
   try {
     const user = await getCurrentUser();
@@ -427,7 +568,7 @@ export async function getPujaDarshanToken(bookingId: string): Promise<{
     const admin = await createAdminClient("main");
     const { data: booking } = await admin
       .from("puja_bookings")
-      .select("id, customer_id, astrologer_id, darshan_room_name, status, fulfilment_status")
+      .select("id, customer_id, astrologer_id, darshan_room_name, status, fulfilment_status, preferred_date, time_slot")
       .eq("id", bookingId)
       .maybeSingle();
 
@@ -451,7 +592,19 @@ export async function getPujaDarshanToken(bookingId: string): Promise<{
     const isSuperAdmin = userProfile?.role === "super_admin";
 
     if (!isCustomer && !isAssignedPriest && !isSuperAdmin) {
-      return { success: false, error: "Unauthorized access to this sacred Darshan session." };
+      return { success: false, error: "Unauthorized access to this sacred Darshan session.", code: "UNAUTHORIZED" };
+    }
+
+    // Devotees & non-superadmins must pass strict authoritative time & status validation
+    if (!isSuperAdmin) {
+      const eligibility = evaluatePujaDarshanEligibility(booking);
+      if (!eligibility.canJoin) {
+        return {
+          success: false,
+          error: eligibility.humanMessage,
+          code: eligibility.status,
+        };
+      }
     }
 
     const roomName = booking.darshan_room_name || `puja_${booking.id.slice(0, 8)}`;

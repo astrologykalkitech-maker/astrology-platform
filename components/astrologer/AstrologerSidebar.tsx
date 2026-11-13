@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +20,7 @@ import {
   Users,
   Clock,
   Sparkles,
+  Flame,
   type LucideIcon,
 } from "lucide-react";
 import { SignOutButton } from "@/components/astrologer/SignOutButton";
@@ -37,6 +39,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/dashboard", label: "Dashboard", i18nKey: "dashboard", icon: LayoutDashboard },
   { href: "/astrologer/broadcast", label: "Live Broadcast", i18nKey: "broadcasts", icon: Sparkles },
+  { href: "/astrologer/pujas", label: "Puja Rituals", i18nKey: "pujaBooking", icon: Flame },
   { href: "/astrologer/chat", label: "Live Chat", i18nKey: "liveChat", icon: MessageSquare },
   { href: "/astrologer/leads", label: "My Leads", i18nKey: "enquiries", icon: MessageSquareText },
   { href: "/astrologer/crm", label: "Client CRM", i18nKey: "clients", icon: Users },
@@ -44,7 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/availability", label: "Working Hours", i18nKey: "availability", icon: Clock },
   { href: "/astrologer/profile", label: "My Profile", i18nKey: "profile", icon: UserRound, exact: true },
   { href: "/astrologer/subscription", label: "Subscription", i18nKey: "subscription", icon: Sparkles },
-  { href: "/astrologer/reviews", label: "Reviews", i18nKey: "support", icon: Star },
+  { href: "/astrologer/reviews", label: "Client Reviews", i18nKey: "reviews", icon: Star },
   { href: "/astrologer/earnings", label: "Earnings", i18nKey: "earnings", icon: Wallet },
   { href: "/astrologer/notifications", label: "Notifications", i18nKey: "notifications", icon: Bell },
   { href: "/astrologer/support", label: "Support", i18nKey: "support", icon: LifeBuoy },
@@ -65,7 +68,7 @@ type SidebarProps = {
   onClose: () => void;
 };
 
-export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
+function AstrologerSidebarComponent({ open, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { t } = useLanguage();
 
@@ -179,3 +182,5 @@ export function AstrologerSidebar({ open, onNavigate, onClose }: SidebarProps) {
     </aside>
   );
 }
+
+export const AstrologerSidebar = memo(AstrologerSidebarComponent);

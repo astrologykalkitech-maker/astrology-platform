@@ -47,6 +47,7 @@ export const ta: TranslationSchema = {
     availability: "கிடைக்கும் நேரம்",
     pricing: "ஆலோசனை கட்டணம்",
     subscription: "சந்தா திட்டம்",
+    reviews: "வாடிக்கையாளர் மதிப்புரைகள்",
     earnings: "வருமானம்",
   },
   customer: {

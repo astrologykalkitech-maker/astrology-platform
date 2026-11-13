@@ -47,6 +47,7 @@ export const te: TranslationSchema = {
     availability: "సమయం",
     pricing: "రుసుము",
     subscription: "చందా ప్లాన్",
+    reviews: "కస్టమర్ సమీక్షలు",
     earnings: "ఆదాయం",
   },
   customer: {

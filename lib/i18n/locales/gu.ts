@@ -47,6 +47,7 @@ export const gu: TranslationSchema = {
     availability: "ઉપલબ્ધતા",
     pricing: "પરામર્શ દરો",
     subscription: "સબ્સ્ક્રિપ્શન અને પ્લાન",
+    reviews: "ગ્રાહક સમીક્ષાઓ",
     earnings: "આવક અને રેકોર્ડ",
   },
   customer: {

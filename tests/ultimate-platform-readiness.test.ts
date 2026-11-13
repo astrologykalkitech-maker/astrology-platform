@@ -99,31 +99,16 @@ test("Ultimate Platform Readiness & Enterprise Features Test Suite", async (t) =
   });
 
   // --------------------------------------------------------------------------
-  // 4. Community Feed & Moderation
+  // 4. Community Feed Permanently Removed Verification
   // --------------------------------------------------------------------------
-  await t.test("Community: Retrieves feed and rejects unauthorized publishing", async () => {
-    const {
-      getCommunityFeedAction,
-      createCommunityPostAction,
-      reportCommunityContentAction,
-    } = await import("../app/actions/community");
-
-    const feed = await getCommunityFeedAction({ limit: 10 });
-    assert.ok(Array.isArray(feed.data));
-
-    const post = await createCommunityPostAction({
-      content: "Exploring the influence of Jupiter in Rohini Nakshatra",
-      category: "astrology_insights",
-    });
-    assert.equal(post.success, false);
-    assert.match(post.error || "", /Authentication required/i);
-
-    const report = await reportCommunityContentAction({
-      targetType: "post",
-      targetId: "00000000-0000-0000-0000-000000000001",
-      reason: "Spam content",
-    });
-    assert.equal(report.success, false);
+  await t.test("Community: Module permanently decommissioned and routes eliminated", async () => {
+    let importFailed = false;
+    try {
+      await import("../app/actions/community" as any);
+    } catch {
+      importFailed = true;
+    }
+    assert.equal(importFailed, true, "Community actions module must be completely removed");
   });
 
   // --------------------------------------------------------------------------

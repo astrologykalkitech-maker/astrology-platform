@@ -47,6 +47,7 @@ export const kn: TranslationSchema = {
     availability: "ಲಭ್ಯತೆ",
     pricing: "ಸಮಾಲೋಚನಾ ದರಗಳು",
     subscription: "ಚಂದಾದಾರಿಕೆ ಯೋಜನೆ",
+    reviews: "ಗ್ರಾಹಕರ ವಿಮರ್ಶೆಗಳು",
     earnings: "ಗಳಿಕೆಗಳು",
   },
   customer: {

@@ -40,7 +40,7 @@ export function RealtimeAstrologerSync() {
       window.addEventListener("jyotishsetu:booking-created", handleLocalEvent);
       window.addEventListener("jyotishsetu:booking-updated", handleLocalEvent);
 
-      // 2. Subscribe to postgres_changes on astrologer_profiles & customer_bookings
+      // 2. Subscribe to postgres_changes on astrologer_profiles, customer_bookings, & astrologer_live_broadcasts
       channel = supabase
         .channel("realtime-customer-portal-sync")
         .on(
@@ -60,6 +60,39 @@ export function RealtimeAstrologerSync() {
             event: "*",
             schema: "public",
             table: "customer_bookings",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "astrologer_live_broadcasts",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "puja_bookings",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_notifications",
           },
           () => {
             triggerRefresh();

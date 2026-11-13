@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Flame,
   User,
@@ -18,7 +18,9 @@ import {
   updatePujaBookingStatus,
   assignPanditToBooking,
   attachPujaEvidence,
+  modifyPujaBookingSchedule,
 } from "@/app/actions/super-admin-puja-bookings";
+import { VALID_PUJA_TIME_SLOTS } from "@/lib/astrology/puja-darshan-access";
 
 export function SuperAdminPujaBookingsClient({
   initialBookings,
@@ -28,6 +30,30 @@ export function SuperAdminPujaBookingsClient({
   eligiblePandits?: any[];
 }) {
   const [bookings, setBookings] = useState(initialBookings);
+
+  // Sync state whenever initialBookings changes (e.g. server revalidation)
+  useEffect(() => {
+    setBookings(initialBookings);
+  }, [initialBookings]);
+
+  // Periodic polling every 5s to pick up newly created customer bookings or status changes in real-time
+  useEffect(() => {
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const { getSuperAdminPujaBookings } = await import("@/app/actions/super-admin-puja-bookings");
+        const res = await getSuperAdminPujaBookings();
+        if (active && res.success && res.data) {
+          setBookings(res.data);
+        }
+      } catch {}
+    }, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -35,6 +61,15 @@ export function SuperAdminPujaBookingsClient({
   const [assigningBooking, setAssigningBooking] = useState<any | null>(null);
   const [selectedPanditId, setSelectedPanditId] = useState("");
   const [assigningLoading, setAssigningLoading] = useState(false);
+
+  // Modify Schedule Modal
+  const [scheduleBooking, setScheduleBooking] = useState<any | null>(null);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleSlot, setScheduleSlot] = useState("");
+  const [scheduleSankalp, setScheduleSankalp] = useState("");
+  const [scheduleGotra, setScheduleGotra] = useState("");
+  const [scheduleAdminNotes, setScheduleAdminNotes] = useState("");
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   // Evidence Upload Modal
   const [evidenceBooking, setEvidenceBooking] = useState<any | null>(null);
@@ -103,6 +138,45 @@ export function SuperAdminPujaBookingsClient({
       }
     } finally {
       setAssigningLoading(false);
+    }
+  };
+
+  const handleModifyScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleBooking || !scheduleDate || !scheduleSlot) return;
+
+    setScheduleLoading(true);
+    try {
+      const res = await modifyPujaBookingSchedule({
+        bookingId: scheduleBooking.id,
+        preferredDate: scheduleDate,
+        timeSlot: scheduleSlot,
+        sankalpName: scheduleSankalp,
+        gotra: scheduleGotra,
+        adminNotes: scheduleAdminNotes,
+      });
+
+      if (res.success) {
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === scheduleBooking.id
+              ? {
+                  ...b,
+                  preferred_date: scheduleDate,
+                  time_slot: scheduleSlot,
+                  sankalp_name: scheduleSankalp || b.sankalp_name,
+                  gotra: scheduleGotra || b.gotra,
+                  admin_notes: scheduleAdminNotes || b.admin_notes,
+                }
+              : b
+          )
+        );
+        setScheduleBooking(null);
+      } else {
+        alert(res.error || "Failed to update schedule.");
+      }
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -221,6 +295,20 @@ export function SuperAdminPujaBookingsClient({
                       {new Date(b.preferred_date).toLocaleDateString("en-IN", { dateStyle: "medium" })}
                     </div>
                     <div className="text-[11px] text-muted">{b.time_slot}</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScheduleBooking(b);
+                        setScheduleDate(b.preferred_date);
+                        setScheduleSlot(b.time_slot);
+                        setScheduleSankalp(b.sankalp_name);
+                        setScheduleGotra(b.gotra || "Kashyap");
+                        setScheduleAdminNotes(b.admin_notes || "");
+                      }}
+                      className="text-[10px] text-sky-700 hover:underline font-semibold mt-0.5 inline-block cursor-pointer"
+                    >
+                      ✎ Edit Schedule
+                    </button>
                   </td>
                   <td className="p-3.5">
                     <div className="font-semibold text-midnight">
@@ -324,6 +412,100 @@ export function SuperAdminPujaBookingsClient({
                   className="px-4 py-1.5 bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight rounded-xl text-xs font-bold hover:opacity-95 disabled:opacity-50 cursor-pointer"
                 >
                   {assigningLoading ? "Assigning..." : "Confirm Priest Assignment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODIFY SCHEDULE MODAL */}
+      {scheduleBooking && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 border border-gold/30 shadow-2xl space-y-4">
+            <h3 className="font-bold text-base text-midnight">Modify Sacred Puja Schedule</h3>
+            <p className="text-xs text-muted">
+              Update date, time slot, and Sankalp details for REF #{scheduleBooking.id.slice(0, 8).toUpperCase()}. Changes will immediately notify the customer and priest.
+            </p>
+
+            <form onSubmit={handleModifyScheduleSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  Muhurat Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  Sacred Time Slot *
+                </label>
+                <select
+                  required
+                  value={scheduleSlot}
+                  onChange={(e) => setScheduleSlot(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                >
+                  {VALID_PUJA_TIME_SLOTS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">Devotee Sankalp</label>
+                  <input
+                    type="text"
+                    value={scheduleSankalp}
+                    onChange={(e) => setScheduleSankalp(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">Gotra</label>
+                  <input
+                    type="text"
+                    value={scheduleGotra}
+                    onChange={(e) => setScheduleGotra(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-800 mb-1">Admin Reschedule Note</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Adjusted as per auspicious temple muhurat"
+                  value={scheduleAdminNotes}
+                  onChange={(e) => setScheduleAdminNotes(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setScheduleBooking(null)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={scheduleLoading || !scheduleDate || !scheduleSlot}
+                  className="px-4 py-1.5 bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight rounded-xl text-xs font-bold hover:opacity-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {scheduleLoading ? "Saving..." : "Save & Notify Customer"}
                 </button>
               </div>
             </form>

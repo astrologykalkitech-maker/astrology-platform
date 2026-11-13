@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Flame,
   Calendar,
@@ -16,42 +16,53 @@ import {
   X,
   History,
   Send,
+  Lock,
 } from "lucide-react";
 import {
   submitPujaBookingRequest,
   reschedulePujaBooking,
   cancelPujaBooking,
   getPujaDarshanToken,
+  validatePujaDarshanAccess,
   submitPujaReview,
   type PujaItem,
   type PujaBookingRecord,
 } from "@/app/actions/puja";
-
-const VALID_PUJA_TIME_SLOTS = [
-  "Brahma Muhurat (04:30 AM - 06:00 AM)",
-  "Morning (07:00 AM - 10:00 AM)",
-  "Abhijit Muhurat (11:45 AM - 12:35 PM)",
-  "Evening Pradosh (05:30 PM - 07:30 PM)",
-];
+import {
+  VALID_PUJA_TIME_SLOTS,
+  evaluatePujaDarshanEligibility,
+  type PujaDarshanEligibility,
+} from "@/lib/astrology/puja-darshan-access";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] p-5";
 
+export interface PriestOption {
+  id: string;
+  display_name: string;
+  profile_photo_url: string | null;
+  specializations: string[] | null;
+  experience_years?: number | null;
+}
+
 export function CustomerPujaBookingClient({
   pujas,
   myBookings = [],
+  priests = [],
   customerName,
   initialError,
 }: {
   pujas: PujaItem[];
   myBookings?: PujaBookingRecord[];
+  priests?: PriestOption[];
   customerName: string;
   initialError?: string;
 }) {
   const [activeTab, setActiveTab] = useState<"catalog" | "my_bookings">("catalog");
   const [selectedPuja, setSelectedPuja] = useState<PujaItem | null>(null);
   const [preferredDate, setPreferredDate] = useState("");
-  const [timeSlot, setTimeSlot] = useState(VALID_PUJA_TIME_SLOTS[1]);
+  const [timeSlot, setTimeSlot] = useState<string>(VALID_PUJA_TIME_SLOTS[1]);
+  const [selectedPriestId, setSelectedPriestId] = useState<string>("");
   const [sankalpName, setSankalpName] = useState(customerName);
   const [gotra, setGotra] = useState("Kashyap");
   const [instructions, setInstructions] = useState("");
@@ -64,10 +75,34 @@ export function CustomerPujaBookingClient({
   // Booking list state
   const [bookingsList, setBookingsList] = useState<PujaBookingRecord[]>(myBookings);
 
+  // Sync state whenever myBookings changes (e.g. from router.refresh() triggered by Realtime events)
+  useEffect(() => {
+    setBookingsList(myBookings);
+  }, [myBookings]);
+
+  // Periodic polling every 5s to pick up schedule changes, priest assignments, or cancellations instantly
+  useEffect(() => {
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const { getCustomerPujaBookings } = await import("@/app/actions/puja");
+        const res = await getCustomerPujaBookings();
+        if (active && res.success && res.data) {
+          setBookingsList(res.data);
+        }
+      } catch {}
+    }, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Reschedule Modal
   const [reschedulingBooking, setReschedulingBooking] = useState<PujaBookingRecord | null>(null);
   const [newRescheduleDate, setNewRescheduleDate] = useState("");
-  const [newRescheduleSlot, setNewRescheduleSlot] = useState(VALID_PUJA_TIME_SLOTS[1]);
+  const [newRescheduleSlot, setNewRescheduleSlot] = useState<string>(VALID_PUJA_TIME_SLOTS[1]);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   // Review Modal
@@ -78,6 +113,19 @@ export function CustomerPujaBookingClient({
 
   // Evidence Lightbox
   const [viewingEvidence, setViewingEvidence] = useState<PujaBookingRecord | null>(null);
+
+  // Current client timestamp to drive countdown and automatic join button activation
+  const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<{ id: string; message: string } | null>(null);
+
+  // Periodic tick every 10 seconds to update countdowns and auto-activate buttons when joining window arrives
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +143,7 @@ export function CustomerPujaBookingClient({
         sankalpName,
         gotra,
         specialInstructions: instructions,
+        astrologerId: selectedPriestId || undefined,
         idempotencyKey: `bk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       });
 
@@ -110,6 +159,12 @@ export function CustomerPujaBookingClient({
       });
       setSelectedPuja(null);
       setInstructions("");
+
+      // Dispatch global synchronization events across open portals
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("jyotishsetu:booking-created"));
+        window.dispatchEvent(new CustomEvent("jyotishsetu:puja-booking-created"));
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Could not complete puja booking.";
       setResultMsg({ type: "error", text: msg });
@@ -191,11 +246,21 @@ export function CustomerPujaBookingClient({
   };
 
   const handleJoinDarshan = async (bookingId: string) => {
-    const res = await getPujaDarshanToken(bookingId);
-    if (res.success && res.tokenResult) {
-      alert(`Connecting to Sacred Live Darshan in room: ${res.tokenResult.roomName}`);
-    } else {
-      alert(res.error || "Darshan session is not active right now. Please join during your scheduled Muhurat.");
+    setJoiningId(bookingId);
+    setJoinError(null);
+    try {
+      const res = await getPujaDarshanToken(bookingId);
+      if (res.success && res.tokenResult) {
+        alert(
+          `Sacred Live Video Darshan window is active!\nRoom: ${res.tokenResult.roomName}\nRole: Devotee (Viewer)\n\nConnecting to consecrated sanctum broadcast...`
+        );
+      } else {
+        setJoinError({ id: bookingId, message: res.error || "Darshan session is not active right now." });
+      }
+    } catch (err: any) {
+      setJoinError({ id: bookingId, message: err.message || "Could not establish Darshan connection." });
+    } finally {
+      setJoiningId(null);
     }
   };
 
@@ -341,6 +406,27 @@ export function CustomerPujaBookingClient({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-800 mb-1">
+                      Choose Vedic Astrologer / Presiding Pandit (Optional)
+                    </label>
+                    <select
+                      value={selectedPriestId}
+                      onChange={(e) => setSelectedPriestId(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                    >
+                      <option value="">Any Available Consecrated Pandit (Assigned by Temple)</option>
+                      {priests.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.display_name} {p.experience_years ? `(${p.experience_years}+ yrs exp)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-muted mt-0.5">
+                      Select your preferred acharya or leave as default for temple coordination.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800 mb-1">
                       Sankalp Name (Devotee Full Name) *
                     </label>
                     <input
@@ -352,7 +438,9 @@ export function CustomerPujaBookingClient({
                       className="w-full p-2.5 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
                     />
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-800 mb-1">Gotra</label>
                     <input
@@ -415,8 +503,8 @@ export function CustomerPujaBookingClient({
 
                 <div className="mt-4 pt-3 border-t border-gold/15 flex items-center justify-between">
                   <div className="text-xs">
-                    <span className="text-[10px] text-muted block">Dakshina</span>
-                    <span className="font-bold text-midnight">₹{p.base_price || 2100}</span>
+                    <span className="text-[10px] text-muted block">Ritual Format</span>
+                    <span className="font-semibold text-gold-deep">Online Sacred Puja</span>
                   </div>
 
                   <button
@@ -456,16 +544,18 @@ export function CustomerPujaBookingClient({
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
                         b.status === "completed"
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : b.status === "confirmed"
-                          ? "bg-sky-50 text-sky-700 border border-sky-200"
+                          : b.status === "confirmed" || b.fulfilment_status === "assignment_accepted"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : b.status === "cancelled"
                           ? "bg-red-50 text-red-700 border border-red-200"
                           : "bg-amber-50 text-amber-700 border border-amber-200"
                       }`}
                     >
-                      {b.status}
+                      {b.status === "confirmed" || b.fulfilment_status === "assignment_accepted" ? "APPROVED" : b.status}
                     </span>
-                    <span className="text-[10px] text-muted capitalize">({b.fulfilment_status || "received"})</span>
+                    <span className="text-[10px] text-muted capitalize">
+                      ({b.fulfilment_status === "assignment_accepted" ? "Priest Approved" : b.fulfilment_status || "received"})
+                    </span>
                   </div>
                 </div>
 
@@ -490,69 +580,144 @@ export function CustomerPujaBookingClient({
                   </div>
                 </div>
 
-                {/* Action Buttons: Live Darshan, Reschedule, Cancel, View Evidence, Review */}
-                <div className="pt-3 flex items-center justify-between flex-wrap gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    {/* Live Video Darshan */}
-                    {b.status !== "cancelled" && (
-                      <button
-                        type="button"
-                        onClick={() => handleJoinDarshan(b.id)}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-midnight text-ivory px-3 py-1.5 font-bold hover:bg-midnight/90 cursor-pointer shadow-xs"
-                      >
-                        <Video className="h-3.5 w-3.5 text-gold" /> Join Live Video Darshan
-                      </button>
-                    )}
+                {/* Darshan Access State & Joining Section */}
+                {(() => {
+                  const eligibility = evaluatePujaDarshanEligibility(b, nowMs);
+                  const isCurJoining = joiningId === b.id;
+                  const curError = joinError?.id === b.id ? joinError.message : null;
 
-                    {/* View Media Evidence if completed */}
-                    {b.status === "completed" && (
-                      <button
-                        type="button"
-                        onClick={() => setViewingEvidence(b)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 bg-gold/15 px-3 py-1.5 font-semibold text-gold-deep hover:bg-gold/25 cursor-pointer"
+                  return (
+                    <div className="pt-3 space-y-3">
+                      {/* Status / Instruction Banner */}
+                      <div
+                        className={`rounded-xl p-3 text-xs flex items-start gap-2.5 border transition ${
+                          eligibility.isLiveNow
+                            ? "bg-red-500/10 border-red-500/30 text-red-700"
+                            : eligibility.canJoin
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800"
+                            : eligibility.status === "TOO_EARLY"
+                            ? "bg-amber-500/10 border-amber-500/25 text-amber-900"
+                            : eligibility.status === "BOOKING_COMPLETED"
+                            ? "bg-slate-100 border-slate-200 text-slate-700"
+                            : "bg-gold/10 border-gold/20 text-midnight"
+                        }`}
                       >
-                        <Eye className="h-3.5 w-3.5" /> View Consecration Evidence
-                      </button>
-                    )}
-                  </div>
+                        {eligibility.isLiveNow ? (
+                          <span className="flex h-2.5 w-2.5 rounded-full bg-red-600 animate-ping mt-1 shrink-0" />
+                        ) : eligibility.canJoin ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : eligibility.status === "TOO_EARLY" ? (
+                          <Clock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <Lock className="h-4 w-4 text-gold-deep shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-semibold leading-relaxed">
+                            {eligibility.humanMessage}
+                          </p>
+                          {eligibility.status === "TOO_EARLY" && (
+                            <p className="text-[11px] text-amber-800/80 mt-1 font-medium">
+                              Join at your scheduled day, date and time. The "Join Live Video Darshan" portal will automatically activate when your auspicious window opens.
+                            </p>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Reschedule Button if not completed/cancelled */}
-                    {b.status !== "completed" && b.status !== "cancelled" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReschedulingBooking(b);
-                            setNewRescheduleDate(b.preferred_date);
-                            setNewRescheduleSlot(b.time_slot);
-                          }}
-                          className="rounded-xl border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                        >
-                          Reschedule
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCancelBooking(b.id)}
-                          className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100 cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    )}
+                      {curError && (
+                        <div className="rounded-xl bg-red-50 border border-red-200 p-2.5 text-xs text-red-800 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                          <span>{curError}</span>
+                        </div>
+                      )}
 
-                    {/* Review Feedback Button if completed */}
-                    {b.status === "completed" && !b.rating && (
-                      <button
-                        type="button"
-                        onClick={() => setReviewingBooking(b)}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-gold px-3 py-1.5 font-bold text-midnight hover:bg-gold-light cursor-pointer shadow-xs"
-                      >
-                        <Star className="h-3.5 w-3.5 fill-current" /> Rate Ritual Experience
-                      </button>
-                    )}
-                  </div>
-                </div>
+                      {/* Action Buttons: Live Darshan, Reschedule, Cancel, View Evidence, Review */}
+                      <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          {/* Live Video Darshan - Time & Status Guarded */}
+                          {b.status !== "cancelled" && b.status !== "completed" && (
+                            eligibility.canJoin ? (
+                              <button
+                                type="button"
+                                disabled={isCurJoining}
+                                onClick={() => handleJoinDarshan(b.id)}
+                                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-bold cursor-pointer shadow-md transition ${
+                                  eligibility.isLiveNow
+                                    ? "bg-red-600 text-white hover:bg-red-700 animate-pulse"
+                                    : "bg-midnight text-ivory hover:bg-midnight/90"
+                                }`}
+                              >
+                                {isCurJoining ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin text-gold" />
+                                ) : (
+                                  <Video className="h-4 w-4 text-gold" />
+                                )}
+                                {eligibility.isLiveNow ? "Join Live Video Darshan (LIVE NOW)" : "Join Live Video Darshan"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                title="Darshan is only joinable during your confirmed scheduled window."
+                                className="inline-flex items-center gap-2 rounded-xl bg-slate-100 text-slate-400 border border-slate-200 px-4 py-2 font-bold cursor-not-allowed shadow-none"
+                              >
+                                <Lock className="h-3.5 w-3.5 text-slate-400" />
+                                Join Live Video Darshan
+                              </button>
+                            )
+                          )}
+
+                          {/* View Media Evidence if completed */}
+                          {b.status === "completed" && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingEvidence(b)}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 bg-gold/15 px-3 py-1.5 font-semibold text-gold-deep hover:bg-gold/25 cursor-pointer"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View Consecration Evidence
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* Reschedule Button if not completed/cancelled */}
+                          {b.status !== "completed" && b.status !== "cancelled" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setReschedulingBooking(b);
+                                  setNewRescheduleDate(b.preferred_date);
+                                  setNewRescheduleSlot(b.time_slot);
+                                }}
+                                className="rounded-xl border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                              >
+                                Reschedule
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCancelBooking(b.id)}
+                                className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          )}
+
+                          {/* Review Feedback Button if completed */}
+                          {b.status === "completed" && !b.rating && (
+                            <button
+                              type="button"
+                              onClick={() => setReviewingBooking(b)}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-gold px-3 py-1.5 font-bold text-midnight hover:bg-gold-light cursor-pointer shadow-xs"
+                            >
+                              <Star className="h-3.5 w-3.5 fill-current" /> Rate Ritual Experience
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ))
           )}

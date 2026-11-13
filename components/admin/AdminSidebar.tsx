@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -46,7 +47,7 @@ interface AdminSidebarProps {
   onClose?: () => void;
 }
 
-export function AdminSidebar({
+function AdminSidebarComponent({
   isSuperAdmin,
   permissions,
   open = false,
@@ -278,3 +279,5 @@ export function AdminSidebar({
     </>
   );
 }
+
+export const AdminSidebar = memo(AdminSidebarComponent);

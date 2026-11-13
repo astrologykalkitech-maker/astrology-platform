@@ -36,9 +36,9 @@ export function SuperAdminPujasClient({ initialPujas }: { initialPujas: any[] })
 
   const handleOpenEdit = (p: any) => {
     setEditingPuja(p);
-    setName(p.name);
+    setName(p.title || p.name || "");
     setDescription(p.description || "");
-    setSignificance(p.significance || "");
+    setSignificance(p.benefits || p.significance || "");
     setDurationMinutes(p.duration_minutes || 60);
     setBasePrice(p.base_price || 2100);
     setCategory(p.category || "Vedic");
@@ -92,10 +92,12 @@ export function SuperAdminPujasClient({ initialPujas }: { initialPujas: any[] })
     }
   };
 
-  const filtered = pujas.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.category || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = pujas.filter((p) => {
+    const title = (p.title || p.name || "").toLowerCase();
+    const cat = (p.category || "").toLowerCase();
+    const q = search.toLowerCase();
+    return title.includes(q) || cat.includes(q);
+  });
 
   return (
     <div className="space-y-6">
@@ -142,8 +144,8 @@ export function SuperAdminPujasClient({ initialPujas }: { initialPujas: any[] })
               filtered.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50/60 transition">
                   <td className="p-3.5">
-                    <div className="font-bold text-midnight">{p.name}</div>
-                    <div className="text-[11px] text-muted line-clamp-1">{p.significance || p.description}</div>
+                    <div className="font-bold text-midnight">{p.title || p.name}</div>
+                    <div className="text-[11px] text-muted line-clamp-1">{p.benefits || p.significance || p.description}</div>
                   </td>
                   <td className="p-3.5">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">

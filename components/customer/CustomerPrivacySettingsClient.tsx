@@ -15,28 +15,72 @@ import {
   updateUserConsentAction,
   requestCustomerDataExportAction,
   requestAccountDeletionAction,
+  getCustomerPrivacyConsentsAction,
 } from "@/app/actions/privacy-retention";
 
 export function CustomerPrivacySettingsClient() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [aiConsent, setAiConsent] = useState(true);
   const [cameraConsent, setCameraConsent] = useState(true);
+  const [loadingConsents, setLoadingConsents] = useState(true);
+  const [consentError, setConsentError] = useState<string | null>(null);
+
   const [exportLoading, setExportLoading] = useState(false);
   const [exportResult, setExportResult] = useState<any | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteScheduled, setDeleteScheduled] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Load saved consent settings on mount
+  React.useEffect(() => {
+    let active = true;
+    getCustomerPrivacyConsentsAction()
+      .then((res) => {
+        if (!active) return;
+        if (res.success && res.consents) {
+          for (const c of res.consents) {
+            if (c.purpose === "marketing") setMarketingConsent(c.is_granted);
+            if (c.purpose === "ai_processing") setAiConsent(c.is_granted);
+            if (c.purpose === "palmistry_photo") setCameraConsent(c.is_granted);
+          }
+        }
+      })
+      .catch((err) => {
+        if (active) setConsentError(err?.message || "Failed to load saved consent settings.");
+      })
+      .finally(() => {
+        if (active) setLoadingConsents(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleToggleConsent = async (purpose: string, val: boolean, setter: (b: boolean) => void) => {
     setter(val);
-    await updateUserConsentAction({ purpose, isGranted: val });
+    setConsentError(null);
+    try {
+      const res = await updateUserConsentAction({ purpose, isGranted: val });
+      if (!res.success) {
+        setter(!val); // Revert on failure
+        setConsentError(res.error || "Failed to update consent preference.");
+      }
+    } catch (err: any) {
+      setter(!val);
+      setConsentError(err?.message || "Failed to update consent preference.");
+    }
   };
 
   const handleExportData = async () => {
     setExportLoading(true);
+    setExportError(null);
     try {
       const res = await requestCustomerDataExportAction();
-      if (res.success) {
+      if (res.success && res.exportPackage) {
         setExportResult(res.exportPackage);
         // Trigger direct browser download
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.exportPackage, null, 2));
@@ -47,8 +91,10 @@ export function CustomerPrivacySettingsClient() {
         downloadAnchor.click();
         downloadAnchor.remove();
       } else {
-        alert(res.error || "Failed to generate export");
+        setExportError(res.error || "Failed to generate export archive. Please try again.");
       }
+    } catch (err: any) {
+      setExportError(err?.message || "A network error occurred while generating your data archive.");
     } finally {
       setExportLoading(false);
     }
@@ -61,13 +107,16 @@ export function CustomerPrivacySettingsClient() {
     if (!confirm) return;
 
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const res = await requestAccountDeletionAction(deleteReason);
       if (res.success && res.scheduledDeletionAt) {
         setDeleteScheduled(res.scheduledDeletionAt);
       } else {
-        alert(res.error || "Failed to schedule account deletion");
+        setDeleteError(res.error || "Failed to schedule account deletion.");
       }
+    } catch (err: any) {
+      setDeleteError(err?.message || "Failed to schedule account deletion.");
     } finally {
       setIsDeleting(false);
     }
@@ -94,6 +143,12 @@ export function CustomerPrivacySettingsClient() {
         <h2 className="text-sm font-bold text-midnight uppercase tracking-wider">
           Processing Consents
         </h2>
+
+        {consentError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+            {consentError}
+          </div>
+        )}
 
         <div className="space-y-4 text-xs">
           <div className="flex items-center justify-between p-3 rounded-xl bg-parchment/30 border border-gold/15">
@@ -165,6 +220,18 @@ export function CustomerPrivacySettingsClient() {
           {exportLoading ? "Compiling Records..." : "Download Complete Data Archive"}
         </button>
 
+        {exportError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 flex items-center justify-between">
+            <span>{exportError}</span>
+            <button
+              onClick={handleExportData}
+              className="text-xs font-bold text-red-900 underline ml-2 cursor-pointer"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
         {exportResult && (
           <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 text-xs text-emerald-900 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
@@ -187,6 +254,12 @@ export function CustomerPrivacySettingsClient() {
         <p className="text-xs text-red-900 leading-relaxed">
           Requesting account deletion initiates a 30-day grace period. After this window, your profile details, chat records, and personal birth charts are permanently deleted or anonymized in compliance with financial audit retention laws.
         </p>
+
+        {deleteError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+            {deleteError}
+          </div>
+        )}
 
         {deleteScheduled ? (
           <div className="rounded-xl bg-red-100 border border-red-300 p-4 text-xs text-red-900 font-semibold space-y-1">

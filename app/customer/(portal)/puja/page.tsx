@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, Flame, ShieldCheck, HeartHandshake } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
-import { getPujaCatalog, getCustomerPujaBookings } from "@/app/actions/puja";
+import { getPujaCatalog, getCustomerPujaBookings, getAvailablePujaPriests } from "@/app/actions/puja";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { CustomerPujaBookingClient } from "@/components/customer/CustomerPujaBookingClient";
 
@@ -15,13 +15,15 @@ export const metadata = {
 
 export default async function CustomerPujaPage() {
   const ctx = await requireCustomerPage();
-  const [catalogRes, bookingsRes] = await Promise.all([
+  const [catalogRes, bookingsRes, priestsRes] = await Promise.all([
     getPujaCatalog(),
     getCustomerPujaBookings(),
+    getAvailablePujaPriests(),
   ]);
 
   const pujas = catalogRes.success && catalogRes.data ? catalogRes.data : [];
   const myBookings = bookingsRes.success && bookingsRes.data ? bookingsRes.data : [];
+  const priests = priestsRes.success && priestsRes.data ? priestsRes.data : [];
   const catalogError = !catalogRes.success ? catalogRes.error : undefined;
 
   return (
@@ -52,6 +54,7 @@ export default async function CustomerPujaPage() {
       <CustomerPujaBookingClient
         pujas={pujas}
         myBookings={myBookings}
+        priests={priests}
         customerName={ctx.user.user_metadata?.full_name || ""}
         initialError={catalogError}
       />

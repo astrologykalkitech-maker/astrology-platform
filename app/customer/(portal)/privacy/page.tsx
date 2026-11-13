@@ -1,4 +1,3 @@
-import { CustomerShell } from "@/components/customer/CustomerShell";
 import { CustomerPrivacySettingsClient } from "@/components/customer/CustomerPrivacySettingsClient";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 
@@ -8,16 +7,7 @@ export const metadata = {
 };
 
 export default async function CustomerPrivacyPage() {
-  const customer = await requireCustomerPage();
+  await requireCustomerPage();
 
-  return (
-    <CustomerShell
-      customerName={customer.profile.full_name || "Seeker"}
-      userInitial={(customer.profile.full_name || "S").charAt(0).toUpperCase()}
-      photoUrl={customer.profile.avatar_url}
-      userId={customer.user.id}
-    >
-      <CustomerPrivacySettingsClient />
-    </CustomerShell>
-  );
+  return <CustomerPrivacySettingsClient />;
 }

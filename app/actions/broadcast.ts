@@ -66,6 +66,19 @@ export async function createLiveBroadcast(params: {
       return { success: false, error: "Only approved astrologers can host live broadcasts." };
     }
 
+    // Auto-terminate any existing unclosed / lingering live broadcasts for this astrologer
+    // to strictly prevent duplicate live broadcast sessions
+    await admin
+      .from("astrologer_live_broadcasts")
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
+        viewer_count: 0,
+        termination_reason: "Superseded by new broadcast session",
+      })
+      .eq("astrologer_id", profile.id)
+      .in("status", ["live", "starting", "preparing", "paused"]);
+
     const roomName = `broadcast_${profile.id}_${Date.now()}`;
 
     // Insert broadcast record with initial state 'preparing'
@@ -290,13 +303,14 @@ export async function endLiveBroadcast(
       return { success: false, error: "Unauthorized: Only the broadcast owner or a Super Admin can end this broadcast." };
     }
 
-    // 3. Update database status to ended
+    // 3. Atomically update database status to ended and reset viewer count
     const nowIso = new Date().toISOString();
     const { error: updateErr } = await admin
       .from("astrologer_live_broadcasts")
       .update({
         status: "ended",
         ended_at: nowIso,
+        viewer_count: 0,
         termination_reason: reason,
         updated_at: nowIso,
       })
@@ -306,7 +320,7 @@ export async function endLiveBroadcast(
       return { success: false, error: updateErr.message };
     }
 
-    // 4. Authoritatively terminate LiveKit room if active
+    // 4. Authoritatively terminate LiveKit room if active on SFU
     try {
       const config = getLiveKitConfig();
       const roomService = new RoomServiceClient(config.httpUrl, config.apiKey, config.apiSecret);
@@ -317,6 +331,7 @@ export async function endLiveBroadcast(
 
     revalidatePath("/astrologer/broadcast");
     revalidatePath("/customer/broadcasts");
+    revalidatePath("/super-admin/broadcasts");
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to end broadcast." };
@@ -417,46 +432,65 @@ export async function getAuthoritativeBroadcastViewerCount(roomName: string): Pr
   success: boolean;
   viewerCount: number | null;
   isHostOnline: boolean;
+  isLive: boolean;
   error?: string;
 }> {
   try {
-    const config = getLiveKitConfig();
-    const roomService = new RoomServiceClient(config.httpUrl, config.apiKey, config.apiSecret);
-    const participants = await roomService.listParticipants(roomName);
-
-    // Filter out broadcaster / host identities
-    const host = participants.find((p) => p.identity.startsWith("astro_"));
-    const viewers = participants.filter((p) => !p.identity.startsWith("astro_"));
-
     const admin = await createAdminClient("main");
 
-    // Fetch current peak viewer count
+    // Fetch broadcast record to check status
     const { data: bRecord } = await admin
       .from("astrologer_live_broadcasts")
       .select("id, peak_viewer_count, status")
       .eq("room_name", roomName)
       .maybeSingle();
 
-    if (bRecord) {
+    if (!bRecord || bRecord.status === "ended" || bRecord.status === "cancelled") {
+      return {
+        success: true,
+        viewerCount: 0,
+        isHostOnline: false,
+        isLive: false,
+      };
+    }
+
+    let hostOnline = false;
+    let viewerCount = 0;
+
+    try {
+      const config = getLiveKitConfig();
+      const roomService = new RoomServiceClient(config.httpUrl, config.apiKey, config.apiSecret);
+      const participants = await roomService.listParticipants(roomName);
+
+      // Filter out broadcaster / host identities
+      const host = participants.find((p) => p.identity.startsWith("astro_"));
+      const viewers = participants.filter((p) => !p.identity.startsWith("astro_"));
+      hostOnline = Boolean(host);
+      viewerCount = viewers.length;
+
       const currentPeak = bRecord.peak_viewer_count || 0;
-      const newPeak = Math.max(currentPeak, viewers.length);
+      const newPeak = Math.max(currentPeak, viewerCount);
 
       await admin
         .from("astrologer_live_broadcasts")
         .update({
-          viewer_count: viewers.length,
+          viewer_count: viewerCount,
           peak_viewer_count: newPeak,
         })
         .eq("id", bRecord.id);
+    } catch {
+      // If LiveKit room is not found / closed on SFU
+      hostOnline = false;
     }
 
     return {
       success: true,
-      viewerCount: viewers.length,
-      isHostOnline: Boolean(host),
+      viewerCount,
+      isHostOnline: hostOnline,
+      isLive: bRecord.status === "live" || bRecord.status === "preparing",
     };
   } catch {
-    return { success: false, viewerCount: null, isHostOnline: true, error: "Viewer count unavailable" };
+    return { success: false, viewerCount: null, isHostOnline: false, isLive: false, error: "Viewer count unavailable" };
   }
 }
 
@@ -775,14 +809,35 @@ export async function getUpcomingScheduledBroadcasts() {
 
 /**
  * Returns all active, live broadcasts.
+ * Guaranteed to exclude:
+ * - ended, failed, or cancelled broadcasts
+ * - expired broadcasts (started over 12 hours ago)
+ * - stale broadcasts whose host disconnected beyond the 90s grace period
+ * - broadcasts from non-approved astrologers
  */
 export async function getActiveLiveBroadcasts() {
   try {
     const admin = await createAdminClient("main");
+
+    // Reconcile stale broadcasts whose heartbeat hasn't updated for > 90 seconds
+    const staleCutoff = new Date(Date.now() - 90000).toISOString();
+    await admin
+      .from("astrologer_live_broadcasts")
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
+        viewer_count: 0,
+        termination_reason: "Host disconnect timeout (heartbeat stale)",
+      })
+      .in("status", ["live", "starting", "preparing", "paused"])
+      .lt("last_host_heartbeat_at", staleCutoff);
+
     const { data, error } = await admin
       .from("astrologer_live_broadcasts")
-      .select("*, astrologer:astrologer_profiles(id, display_name, profile_photo_url, experience_years)")
-      .in("status", ["live", "preparing"])
+      .select("*, astrologer:astrologer_profiles!inner(id, display_name, profile_photo_url, experience_years, approval_status)")
+      .in("status", ["live", "starting", "preparing", "paused"])
+      .is("ended_at", null)
+      .eq("astrologer.approval_status", "approved")
       .order("started_at", { ascending: false });
 
     if (error) {
