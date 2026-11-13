@@ -681,11 +681,30 @@ export function AstrologerChatClient({
       setTimeout(() => scrollToBottom(true), 40);
 
       try {
-        const res = await sendDirectMessageAction(selectedConvoId, text, {
-          clientMessageId: clientMsgId,
-          replyToMessageId: replyContext?.id,
-          attachments: attachments,
-        });
+        let res: any = null;
+        try {
+          res = await sendDirectMessageAction(selectedConvoId, text, {
+            clientMessageId: clientMsgId,
+            replyToMessageId: replyContext?.id,
+            attachments: attachments,
+          });
+        } catch (actionErr) {
+          // Fallback to standard HTTP route if Server Action tunnel drops or is intercepted by hosting proxy
+          const apiFetch = await fetch("/api/chat/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversationId: selectedConvoId,
+              message: text,
+              options: {
+                clientMessageId: clientMsgId,
+                replyToMessageId: replyContext?.id,
+                attachments: attachments,
+              },
+            }),
+          });
+          res = await apiFetch.json().catch(() => null);
+        }
 
         if (!res.success || !res.data) {
           setError(res.error || "Failed to deliver message");
