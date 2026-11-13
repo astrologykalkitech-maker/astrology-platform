@@ -118,9 +118,15 @@ export async function updateListingModerationStatus(
       return { success: false, error: "Listing not found." };
     }
 
+    const { data: profileCheck } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
     const updatePayload: Record<string, unknown> = {
       approval_status: status,
-      reviewed_by: user.id,
+      reviewed_by: profileCheck ? user.id : null,
       reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

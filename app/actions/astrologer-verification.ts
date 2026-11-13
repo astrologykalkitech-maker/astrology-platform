@@ -311,13 +311,22 @@ export async function updateVerificationStageReviewAction({
     }
 
     if (newApprovalStatus) {
+      // Check if admin user exists in DB1 public.profiles to satisfy FK constraint
+      const { data: profileCheck } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("id", adminSession.user.id)
+        .maybeSingle();
+
+      const validReviewedBy = profileCheck ? adminSession.user.id : null;
+
       // Update astrologer_profiles in DB1 ("main")
       await admin
         .from("astrologer_profiles")
         .update({
           approval_status: newApprovalStatus,
           review_notes: reviewerNotes ? reviewerNotes.trim() : null,
-          reviewed_by: adminSession.user.id,
+          reviewed_by: validReviewedBy,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -326,12 +335,20 @@ export async function updateVerificationStageReviewAction({
       // Mirror to DB2 if configured
       try {
         const admin2 = await createAdminClient("admin");
+        const { data: db2ProfileCheck } = await admin2
+          .from("profiles")
+          .select("id")
+          .eq("id", adminSession.user.id)
+          .maybeSingle();
+
+        const db2ReviewedBy = db2ProfileCheck ? adminSession.user.id : null;
+
         await admin2
           .from("astrologer_profiles")
           .update({
             approval_status: newApprovalStatus,
             review_notes: reviewerNotes ? reviewerNotes.trim() : null,
-            reviewed_by: adminSession.user.id,
+            reviewed_by: db2ReviewedBy,
             reviewed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -451,12 +468,20 @@ export async function approveAstrologerWithSyncAction({
     }
 
     // 2. Authoritative listing status update in DB1
+    const { data: profileCheck } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", adminSession.user.id)
+      .maybeSingle();
+
+    const validReviewedBy = profileCheck ? adminSession.user.id : null;
+
     const { error: profileErr } = await admin
       .from("astrologer_profiles")
       .update({
         approval_status: "approved",
         review_notes: notes ? notes.trim() : "Approved through Verification Command Center.",
-        reviewed_by: adminSession.user.id,
+        reviewed_by: validReviewedBy,
         reviewed_at: nowIso,
         updated_at: nowIso,
       })
@@ -469,12 +494,20 @@ export async function approveAstrologerWithSyncAction({
     // 3. Mirror to secondary admin database (DB2)
     try {
       const admin2 = await createAdminClient("admin");
+      const { data: db2ProfileCheck } = await admin2
+        .from("profiles")
+        .select("id")
+        .eq("id", adminSession.user.id)
+        .maybeSingle();
+
+      const db2ReviewedBy = db2ProfileCheck ? adminSession.user.id : null;
+
       await admin2
         .from("astrologer_profiles")
         .update({
           approval_status: "approved",
           review_notes: notes ? notes.trim() : "Approved through Verification Command Center.",
-          reviewed_by: adminSession.user.id,
+          reviewed_by: db2ReviewedBy,
           reviewed_at: nowIso,
           updated_at: nowIso,
         })
