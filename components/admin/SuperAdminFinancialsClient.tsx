@@ -168,8 +168,8 @@ export function SuperAdminFinancialsClient({
 
       {/* Tab: Overview (Recent Payments) */}
       {activeTab === "overview" && (
-        <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto table-scrollbar">
+          <table className="w-full min-w-[650px] text-left text-xs">
             <thead>
               <tr className="border-b border-gold/15 bg-parchment/40 text-[11px] font-semibold text-midnight">
                 <th className="py-3 px-4">Receipt Number</th>
@@ -316,8 +316,8 @@ export function SuperAdminFinancialsClient({
 
       {/* Tab: Chart of Accounts */}
       {activeTab === "accounts" && (
-        <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto table-scrollbar">
+          <table className="w-full min-w-[650px] text-left text-xs">
             <thead>
               <tr className="border-b border-gold/15 bg-parchment/40 text-[11px] font-semibold text-midnight">
                 <th className="py-3 px-4">Code</th>

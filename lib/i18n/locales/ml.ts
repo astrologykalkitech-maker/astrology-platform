@@ -41,7 +41,6 @@ export const ml: TranslationSchema = {
     support: "സഹായ കേന്ദ്രം",
     favorites: "പ്രിയപ്പെട്ട ജ്യോതിഷികൾ",
     broadcasts: "തത്സമയ സംപ്രേക്ഷണം",
-    spiritualMarket: "ആത്മീയ ഉൽപ്പന്നങ്ങൾ",
     pujaBooking: "ഓൺലൈൻ പൂജാ ബുക്കിംഗ്",
     dashboard: "ഡാഷ്‌ബോർഡ്",
     clients: "ഭക്തർ",
@@ -106,16 +105,6 @@ export const ml: TranslationSchema = {
     broadcastBy: "നടത്തുന്നത്",
     startYourLive: "ലൈവ് സെഷൻ ആരംഭിക്കുക",
   },
-  products: {
-    marketTitle: "ആത്മീയ ഉൽപ്പന്നങ്ങളുടെ കാറ്റലോഗ്",
-    marketDesc: "യന്ത്രങ്ങൾ, രത്നങ്ങൾ, രുദ്രാക്ഷം, പൂജാ ദ്രവ്യങ്ങൾ",
-    category: "വിഭാഗം",
-    allCategories: "എല്ലാ വിഭാഗങ്ങളും",
-    price: "വില",
-    inStock: "ലഭ്യമാണ്",
-    outOfStock: "ഓർഡർ പ്രകാരം ലഭ്യമാണ്",
-    details: "ഉൽപ്പന്ന വിവരങ്ങൾ",
-    benefits: "ആത്മീയ ഗുണങ്ങൾ",
-  },
 };
+
 

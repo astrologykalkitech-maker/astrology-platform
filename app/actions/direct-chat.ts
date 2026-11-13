@@ -703,8 +703,23 @@ export async function sendDirectMessageAction(
       return { success: false, error: "Unauthorized to send message in this conversation" };
     }
 
-    // 1. Idempotency Check: prevent duplicate messages from rapid retries
+    // 1. Idempotency Check: prevent duplicate messages from rapid retries or HTTP fallback
     const clientMessageId = options?.clientMessageId || null;
+    if (clientMessageId) {
+      const { data: existingMsg } = await admin
+        .from("direct_messages")
+        .select()
+        .eq("conversation_id", conversationId)
+        .eq("sender_id", user.id)
+        .eq("client_message_id", clientMessageId)
+        .maybeSingle();
+
+      if (existingMsg) {
+        // Return existing message idempotently
+        const parsedExisting = parseDirectMessageRow(existingMsg, user.id);
+        return { success: true, data: parsedExisting || undefined };
+      }
+    }
 
     // 2. Resolve Reply Context if replying to a parent message
     let replySnippet: DirectMessageReply | null = null;
@@ -737,7 +752,7 @@ export async function sendDirectMessageAction(
     };
     const encodedAttachmentMeta = encodeDirectMessageMeta(metaPayload);
 
-    // 4. Insert message
+    // 4. Insert message with client_message_id column populated
     const { data: newMsg, error: insertErr } = await admin
       .from("direct_messages")
       .insert({
@@ -746,11 +761,27 @@ export async function sendDirectMessageAction(
         sender_role: senderRole,
         message: trimmed || (attachments.length > 0 ? `Sent ${attachments.length} attachment(s)` : ""),
         attachment_url: encodedAttachmentMeta,
+        client_message_id: clientMessageId,
       })
       .select()
       .single();
 
     if (insertErr || !newMsg) {
+      // If unique constraint conflict occurred during concurrent requests, retrieve the existing message
+      if (insertErr?.code === "23505" && clientMessageId) {
+        const { data: conflictMsg } = await admin
+          .from("direct_messages")
+          .select()
+          .eq("conversation_id", conversationId)
+          .eq("sender_id", user.id)
+          .eq("client_message_id", clientMessageId)
+          .maybeSingle();
+
+        if (conflictMsg) {
+          const parsedConflict = parseDirectMessageRow(conflictMsg, user.id);
+          return { success: true, data: parsedConflict || undefined };
+        }
+      }
       return { success: false, error: insertErr?.message || "Failed to deliver message" };
     }
 

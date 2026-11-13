@@ -41,7 +41,6 @@ export const kn: TranslationSchema = {
     support: "ಸಹಾಯ ಕೇಂದ್ರ",
     favorites: "ಮೆಚ್ಚಿನ ಜ್ಯೋತಿಷಿಗಳು",
     broadcasts: "ಲೈವ್ ಪ್ರಸಾರ",
-    spiritualMarket: "ಆಧ್ಯಾತ್ಮಿಕ ಉತ್ಪನ್ನಗಳು",
     pujaBooking: "ಆನ್‌ಲೈನ್ ಪೂಜಾ ಬುಕಿಂಗ್",
     dashboard: "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
     clients: "ಭಕ್ತರು & ಸಾಧಕರು",
@@ -106,16 +105,6 @@ export const kn: TranslationSchema = {
     broadcastBy: "ಪ್ರಸಾರಕರು",
     startYourLive: "ಲೈವ್ ಸೆಷನ್ ನಡೆಸಿ",
   },
-  products: {
-    marketTitle: "ಆಧ್ಯಾತ್ಮಿಕ ಉತ್ಪನ್ನಗಳ ಪಟ್ಟಿ",
-    marketDesc: "ಯಂತ್ರಗಳು, ರತ್ನಗಳು, ರುದ್ರಾಕ್ಷಿ ಮತ್ತು ಪೂಜಾ ಸಾಮಗ್ರಿಗಳು",
-    category: "ವರ್ಗ",
-    allCategories: "ಎಲ್ಲಾ ವರ್ಗಗಳು",
-    price: "ಬೆಲೆ",
-    inStock: "ಲಭ್ಯವಿದೆ",
-    outOfStock: "ಆರ್ಡರ್ ಮೇಲೆ ಲಭ್ಯವಿದೆ",
-    details: "ಉತ್ಪನ್ನದ ವಿವರ",
-    benefits: "ಆಧ್ಯಾತ್ಮಿಕ ಪ್ರಯೋಜನಗಳು",
-  },
 };
+
 

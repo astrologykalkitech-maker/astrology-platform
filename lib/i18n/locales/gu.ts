@@ -41,7 +41,6 @@ export const gu: TranslationSchema = {
     support: "સહાય અને સપોર્ટ",
     favorites: "મનપસંદ જ્યોતિષીઓ",
     broadcasts: "લાઈવ પ્રસારણ",
-    spiritualMarket: "આધ્યાત્મિક ઉત્પાદનો",
     pujaBooking: "ઑનલાઇન પૂજા બુકિંગ",
     dashboard: "ડેશબોર્ડ",
     clients: "સાધકો અને ગ્રાહકો",
@@ -106,16 +105,6 @@ export const gu: TranslationSchema = {
     broadcastBy: "પ્રસારક",
     startYourLive: "લાઈવ સત્ર યોજો",
   },
-  products: {
-    marketTitle: "આધ્યાત્મિક સામગ્રી કૅટેલૉગ",
-    marketDesc: "સિદ્ધ યંત્રો, રત્નો, રુદ્રાક્ષ અને પવિત્ર સામગ્રી",
-    category: "શ્રેણી",
-    allCategories: "બધી શ્રેણીઓ",
-    price: "કિંમત",
-    inStock: "ઉપલબ્ધ",
-    outOfStock: "ઓર્ડર પર ઉપલબ્ધ",
-    details: "ઉત્પાદન વિગતો",
-    benefits: "આધ્યાત્મિક લાભો",
-  },
 };
+
 

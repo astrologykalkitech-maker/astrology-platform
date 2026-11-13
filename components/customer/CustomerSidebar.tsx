@@ -39,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/favorites", label: "Favourite Astrologers", i18nKey: "favorites", icon: Heart },
   { href: "/customer/broadcasts", label: "Live Broadcasts", i18nKey: "broadcasts", icon: Sparkles },
   { href: "/customer/puja", label: "Online Puja Booking", i18nKey: "pujaBooking", icon: Sparkles },
+  { href: "/customer/tools", label: "Astrology Tools & KP", i18nKey: "astrologyTools", icon: Compass },
   { href: "/customer/chat", label: "Live Chat", i18nKey: "liveChat", icon: MessageSquare },
   { href: "/customer/kundli", label: "My Kundli", i18nKey: "myKundli", icon: Compass },
   { href: "/customer/kundli-milan", label: "Kundli Milan", i18nKey: "kundliMilan", icon: Heart },
@@ -56,6 +57,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/customer/billing", label: "Billing & Receipts", i18nKey: "billing", icon: Receipt },
   { href: "/customer/notification", label: "Notifications", i18nKey: "notifications", icon: Bell },
   { href: "/customer/offers", label: "Special Offers", i18nKey: "specialOffers", icon: Gift },
+  { href: "/customer/community", label: "Community Feed", i18nKey: "community", icon: MessageSquare },
+  { href: "/customer/ai-services", label: "AI Recommendations", i18nKey: "aiServices", icon: Sparkles },
+  { href: "/customer/privacy", label: "Privacy & Data", i18nKey: "privacy", icon: ShieldCheck },
   { href: "/customer/support", label: "Support & Help", i18nKey: "support", icon: LifeBuoy },
 ];
 

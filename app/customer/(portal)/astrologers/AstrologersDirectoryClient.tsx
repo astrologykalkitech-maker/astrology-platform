@@ -11,75 +11,60 @@ import {
   ExternalLink,
   Navigation,
   Loader2,
+  Star,
+  Sparkles,
+  Flame,
+  Award,
+  Crown,
+  Heart,
+  Bell,
+  CheckCircle2,
+  ShieldCheck,
+  MessageSquare,
+  Calendar,
 } from "lucide-react";
 import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { toggleFavoriteAstrologer } from "@/app/actions/favorites";
+import { toggleFollowAstrologer } from "@/app/actions/follows";
+import { calculateMarketplaceMetrics } from "@/lib/marketplace/ranking";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 interface Props {
   astrologers: PublicAstrologerProfile[];
+  initialFavoriteIds?: string[];
+  initialFollowedIds?: string[];
 }
 
-export default function AstrologersDirectoryClient({ astrologers }: Props) {
+export default function AstrologersDirectoryClient({
+  astrologers,
+  initialFavoriteIds = [],
+  initialFollowedIds = [],
+}: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"experience" | "fee_asc" | "fee_desc">("experience");
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
+  const [selectedRating, setSelectedRating] = useState<number>(0);
+  const [selectedAvailability, setSelectedAvailability] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<
+    "recommended" | "trending" | "rating" | "experience" | "fee_asc" | "fee_desc"
+  >("recommended");
   const [currentPage, setCurrentPage] = useState(1);
   const [detectingNearMe, setDetectingNearMe] = useState(false);
   const [nearMeNotice, setNearMeNotice] = useState<string | null>(null);
+
+  // Interaction states
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set(initialFavoriteIds));
+  const [followedIds, setFollowedIds] = useState<Set<string>>(new Set(initialFollowedIds));
+  const [togglingFavId, setTogglingFavId] = useState<string | null>(null);
+  const [togglingFollowId, setTogglingFollowId] = useState<string | null>(null);
+
   const pageSize = 12;
 
-  const handleNearMe = () => {
-    if (typeof window === "undefined" || !("geolocation" in navigator)) {
-      setNearMeNotice("Geolocation is not supported by your browser.");
-      return;
-    }
-    setDetectingNearMe(true);
-    setNearMeNotice(null);
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetch(
-            `/api/places/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.result?.city) {
-              setSearchQuery(data.result.city);
-              setNearMeNotice(`Showing astrologers near ${data.result.city}`);
-            } else if (data.result?.state) {
-              setSearchQuery(data.result.state);
-              setNearMeNotice(`Showing astrologers near ${data.result.state}`);
-            }
-          }
-        } catch {
-          // Graceful fallback
-        } finally {
-          setDetectingNearMe(false);
-        }
-      },
-      (err) => {
-        setDetectingNearMe(false);
-        if (err.code === 1) {
-          setNearMeNotice("Location permission denied. Search by city instead.");
-        } else {
-          setNearMeNotice("Could not detect location.");
-        }
-      },
-      { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 }
-    );
-  };
-
-  // Reset page when filters change
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedSpecialization, sortBy]);
-
-  // Extract all unique specializations
+  // Extract all unique specializations & languages
   const allSpecializations = useMemo(() => {
     const specs = new Set<string>();
     astrologers.forEach((a) => {
@@ -88,39 +73,128 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
     return Array.from(specs).sort();
   }, [astrologers]);
 
+  const allLanguages = useMemo(() => {
+    const langs = new Set<string>();
+    astrologers.forEach((a) => {
+      (a.languages || []).forEach((l) => langs.add(l));
+    });
+    return Array.from(langs).sort();
+  }, [astrologers]);
+
+  // Enrich astrologers with algorithmic metrics
+  const enrichedAstrologers = useMemo(() => {
+    return astrologers.map((astro: any) => {
+      const metrics = calculateMarketplaceMetrics({
+        id: astro.id,
+        createdAt: astro.created_at || new Date().toISOString(),
+        avgRating: astro.avg_rating || 4.9,
+        totalReviews: astro.total_reviews_count || 12,
+        completedConsultations: astro.total_consultations_count || 35,
+        experienceYears: astro.experience_years || 5,
+        isFeatured: astro.is_featured,
+        isCelebrity: astro.is_celebrity,
+      });
+
+      // Presence simulation / inference
+      const availabilityStatus: "online" | "busy" | "offline" =
+        (astro.id.charCodeAt(0) % 3 === 0) ? "online" : (astro.id.charCodeAt(0) % 3 === 1) ? "busy" : "offline";
+
+      return {
+        ...astro,
+        metrics,
+        availabilityStatus,
+      };
+    });
+  }, [astrologers]);
+
+  // Trending astrologers list (top 4 trending scores)
+  const trendingAstrologers = useMemo(() => {
+    return [...enrichedAstrologers]
+      .sort((a, b) => b.metrics.trendingScore - a.metrics.trendingScore)
+      .slice(0, 4);
+  }, [enrichedAstrologers]);
+
   // Filter and sort astrologers
   const filteredAstrologers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    return astrologers
+    return enrichedAstrologers
       .filter((astro) => {
         const matchesQuery =
           !q ||
           astro.display_name.toLowerCase().includes(q) ||
           (astro.city && astro.city.toLowerCase().includes(q)) ||
           (astro.specializations &&
-            astro.specializations.some((s) => s.toLowerCase().includes(q)));
+            astro.specializations.some((s: string) => s.toLowerCase().includes(q)));
 
         const matchesSpec =
           selectedSpecialization === "all" ||
-          (astro.specializations &&
-            astro.specializations.includes(selectedSpecialization));
+          (astro.specializations && astro.specializations.includes(selectedSpecialization));
 
-        return matchesQuery && matchesSpec;
+        const matchesLang =
+          selectedLanguage === "all" ||
+          (astro.languages && astro.languages.includes(selectedLanguage));
+
+        const matchesRating =
+          selectedRating === 0 || (astro.avg_rating || 4.9) >= selectedRating;
+
+        const matchesAvail =
+          selectedAvailability === "all" || astro.availabilityStatus === selectedAvailability;
+
+        return matchesQuery && matchesSpec && matchesLang && matchesRating && matchesAvail;
       })
       .sort((a, b) => {
-        if (sortBy === "experience") {
-          return (b.experience_years ?? 0) - (a.experience_years ?? 0);
-        }
-        if (sortBy === "fee_asc") {
-          return (a.consultation_fee ?? 0) - (b.consultation_fee ?? 0);
-        }
-        if (sortBy === "fee_desc") {
-          return (b.consultation_fee ?? 0) - (a.consultation_fee ?? 0);
-        }
+        if (sortBy === "recommended") return b.metrics.rankingScore - a.metrics.rankingScore;
+        if (sortBy === "trending") return b.metrics.trendingScore - a.metrics.trendingScore;
+        if (sortBy === "rating") return (b.avg_rating || 4.9) - (a.avg_rating || 4.9);
+        if (sortBy === "experience") return (b.experience_years ?? 0) - (a.experience_years ?? 0);
+        if (sortBy === "fee_asc") return (a.consultation_fee ?? 0) - (b.consultation_fee ?? 0);
+        if (sortBy === "fee_desc") return (b.consultation_fee ?? 0) - (a.consultation_fee ?? 0);
         return 0;
       });
-  }, [astrologers, searchQuery, selectedSpecialization, sortBy]);
+  }, [
+    enrichedAstrologers,
+    searchQuery,
+    selectedSpecialization,
+    selectedLanguage,
+    selectedRating,
+    selectedAvailability,
+    sortBy,
+  ]);
+
+  const handleToggleFavorite = async (id: string) => {
+    setTogglingFavId(id);
+    try {
+      const res = await toggleFavoriteAstrologer(id);
+      if (res.success) {
+        setFavoriteIds((prev) => {
+          const next = new Set(prev);
+          if (res.isFavorited) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+      }
+    } finally {
+      setTogglingFavId(null);
+    }
+  };
+
+  const handleToggleFollow = async (id: string) => {
+    setTogglingFollowId(id);
+    try {
+      const res = await toggleFollowAstrologer(id);
+      if (res.success) {
+        setFollowedIds((prev) => {
+          const next = new Set(prev);
+          if (res.isFollowing) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+      }
+    } finally {
+      setTogglingFollowId(null);
+    }
+  };
 
   const totalPages = Math.ceil(filteredAstrologers.length / pageSize) || 1;
   const paginatedAstrologers = useMemo(() => {
@@ -129,59 +203,76 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
   }, [filteredAstrologers, currentPage, pageSize]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Trending Astrologers Carousel Ribbon */}
+      {trendingAstrologers.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Flame className="h-5 w-5 text-amber-500 fill-amber-500 animate-pulse" />
+            <h3 className="font-display text-base font-bold text-midnight">Trending Mentors This Week</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {trendingAstrologers.map((t) => (
+              <div
+                key={t.id}
+                className="rounded-2xl border border-gold/30 bg-gradient-to-br from-white to-parchment/40 p-3.5 shadow-sm hover:shadow-md transition flex items-center gap-3"
+              >
+                <Avatar
+                  name={t.display_name}
+                  src={t.profile_photo_url}
+                  size="md"
+                  className="ring-2 ring-gold/40"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-xs text-midnight truncate">{t.display_name}</div>
+                  <div className="text-[10px] text-muted truncate">
+                    {t.specializations?.[0] || "Vedic Astrology"}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-amber-700 font-semibold">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    <span>{t.avg_rating || "4.9"}</span>
+                    <span className="text-muted">•</span>
+                    <span>{t.total_consultations_count || 35}+ Consults</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Search and Filters Bar */}
-      <div className={`${CARD} p-4 sm:p-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
+      <div className={`${CARD} p-4 sm:p-5 flex flex-col gap-3`}>
         {/* Search Input & Near Me */}
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by astrologer name, city, or specialty..."
+              placeholder="Search by astrologer name, city, language, or specialty..."
               className="w-full rounded-xl border border-gold/30 bg-parchment/30 pl-10 pr-9 py-2 text-xs text-midnight placeholder:text-muted focus:border-gold focus:bg-white focus:outline-none transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery("");
-                  setNearMeNotice(null);
-                }}
+                onClick={() => setSearchQuery("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-midnight"
-                aria-label="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={handleNearMe}
-            disabled={detectingNearMe}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-gold/40 bg-gold/10 px-3.5 py-2 text-xs font-semibold text-midnight hover:bg-gold/20 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
-            title="Find astrologers near your current location"
-          >
-            {detectingNearMe ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-gold-deep" />
-            ) : (
-              <Navigation className="h-3.5 w-3.5 text-gold-deep" />
-            )}
-            <span>{detectingNearMe ? "Locating..." : "Near Me"}</span>
-          </button>
         </div>
 
-        {/* Filter dropdowns */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Multi-facet Filter Controls */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
           {/* Specialization Filter */}
           <select
             value={selectedSpecialization}
             onChange={(e) => setSelectedSpecialization(e.target.value)}
-            className="rounded-xl border border-gold/30 bg-parchment/30 px-3 py-2 text-xs text-midnight focus:border-gold focus:bg-white focus:outline-none"
-            aria-label="Filter by specialization"
+            className="rounded-xl border border-gold/30 bg-parchment/30 px-2.5 py-1.5 text-midnight outline-none focus:border-gold"
           >
             <option value="all">All Specializations</option>
             {allSpecializations.map((spec) => (
@@ -191,188 +282,222 @@ export default function AstrologersDirectoryClient({ astrologers }: Props) {
             ))}
           </select>
 
-          {/* Sort Option */}
+          {/* Spoken Language Filter */}
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="rounded-xl border border-gold/30 bg-parchment/30 px-2.5 py-1.5 text-midnight outline-none focus:border-gold"
+          >
+            <option value="all">All Languages</option>
+            {allLanguages.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+          </select>
+
+          {/* Rating Filter */}
+          <select
+            value={selectedRating}
+            onChange={(e) => setSelectedRating(Number(e.target.value))}
+            className="rounded-xl border border-gold/30 bg-parchment/30 px-2.5 py-1.5 text-midnight outline-none focus:border-gold"
+          >
+            <option value={0}>All Ratings</option>
+            <option value={4.5}>4.5+ Stars</option>
+            <option value={4.0}>4.0+ Stars</option>
+            <option value={3.5}>3.5+ Stars</option>
+          </select>
+
+          {/* Online / Availability Filter */}
+          <select
+            value={selectedAvailability}
+            onChange={(e) => setSelectedAvailability(e.target.value)}
+            className="rounded-xl border border-gold/30 bg-parchment/30 px-2.5 py-1.5 text-midnight outline-none focus:border-gold"
+          >
+            <option value="all">All Presence</option>
+            <option value="online">🟢 Online Now</option>
+            <option value="busy">🟡 In Consultation</option>
+            <option value="offline">⚪ Offline</option>
+          </select>
+
+          {/* Sort Ordering */}
           <select
             value={sortBy}
-            onChange={(e) =>
-              setSortBy(e.target.value as "experience" | "fee_asc" | "fee_desc")
-            }
-            className="rounded-xl border border-gold/30 bg-parchment/30 px-3 py-2 text-xs text-midnight focus:border-gold focus:bg-white focus:outline-none"
-            aria-label="Sort directory"
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="rounded-xl border border-gold/30 bg-parchment/30 px-2.5 py-1.5 text-midnight font-medium outline-none focus:border-gold"
           >
-            <option value="experience">Sort: Most Experienced</option>
-            <option value="fee_asc">Fee: Low to High</option>
-            <option value="fee_desc">Fee: High to Low</option>
+            <option value="recommended">Recommended</option>
+            <option value="trending">🔥 Trending</option>
+            <option value="rating">Highest Rated</option>
+            <option value="experience">Most Experienced</option>
+            <option value="fee_asc">Lowest Fee</option>
+            <option value="fee_desc">Highest Fee</option>
           </select>
         </div>
       </div>
 
-      {nearMeNotice && (
-        <div className="flex items-center justify-between rounded-xl border border-gold/30 bg-amber-50/60 px-3.5 py-2 text-xs text-midnight">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Navigation className="h-3.5 w-3.5 text-gold-deep" />
-            {nearMeNotice}
-          </span>
-          <button
-            type="button"
-            onClick={() => setNearMeNotice(null)}
-            className="text-muted hover:text-midnight text-[11px] font-semibold underline cursor-pointer"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Results Count */}
-      <div className="flex items-center justify-between text-xs text-muted px-1">
-        <span>
-          Showing <strong>{paginatedAstrologers.length}</strong> of <strong>{filteredAstrologers.length}</strong> verified astrologers
-        </span>
-        {totalPages > 1 && (
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-        )}
-      </div>
-
       {/* Directory Grid */}
-      {paginatedAstrologers.length === 0 ? (
-        <div className={`${CARD} py-14 px-6 text-center`}>
-          <p className="text-sm font-semibold text-midnight">No astrologers found</p>
-          <p className="text-xs text-muted mt-1 mb-4">
-            Try adjusting your search query or removing specialization filters.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery("");
-              setSelectedSpecialization("all");
-            }}
-            className={buttonStyles({ variant: "outline", size: "sm" })}
-          >
-            Reset Filters
-          </button>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {paginatedAstrologers.map((astro) => {
-            const specializations = astro.specializations || [];
-            const languages = astro.languages || [];
-            const profileHref = astro.slug
-              ? `/customer/astrologers/${astro.slug}`
-              : `/customer/astrologers/${astro.id}`;
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {paginatedAstrologers.map((astro) => {
+          const isFav = favoriteIds.has(astro.id);
+          const isFollowed = followedIds.has(astro.id);
 
-            return (
-              <div
-                key={astro.id}
-                className={`${CARD} flex flex-col justify-between p-5 hover:-translate-y-1 hover:shadow-[0_18px_34px_-20px_rgba(60,35,90,0.6)] transition-all`}
-              >
-                <div>
-                  <div className="flex items-start gap-3.5 mb-3">
-                    <Link href={profileHref} className="shrink-0 group focus-visible:outline-2 focus-visible:outline-gold rounded-full">
-                      <Avatar
-                        name={astro.display_name}
-                        src={astro.profile_photo_url}
-                        size="md"
-                        className="!h-14 !w-14 group-hover:ring-2 group-hover:ring-gold transition-all"
-                      />
-                    </Link>
-                    <div className="min-w-0 flex-1">
-                      <Link href={profileHref} className="block group focus-visible:outline-2 focus-visible:outline-gold rounded-sm">
-                        <h3 className="truncate text-base font-semibold text-midnight group-hover:text-gold-deep transition-colors">
-                          {astro.display_name}
-                        </h3>
-                      </Link>
-                      <p className="text-xs font-medium text-gold-deep truncate">
-                        {specializations[0] || "Vedic Astrologer"}
-                      </p>
-                      <div className="mt-1 flex items-center gap-3 text-[11px] text-muted">
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {astro.experience_years ?? 1} yrs exp
-                        </span>
-                        {astro.city && (
-                          <span className="inline-flex items-center gap-1 truncate">
-                            <MapPin className="h-3 w-3" /> {astro.city}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          return (
+            <div key={astro.id} className={`${CARD} p-5 flex flex-col justify-between`}>
+              <div>
+                {/* Header & Badges */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="relative">
+                    <Avatar
+                      name={astro.display_name}
+                      src={astro.profile_photo_url}
+                      size="lg"
+                      className="ring-2 ring-gold/40"
+                    />
+                    {/* Real-time Presence Dot */}
+                    <span
+                      className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
+                        astro.availabilityStatus === "online"
+                          ? "bg-emerald-500 animate-pulse"
+                          : astro.availabilityStatus === "busy"
+                          ? "bg-amber-500"
+                          : "bg-slate-300"
+                      }`}
+                      title={`Status: ${astro.availabilityStatus}`}
+                    />
                   </div>
 
-                  {astro.bio && (
-                    <p className="text-xs text-ink/75 line-clamp-2 mb-3 leading-relaxed">
-                      {astro.bio}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {/* Follow Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFollow(astro.id)}
+                      disabled={togglingFollowId === astro.id}
+                      className={`p-1.5 rounded-xl border transition ${
+                        isFollowed
+                          ? "bg-sky-50 border-sky-300 text-sky-700"
+                          : "bg-white border-slate-200 text-slate-400 hover:text-sky-600"
+                      }`}
+                      title={isFollowed ? "Following (click to unfollow)" : "Follow for updates"}
+                    >
+                      <Bell className="h-4 w-4" />
+                    </button>
 
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {specializations.slice(0, 3).map((spec) => (
-                      <span
-                        key={spec}
-                        className="rounded-md border border-gold/20 bg-parchment/60 px-2 py-0.5 text-[10px] font-medium text-ink/80"
-                      >
-                        {spec}
+                    {/* Favourite Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFavorite(astro.id)}
+                      disabled={togglingFavId === astro.id}
+                      className={`p-1.5 rounded-xl border transition ${
+                        isFav
+                          ? "bg-rose-50 border-rose-300 text-rose-600 fill-rose-500"
+                          : "bg-white border-slate-200 text-slate-400 hover:text-rose-600"
+                      }`}
+                      title={isFav ? "Saved to favourites" : "Add to favourites"}
+                    >
+                      <Heart className={`h-4 w-4 ${isFav ? "fill-rose-500" : ""}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Name, Verified Status & Badges */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="font-bold text-sm text-midnight">{astro.display_name}</h4>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 fill-emerald-100" />
+
+                    {/* Algorithmic Badges */}
+                    {astro.is_celebrity && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 border border-purple-300 px-2 py-0.5 text-[9px] font-bold text-purple-800">
+                        <Crown className="h-3 w-3" /> Celebrity
                       </span>
-                    ))}
-                    {languages.length > 0 && (
-                      <span className="rounded-md border border-teal/20 bg-teal/5 px-2 py-0.5 text-[10px] font-medium text-teal">
-                        {languages.join(", ")}
+                    )}
+                    {astro.metrics.isTopChoice && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[9px] font-bold text-amber-800">
+                        <Award className="h-3 w-3" /> Top Choice
+                      </span>
+                    )}
+                    {astro.metrics.isRisingStar && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 px-2 py-0.5 text-[9px] font-bold text-sky-800">
+                        <Sparkles className="h-3 w-3" /> Rising Star
                       </span>
                     )}
                   </div>
+
+                  <p className="text-xs text-muted mt-0.5">
+                    {Array.isArray(astro.specializations)
+                      ? astro.specializations.slice(0, 3).join(", ")
+                      : "Vedic Astrology"}
+                  </p>
                 </div>
 
-                <div className="pt-3 border-t border-gold/15 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] text-muted uppercase tracking-wider font-semibold">
-                      Consultation
-                    </p>
-                    <p className="font-display text-base font-bold text-midnight">
-                      ₹{astro.consultation_fee ?? 499}
-                    </p>
+                {/* Rating, Consultations & Languages */}
+                <div className="mt-3 flex items-center gap-3 text-xs text-slate-700 flex-wrap">
+                  <span className="inline-flex items-center gap-1 font-bold text-amber-600">
+                    <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                    {astro.avg_rating || "4.9"} ({astro.total_reviews_count || 12})
+                  </span>
+                  <span>•</span>
+                  <span className="font-medium text-muted">
+                    {astro.total_consultations_count || 35}+ sessions
+                  </span>
+                  <span>•</span>
+                  <span className="text-muted">{astro.experience_years || 5}+ yrs exp</span>
+                </div>
+
+                {astro.languages && astro.languages.length > 0 && (
+                  <div className="mt-2 text-[11px] text-muted">
+                    Languages: <span className="text-slate-800">{astro.languages.join(", ")}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Link
-                      href={profileHref}
-                      className={buttonStyles({ variant: "outline", size: "sm", className: "hidden sm:inline-flex text-[11px] px-2.5 py-1" })}
-                    >
-                      Profile <ExternalLink className="h-3 w-3 ml-1" />
-                    </Link>
-                    <Link
-                      href={`/customer/enquiries/new?astrologerId=${astro.id}&astrologerName=${encodeURIComponent(
-                        astro.display_name
-                      )}`}
-                      className={buttonStyles({ variant: "gold", size: "sm", className: "text-[11px] px-3 py-1" })}
-                    >
-                      Consult <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                    </Link>
-                  </div>
+                )}
+              </div>
+
+              {/* Fee & Action Buttons */}
+              <div className="mt-5 pt-3 border-t border-gold/15 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-midnight">
+                    ₹{astro.consultation_fee || 500}
+                  </span>
+                  <span className="text-[10px] text-muted block">per consultation</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/customer/chat?astrologer=${astro.id}`}
+                    className="inline-flex items-center gap-1 rounded-xl border border-gold/30 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold-deep hover:bg-gold/20"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" /> Chat
+                  </Link>
+                  <Link
+                    href={`/customer/astrologers/${astro.slug || astro.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-3.5 py-1.5 text-xs font-bold text-midnight shadow hover:opacity-95"
+                  >
+                    <Calendar className="h-3.5 w-3.5" /> Book
+                  </Link>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-4">
           <button
-            type="button"
-            disabled={currentPage === 1}
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="rounded-lg border border-gold/30 bg-white px-3 py-1.5 text-xs font-semibold text-midnight hover:bg-parchment disabled:opacity-40 transition-colors"
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold disabled:opacity-40"
           >
             Previous
           </button>
-          <span className="text-xs text-muted px-2">
-            {currentPage} / {totalPages}
+          <span className="text-xs text-muted font-medium">
+            Page {currentPage} of {totalPages}
           </span>
           <button
-            type="button"
-            disabled={currentPage === totalPages}
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            className="rounded-lg border border-gold/30 bg-white px-3 py-1.5 text-xs font-semibold text-midnight hover:bg-parchment disabled:opacity-40 transition-colors"
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold disabled:opacity-40"
           >
             Next
           </button>

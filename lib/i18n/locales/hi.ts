@@ -41,7 +41,6 @@ export const hi: TranslationSchema = {
     support: "सहायता व सपोर्ट",
     favorites: "पसंदीदा ज्योतिषी",
     broadcasts: "लाइव प्रसारण",
-    spiritualMarket: "आध्यात्मिक उत्पाद",
     pujaBooking: "ऑनलाइन पूजा बुकिंग",
     dashboard: "डैशबोर्ड",
     clients: "साधक व ग्राहक",
@@ -106,16 +105,6 @@ export const hi: TranslationSchema = {
     broadcastBy: "प्रसारक",
     startYourLive: "लाइव वैदिक सत्र आयोजित करें",
   },
-  products: {
-    marketTitle: "आध्यात्मिक उत्पाद सूची",
-    marketDesc: "अभिमंत्रित यंत्र, रत्न, रुद्राक्ष एवं वैदिक वस्तुएं",
-    category: "श्रेणी",
-    allCategories: "सभी श्रेणियां",
-    price: "मूल्य",
-    inStock: "उपलब्ध",
-    outOfStock: "विशेष आदेश पर उपलब्ध",
-    details: "उत्पाद विवरण एवं वैदिक महत्व",
-    benefits: "आध्यात्मिक लाभ एवं प्राण प्रतिष्ठा",
-  },
 };
+
 

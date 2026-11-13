@@ -41,7 +41,6 @@ export const bn: TranslationSchema = {
     support: "সহায়তা কেন্দ্র",
     favorites: "প্রিয় জ্যোতিষী",
     broadcasts: "লাইভ সম্প্রচার",
-    spiritualMarket: "আধ্যাত্মিক সামগ্রী",
     pujaBooking: "অনলাইন পূজা বুকিং",
     dashboard: "ড্যাশবোর্ড",
     clients: "সাধক ও অনুগামী",
@@ -106,16 +105,6 @@ export const bn: TranslationSchema = {
     broadcastBy: "সম্প্রচারক",
     startYourLive: "লাইভ সেশন আয়োজন করুন",
   },
-  products: {
-    marketTitle: "আধ্যাত্মিক সামগ্রী ক্যাটালগ",
-    marketDesc: "অভিষিক্ত যন্ত্র, রত্ন, রুদ্রাক্ষ এবং পবিত্র সামগ্রী",
-    category: "বিভাগ",
-    allCategories: "সকল বিভাগ",
-    price: "মূল্য",
-    inStock: "উপলব্ধ",
-    outOfStock: "অর্ডারে উপলব্ধ",
-    details: "পণ্যের বিবরণ ও মাহাত্ম্য",
-    benefits: "আধ্যাত্মিক সুফল",
-  },
 };
+
 

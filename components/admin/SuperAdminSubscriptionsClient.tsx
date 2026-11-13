@@ -237,8 +237,8 @@ export function SuperAdminSubscriptionsClient({
 
       {/* Subscription Master Table */}
       <div className="overflow-hidden rounded-2xl border border-gold/30 bg-white shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto table-scrollbar">
+          <table className="w-full min-w-[700px] text-left text-xs">
             <thead className="bg-parchment/60 border-b border-gold/20 text-midnight font-bold uppercase tracking-wider text-[10px]">
               <tr>
                 <th className="p-3.5">Astrologer</th>

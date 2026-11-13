@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { DEFAULT_LOCALE, isValidLocale, type SupportedLocale } from "./config";
 import { getDictionary } from "./dictionary";
 import type { TranslationSchema } from "./locales/en";
+import { createClient } from "@/lib/supabase/client";
 
 interface LanguageContextType {
   locale: SupportedLocale;
@@ -32,32 +33,83 @@ export function LanguageProvider({
     isValidLocale(initialLocale) ? initialLocale : DEFAULT_LOCALE
   );
   const [loading, setLoading] = useState(false);
+  const hasInitializedServerSync = useRef(false);
 
+  // Synchronize authenticated preference from Database on mount and auth state change
   useEffect(() => {
-    // Check localStorage on mount
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && isValidLocale(saved) && saved !== locale) {
-        setLocaleState(saved);
+    let isMounted = true;
+    const supabase = createClient();
+
+    async function syncAuthoritativePreference() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          // Fetch authenticated user's authoritative preference from database
+          const res = await fetch("/api/user/locale");
+          const json = await res.json().catch(() => null);
+
+          if (isMounted && json?.success && json.locale && isValidLocale(json.locale)) {
+            setLocaleState(json.locale);
+            try {
+              localStorage.setItem(STORAGE_KEY, json.locale);
+              document.cookie = `jyotishsetu_locale=${json.locale}; path=/; max-age=31536000; SameSite=Lax`;
+            } catch {}
+            return;
+          }
+        }
+
+        // For anonymous or unpersisted users: fall back to local storage
+        if (isMounted) {
+          try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved && isValidLocale(saved)) {
+              setLocaleState(saved as SupportedLocale);
+            }
+          } catch {}
+        }
+      } catch {
+        // Fallback safely to initial locale
       }
-    } catch (e) {}
+    }
+
+    if (!hasInitializedServerSync.current) {
+      hasInitializedServerSync.current = true;
+      void syncAuthoritativePreference();
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        void syncAuthoritativePreference();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const setLocale = async (newLocale: SupportedLocale) => {
+  const setLocale = useCallback(async (newLocale: SupportedLocale) => {
     if (!isValidLocale(newLocale)) return;
     setLocaleState(newLocale);
+
     try {
       localStorage.setItem(STORAGE_KEY, newLocale);
       document.cookie = `jyotishsetu_locale=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
-      
-      // Optionally persist to server for authenticated user
-      fetch("/api/user/locale", {
+
+      // Persist to server (authoritative for authenticated user)
+      await fetch("/api/user/locale", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: newLocale }),
-      }).catch(() => {});
-    } catch (e) {}
-  };
+      });
+    } catch {}
+  }, []);
 
   const t = getDictionary(locale);
 
@@ -71,4 +123,3 @@ export function LanguageProvider({
 export function useLanguage() {
   return useContext(LanguageContext);
 }
-

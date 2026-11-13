@@ -41,7 +41,6 @@ export const te: TranslationSchema = {
     support: "సహాయ కేంద్రం",
     favorites: "ఇష్టమైన జ్యోతిష్యులు",
     broadcasts: "లైవ్ ప్రసారాలు",
-    spiritualMarket: "ఆధ్యాత్మిక వస్తువులు",
     pujaBooking: "ఆన్‌లైన్ పూజా బుకింగ్",
     dashboard: "డాష్‌బోర్డ్",
     clients: "భక్తులు & సాధకులు",
@@ -106,16 +105,6 @@ export const te: TranslationSchema = {
     broadcastBy: "ప్రసారకర్త",
     startYourLive: "లైవ్ సెషన్ ప్రారంభించండి",
   },
-  products: {
-    marketTitle: "ఆధ్యాత్మిక వస్తువుల జాబితా",
-    marketDesc: "యంత్రాలు, రత్నాలు, రుద్రాక్షలు మరియు వైదిక పూజా సామాగ్రి",
-    category: "వర్గం",
-    allCategories: "అన్ని వర్గాలు",
-    price: "ధర",
-    inStock: "లభ్యమవుతుంది",
-    outOfStock: "ఆర్డర్‌పై లభ్యం",
-    details: "వస్తువు వివరాలు",
-    benefits: "ఆధ్యాత్మిక ప్రయోజనాలు",
-  },
 };
+
 

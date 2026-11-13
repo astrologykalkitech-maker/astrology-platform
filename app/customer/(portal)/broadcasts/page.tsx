@@ -2,7 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft, Radio, Sparkles, Video, Users } from "lucide-react";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
-import { getActiveLiveBroadcasts } from "@/app/actions/broadcast";
+import { getActiveLiveBroadcasts, getUpcomingScheduledBroadcasts } from "@/app/actions/broadcast";
+import { getCustomerFollowedAstrologers } from "@/app/actions/follows";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { CustomerBroadcastListClient } from "@/components/customer/CustomerBroadcastListClient";
 
@@ -13,13 +14,17 @@ export const metadata = {
   description: "Join live spiritual streams, planetary guidance sessions, and interactive Vedic discourses.",
 };
 
-const CARD =
-  "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
-
 export default async function CustomerBroadcastsPage() {
   await requireCustomerPage();
-  const res = await getActiveLiveBroadcasts();
-  const broadcasts = res.success && res.data ? res.data : [];
+  const [liveRes, upcomingRes, followsRes] = await Promise.all([
+    getActiveLiveBroadcasts(),
+    getUpcomingScheduledBroadcasts(),
+    getCustomerFollowedAstrologers(),
+  ]);
+
+  const broadcasts = liveRes.success && liveRes.data ? liveRes.data : [];
+  const upcoming = upcomingRes.success && upcomingRes.data ? upcomingRes.data : [];
+  const followedIds = followsRes.success && followsRes.astrologerIds ? followsRes.astrologerIds : [];
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -39,8 +44,11 @@ export default async function CustomerBroadcastsPage() {
         </div>
       </div>
 
-      <CustomerBroadcastListClient initialBroadcasts={broadcasts} />
+      <CustomerBroadcastListClient
+        initialBroadcasts={broadcasts}
+        upcomingBroadcasts={upcoming}
+        followedAstrologerIds={followedIds}
+      />
     </div>
   );
 }
-

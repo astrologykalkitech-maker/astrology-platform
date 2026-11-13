@@ -41,7 +41,6 @@ export const ta: TranslationSchema = {
     support: "உதவி மையம்",
     favorites: "விருப்பமான ஜோதிடர்கள்",
     broadcasts: "நேரலை ஒளிபரப்பு",
-    spiritualMarket: "ஆன்மீக பொருட்கள்",
     pujaBooking: "ஆன்லைன் பூஜை முன்பதிவு",
     dashboard: "முகப்பு",
     clients: "பயனர்கள்",
@@ -106,16 +105,6 @@ export const ta: TranslationSchema = {
     broadcastBy: "வழங்குபவர்",
     startYourLive: "நேரலை தொடங்குங்கள்",
   },
-  products: {
-    marketTitle: "ஆன்மீக பொருட்கள் பட்டியல்",
-    marketDesc: "யந்திரங்கள், நவரத்தினங்கள், ருத்ராட்சம் மற்றும் ஆன்மீகப் பொருட்கள்",
-    category: "வகை",
-    allCategories: "அனைத்து வகைகள்",
-    price: "விலை",
-    inStock: "இருப்பில் உள்ளது",
-    outOfStock: "முன்பதிவில் உள்ளது",
-    details: "பொருளின் விபரம்",
-    benefits: "ஆன்மீக நன்மைகள்",
-  },
 };
+
 

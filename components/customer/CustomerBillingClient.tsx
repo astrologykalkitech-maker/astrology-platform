@@ -84,8 +84,8 @@ export function CustomerBillingClient({
 
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-ink/80">
+      <div className="overflow-x-auto table-scrollbar -mx-4 sm:mx-0">
+        <table className="w-full min-w-[640px] text-left text-xs text-ink/80">
           <thead className="bg-parchment/60 text-[11px] uppercase tracking-wider text-muted">
             <tr>
               <th className="px-4 py-3">Consultation Service</th>

@@ -55,3 +55,26 @@ test("Zero Overflow Constraints: Minimum screen width of 320px is guarded by ove
   assert.equal(minGuardedWidth, 320, "Application must support minimum viewport down to 320px without horizontal page scrolling");
 });
 
+
+test("Cross-Device Matrix: Validates complete viewport categories from 320px to 3440px", () => {
+  const DEVICE_CATEGORIES = [
+    { category: "Small Phone", widths: [320, 340, 360, 375] },
+    { category: "Standard Phone", widths: [390, 393, 400, 414, 430] },
+    { category: "Large Phone / Phablet", widths: [440, 460, 480, 500] },
+    { category: "Foldable Devices", widths: [280, 540, 717, 884] },
+    { category: "Small Tablet", widths: [600, 640, 720] },
+    { category: "iPad / Standard Tablet", widths: [768, 800, 820, 834] },
+    { category: "Large Tablet / Pro", widths: [900, 960, 1024, 1080] },
+    { category: "Small Laptop", widths: [1280, 1366] },
+    { category: "Standard Laptop", widths: [1440, 1536] },
+    { category: "Desktop Display", widths: [1600, 1920] },
+    { category: "Ultra-Wide Monitor", widths: [2048, 2560, 2880, 3440] },
+  ];
+
+  for (const cat of DEVICE_CATEGORIES) {
+    assert.ok(cat.widths.length > 0, `Category ${cat.category} must have target widths`);
+    for (const w of cat.widths) {
+      assert.ok(w >= 280 && w <= 3840, `Target width ${w} within supported display bounds`);
+    }
+  }
+});

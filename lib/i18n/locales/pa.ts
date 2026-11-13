@@ -41,7 +41,6 @@ export const pa: TranslationSchema = {
     support: "ਸਹਾਇਤਾ",
     favorites: "ਮਨਪਸੰਦ ਜੋਤਸ਼ੀ",
     broadcasts: "ਲਾਈਵ ਪ੍ਰਸਾਰਣ",
-    spiritualMarket: "ਅਧਿਆਤਮਿਕ ਵਸਤਾਂ",
     pujaBooking: "ਆਨਲਾਈਨ ਪੂਜਾ ਬੁਕਿੰਗ",
     dashboard: "ਡੈਸ਼ਬੋਰਡ",
     clients: "ਗਾਹਕ",
@@ -106,16 +105,6 @@ export const pa: TranslationSchema = {
     broadcastBy: "ਪ੍ਰਸਾਰਕ",
     startYourLive: "ਲਾਈਵ ਸੈਸ਼ਨ ਸ਼ੁਰੂ ਕਰੋ",
   },
-  products: {
-    marketTitle: "ਅਧਿਆਤਮਿਕ ਵਸਤਾਂ ਦੀ ਸੂਚੀ",
-    marketDesc: "ਸਿੱਧ ਯੰਤਰ, ਰਤਨ, ਰੁਦਰਾਖ ਅਤੇ ਪੂਜਾ ਸਮੱਗਰੀ",
-    category: "ਸ਼੍ਰੇਣੀ",
-    allCategories: "ਸਾਰੀਆਂ ਸ਼੍ਰੇਣੀਆਂ",
-    price: "ਕੀਮਤ",
-    inStock: "ਉਪਲਬਧ",
-    outOfStock: "ਆਰਡਰ 'ਤੇ ਉਪਲਬਧ",
-    details: "ਵਸਤੂ ਦੇ ਵੇਰਵੇ",
-    benefits: "ਅਧਿਆਤਮਿਕ ਲਾਭ",
-  },
 };
+
 

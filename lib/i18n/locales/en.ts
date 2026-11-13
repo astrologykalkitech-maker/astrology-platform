@@ -39,7 +39,6 @@ export const en = {
     support: "Support & Help",
     favorites: "Favourite Astrologers",
     broadcasts: "Live Broadcasts",
-    spiritualMarket: "Spiritual Products",
     pujaBooking: "Online Puja Booking",
     // Astrologer specific
     dashboard: "Dashboard",
@@ -105,18 +104,8 @@ export const en = {
     broadcastBy: "Broadcasting by",
     startYourLive: "Host a Live Vedic Session",
   },
-  products: {
-    marketTitle: "Spiritual Products Catalogue",
-    marketDesc: "Consecrated Yantras, Gemstones, Rudraksha, and sacred Vedic offerings",
-    category: "Category",
-    allCategories: "All Categories",
-    price: "Price",
-    inStock: "In Stock",
-    outOfStock: "Available on Special Order",
-    details: "Product Details & Vedic Significance",
-    benefits: "Spiritual Benefits & Pran Pratishtha",
-  },
 };
 
 export type TranslationSchema = typeof en;
+
 

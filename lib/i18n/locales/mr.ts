@@ -41,7 +41,6 @@ export const mr: TranslationSchema = {
     support: "मदत आणि पाठबळ",
     favorites: "आवडते ज्योतिषी",
     broadcasts: "थेट प्रक्षेपण",
-    spiritualMarket: "अध्यात्मिक उत्पादने",
     pujaBooking: "ऑनलाइन पूजा बुकिंग",
     dashboard: "डॅशबोर्ड",
     clients: "ग्राहक आणि साधक",
@@ -106,16 +105,6 @@ export const mr: TranslationSchema = {
     broadcastBy: "प्रसारक",
     startYourLive: "थेट सत्र आयोजित करा",
   },
-  products: {
-    marketTitle: "अध्यात्मिक उत्पादने सूची",
-    marketDesc: "यंत्र, रत्ने, रुद्राक्ष आणि पवित्र वैदिक सामग्री",
-    category: "प्रवर्ग",
-    allCategories: "सर्व प्रवर्ग",
-    price: "किंमत",
-    inStock: "उपलब्ध",
-    outOfStock: "मागणीनुसार उपलब्ध",
-    details: "उत्पादन तपशील आणि महत्त्व",
-    benefits: "अध्यात्मिक लाभ",
-  },
 };
+
 
