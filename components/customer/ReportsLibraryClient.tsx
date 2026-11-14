@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { FileText, Download } from "lucide-react";
 import { generateAstrologyReportAction } from "@/app/actions/astrology";
-import { generateKundliPdf } from "@/lib/pdf/kundli-pdf";
 import type { SavedKundliRecord } from "@/lib/types/database.types";
 import type { FullAstrologyReport } from "@/lib/astrology/types";
 
@@ -49,9 +48,10 @@ export function ReportsLibraryClient({ kundlis }: ReportsLibraryClientProps) {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const k = kundlis.find((item) => item.id === selectedKundliId);
     if (!k) return;
+    const { generateKundliPdf } = await import("@/lib/pdf/kundli-pdf");
     generateKundliPdf(k, activeReport || undefined);
   };
 

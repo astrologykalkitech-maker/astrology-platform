@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,34 +25,42 @@ import {
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Ornament } from "@/components/astrologer/ui/Ornament";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 type NavItem = {
   href: string;
   label: string;
+  i18nKey: string;
   icon: LucideIcon;
   exact?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/customer/astrologers", label: "Astrologers", icon: Sparkles },
-  { href: "/customer/chat", label: "Live Chat", icon: MessageSquare },
-  { href: "/customer/kundli", label: "My Kundli", icon: Compass },
-  { href: "/customer/kundli-milan", label: "Kundli Milan", icon: Heart },
-  { href: "/customer/panchang", label: "Daily Panchang", icon: Sun },
-  { href: "/customer/horoscope", label: "Daily Horoscope", icon: Moon },
-  { href: "/customer/remedies", label: "Vedic Remedies", icon: ShieldCheck },
-  { href: "/customer/protection-rituals", label: "Protection Rituals", icon: ShieldCheck },
-  { href: "/customer/numerology", label: "Numerology", icon: Sparkles },
-  { href: "/customer/planetary-transits", label: "Planetary Transits", icon: Compass },
-  { href: "/customer/muhurat", label: "Shubh Muhurat", icon: Sun },
-  { href: "/customer/reports", label: "Report Library", icon: ClipboardList },
-  { href: "/customer/profile", label: "My Kundli Profile", icon: User },
-  { href: "/customer/enquiries", label: "My Enquiries", icon: ClipboardList },
-  { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
-  { href: "/customer/billing", label: "Billing & Receipts", icon: Receipt },
-  { href: "/customer/notification", label: "Notifications", icon: Bell },
-  { href: "/customer/offers", label: "Special Offers", icon: Gift },
-  { href: "/customer/support", label: "Support & Help", icon: LifeBuoy },
+  { href: "/customer/astrologers", label: "Astrologers", i18nKey: "astrologers", icon: Sparkles },
+  { href: "/customer/favorites", label: "Favourite Astrologers", i18nKey: "favorites", icon: Heart },
+  { href: "/customer/broadcasts", label: "Live Broadcasts", i18nKey: "broadcasts", icon: Sparkles },
+  { href: "/customer/puja", label: "Online Puja Booking", i18nKey: "pujaBooking", icon: Sparkles },
+  { href: "/customer/tools", label: "Astrology Tools & KP", i18nKey: "astrologyTools", icon: Compass },
+  { href: "/customer/chat", label: "Live Chat", i18nKey: "liveChat", icon: MessageSquare },
+  { href: "/customer/kundli", label: "My Kundli", i18nKey: "myKundli", icon: Compass },
+  { href: "/customer/kundli-milan", label: "Kundli Milan", i18nKey: "kundliMilan", icon: Heart },
+  { href: "/customer/panchang", label: "Daily Panchang", i18nKey: "panchang", icon: Sun },
+  { href: "/customer/horoscope", label: "Daily Horoscope", i18nKey: "horoscope", icon: Moon },
+  { href: "/customer/remedies", label: "Vedic Remedies", i18nKey: "remedies", icon: ShieldCheck },
+  { href: "/customer/protection-rituals", label: "Protection Rituals", i18nKey: "protectionRituals", icon: ShieldCheck },
+  { href: "/customer/numerology", label: "Numerology", i18nKey: "numerology", icon: Sparkles },
+  { href: "/customer/planetary-transits", label: "Planetary Transits", i18nKey: "planetaryTransits", icon: Compass },
+  { href: "/customer/muhurat", label: "Shubh Muhurat", i18nKey: "muhurat", icon: Sun },
+  { href: "/customer/reports", label: "Report Library", i18nKey: "reportLibrary", icon: ClipboardList },
+  { href: "/customer/profile", label: "My Kundli Profile", i18nKey: "profile", icon: User },
+  { href: "/customer/enquiries", label: "My Enquiries", i18nKey: "enquiries", icon: ClipboardList },
+  { href: "/customer/bookings", label: "Bookings", i18nKey: "bookings", icon: CalendarCheck2 },
+  { href: "/customer/billing", label: "Billing & Receipts", i18nKey: "billing", icon: Receipt },
+  { href: "/customer/notification", label: "Notifications", i18nKey: "notifications", icon: Bell },
+  { href: "/customer/offers", label: "Special Offers", i18nKey: "specialOffers", icon: Gift },
+  { href: "/customer/ai-services", label: "AI Recommendations", i18nKey: "aiServices", icon: Sparkles },
+  { href: "/customer/privacy", label: "Privacy & Data", i18nKey: "privacy", icon: ShieldCheck },
+  { href: "/customer/support", label: "Support & Help", i18nKey: "support", icon: LifeBuoy },
 ];
 
 const COMING_SOON: { label: string; icon: LucideIcon; desc: string }[] = [];
@@ -68,8 +77,14 @@ type SidebarProps = {
   onClose: () => void;
 };
 
-export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }: SidebarProps) {
+function CustomerSidebarComponent({ open, isLoggedIn = true, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { t } = useLanguage();
+
+  const getTranslatedLabel = (key: string, defaultLabel: string) => {
+    const nav = t.navigation as Record<string, string>;
+    return nav[key] || defaultLabel;
+  };
 
   return (
     <aside
@@ -135,7 +150,7 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
                 }`}
               >
                 <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                {item.label}
+                {getTranslatedLabel(item.i18nKey, item.label)}
               </Link>
             );
           })}
@@ -181,3 +196,5 @@ export function CustomerSidebar({ open, isLoggedIn = true, onNavigate, onClose }
     </aside>
   );
 }
+
+export const CustomerSidebar = memo(CustomerSidebarComponent);

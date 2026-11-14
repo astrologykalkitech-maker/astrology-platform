@@ -10,6 +10,7 @@ import { RealtimeAstrologerPortalSync } from "@/components/astrologer/RealtimeAs
 import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
 import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
 import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 type PortalShellProps = {
   userId: string;
@@ -34,7 +35,8 @@ export function PortalShell({ userId, displayName, photoUrl, children }: PortalS
   }, [menuOpen]);
 
   return (
-    <VoiceCallProvider role="astrologer" userId={userId}>
+    <LanguageProvider>
+      <VoiceCallProvider role="astrologer" userId={userId}>
       <SessionLifecycleGuard userId={userId} role="astrologer" loginPath="/astrologer/login" />
     <AccountPresenceProvider role="astrologer" userId={userId}>
       <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
@@ -93,5 +95,6 @@ export function PortalShell({ userId, displayName, photoUrl, children }: PortalS
       </div>
     </AccountPresenceProvider>
     </VoiceCallProvider>
+    </LanguageProvider>
   );
 }

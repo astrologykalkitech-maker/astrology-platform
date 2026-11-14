@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { getPublicApprovedAstrologers } from "@/lib/astrologer/queries";
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
+import { getCustomerFavoriteAstrologers } from "@/app/actions/favorites";
+import { getCustomerFollowedAstrologers } from "@/app/actions/follows";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import AstrologersDirectoryClient from "./AstrologersDirectoryClient";
@@ -16,10 +18,15 @@ const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function FindAstrologersPage() {
-  const [, astrologers] = await Promise.all([
+  const [, astrologers, favRes, followRes] = await Promise.all([
     requireCustomerPage(),
     getPublicApprovedAstrologers({ limit: 100 }),
+    getCustomerFavoriteAstrologers(),
+    getCustomerFollowedAstrologers(),
   ]);
+
+  const favoriteIds = (favRes.success && favRes.data ? favRes.data.map((f) => f.astrologer_id) : []);
+  const followedIds = (followRes.success && followRes.astrologerIds ? followRes.astrologerIds : []);
 
   return (
     <div className="space-y-5">
@@ -52,7 +59,11 @@ export default async function FindAstrologersPage() {
           </Link>
         </div>
       ) : (
-        <AstrologersDirectoryClient astrologers={astrologers} />
+        <AstrologersDirectoryClient
+          astrologers={astrologers}
+          initialFavoriteIds={favoriteIds}
+          initialFollowedIds={followedIds}
+        />
       )}
     </div>
   );

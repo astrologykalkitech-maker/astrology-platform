@@ -43,7 +43,9 @@ export default function CustomerPortalError({
         <p className="text-xs text-muted leading-relaxed max-w-md mx-auto">
           {isStale
             ? "A newer platform update has been published. Please reload to sync your session with the latest release."
-            : "A temporary network delay or connection timeout occurred while retrieving your consultations. Please click Try Again to reload this section."}
+            : error?.message && !error.message.includes("digest")
+            ? error.message
+            : "A temporary network delay or connection timeout occurred while loading this section. Please click Try Again to reload."}
         </p>
       </div>
 

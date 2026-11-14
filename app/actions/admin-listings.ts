@@ -104,7 +104,8 @@ export async function updateListingModerationStatus(
     const requiredPermission = status === "changes_requested" ? "listing.review" : "listing.approve";
     const { user, profile } = await requireAdminPermission(requiredPermission);
 
-    const supabase = await createAdminClient();
+    // Authoritative platform store is DB1 ("main")
+    const supabase = await createAdminClient("main");
 
     // Fetch before-state
     const { data: beforeListing, error: fetchErr } = await supabase
@@ -117,9 +118,15 @@ export async function updateListingModerationStatus(
       return { success: false, error: "Listing not found." };
     }
 
+    const { data: profileCheck } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
     const updatePayload: Record<string, unknown> = {
       approval_status: status,
-      reviewed_by: user.id,
+      reviewed_by: profileCheck ? user.id : null,
       reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -139,47 +146,25 @@ export async function updateListingModerationStatus(
       return { success: false, error: updateErr.message };
     }
 
-    // Mirror approval_status to DB1 so customer discovery and astrologer portal sync immediately
+    // Also mirror to secondary admin client (DB2) if available
     try {
-      const db1Client = await createAdminClient("main");
+      const adminClient = await createAdminClient("admin");
       const targetSlug = updated?.slug || beforeListing.slug;
 
-      let db1TargetId = listingId;
-      if (targetSlug) {
-        const { data: db1Matched } = await db1Client
-          .from("astrologer_profiles")
-          .select("id")
-          .eq("slug", targetSlug)
-          .maybeSingle();
-        if (db1Matched?.id) {
-          db1TargetId = db1Matched.id;
-        }
-      }
-
-      // First attempt update with the exact status.
-      // If DB1 has a legacy check constraint ('pending', 'approved', 'rejected'),
-      // map 'suspended'/'changes_requested'/'archived'/'draft' to 'rejected' so the customer directory
-      // immediately removes them from public view.
-      const { error: db1UpErr } = await db1Client
+      const { data: adminMatched } = await adminClient
         .from("astrologer_profiles")
-        .update({
-          approval_status: status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", db1TargetId);
+        .select("id")
+        .or(`id.eq.${listingId},slug.eq.${targetSlug}`)
+        .maybeSingle();
 
-      if (db1UpErr && db1UpErr.message.includes("violates check constraint")) {
-        const fallbackStatus = status === "approved" ? "approved" : "rejected";
-        await db1Client
+      if (adminMatched?.id) {
+        await adminClient
           .from("astrologer_profiles")
-          .update({
-            approval_status: fallbackStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", db1TargetId);
+          .update(updatePayload)
+          .eq("id", adminMatched.id);
       }
     } catch (syncErr) {
-      console.warn("[Listing Moderation DB1 Sync Warning]", syncErr);
+      console.warn("[Listing Moderation Admin DB Sync Warning]", syncErr);
     }
 
     // Revalidate customer directory, astrologer views, and admin listings instantly
@@ -197,6 +182,7 @@ export async function updateListingModerationStatus(
     revalidatePath("/customer", "page");
     revalidatePath("/astrologer/profile", "page");
     revalidatePath("/super-admin/listings", "page");
+    revalidatePath("/super-admin/verification", "page");
     revalidatePath("/super-admin/listings/ranking", "page");
     revalidatePath("/super-admin/leads/distribution", "page");
     revalidatePath("/super-admin", "page");
@@ -241,7 +227,7 @@ export async function updateListingRankingAndFeatured(
     }
 
     const { listingId, rankingPriority, isFeatured, featuredUntil, reason } = validation.data;
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
 
     const { data: beforeListing, error: fetchErr } = await supabase
       .from("astrologer_profiles")
@@ -269,6 +255,22 @@ export async function updateListingRankingAndFeatured(
       return { success: false, error: updateErr.message };
     }
 
+    // Mirror to secondary admin DB if present
+    try {
+      const adminDb = await createAdminClient("admin");
+      await adminDb
+        .from("astrologer_profiles")
+        .update({
+          ranking_priority: rankingPriority,
+          is_featured: isFeatured,
+          featured_until: featuredUntil,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", listingId);
+    } catch {
+      // Best-effort secondary mirror
+    }
+
     await logAdminAction({
       actorId: user.id,
       actorRole: profile.role,
@@ -280,6 +282,11 @@ export async function updateListingRankingAndFeatured(
       afterState: { ranking_priority: rankingPriority, is_featured: isFeatured, featured_until: featuredUntil },
       outcome: "success",
     });
+
+    revalidatePath("/super-admin/listings/ranking");
+    revalidatePath("/super-admin/listings");
+    revalidatePath("/customer/astrologers");
+    revalidatePath("/");
 
     return {
       success: true,
@@ -306,7 +313,7 @@ export async function getListingDetailsForAdmin(
       return { success: false, error: "Invalid listing ID format." };
     }
 
-    const supabase = await createAdminClient();
+    const supabase = await createAdminClient("main");
     const { data, error } = await supabase
       .from("astrologer_profiles")
       .select("*")

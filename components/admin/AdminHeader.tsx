@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import React, { memo, useState, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,7 @@ interface AdminHeaderProps {
   onMenuClick?: () => void;
 }
 
-export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: AdminHeaderProps) {
+function AdminHeaderComponent({ displayName, role, isSuperAdmin, onMenuClick }: AdminHeaderProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showConfirm, setShowConfirm] = useState(false);
@@ -172,3 +172,5 @@ export function AdminHeader({ displayName, role, isSuperAdmin, onMenuClick }: Ad
     </header>
   );
 }
+
+export const AdminHeader = memo(AdminHeaderComponent);

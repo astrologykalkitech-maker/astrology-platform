@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,6 +21,8 @@ import {
   Sparkles,
   LifeBuoy,
   Star,
+  Radio,
+  Bell,
 } from "lucide-react";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 
@@ -44,7 +47,7 @@ interface AdminSidebarProps {
   onClose?: () => void;
 }
 
-export function AdminSidebar({
+function AdminSidebarComponent({
   isSuperAdmin,
   permissions,
   open = false,
@@ -65,6 +68,7 @@ export function AdminSidebar({
       title: "Astrologers & Seekers",
       items: [
         { href: "/super-admin/listings", label: "Astrologer Listings", icon: Users2 },
+        { href: "/super-admin/verification", label: "Astrologer Verification & Stages", icon: Shield },
         { href: "/super-admin/listings/ranking", label: "Ranking & Featured", icon: Award },
         { href: "/super-admin/reviews", label: "Review Moderation", icon: Star },
         { href: "/super-admin/customers", label: "Customer Directory", icon: Users },
@@ -74,7 +78,10 @@ export function AdminSidebar({
     {
       title: "Finance & Subscriptions",
       items: [
+        { href: "/super-admin/subscriptions", label: "Astrologer Subscriptions", icon: Users2 },
+        { href: "/super-admin/subscription-audits", label: "Subscription Audit Trail", icon: ScrollText },
         { href: "/super-admin/financials", label: "Financial Ledger & Payouts", icon: Sliders },
+        { href: "/super-admin/reconciliation", label: "Payment Reconciliation", icon: Shield },
         { href: "/super-admin/plans", label: "Subscription Plans Builder", icon: Sparkles },
       ],
     },
@@ -84,6 +91,11 @@ export function AdminSidebar({
         { href: "/super-admin/leads", label: "Central Lead Pipeline", icon: Inbox },
         { href: "/super-admin/leads/distribution", label: "Lead Distribution", icon: GitBranch },
         { href: "/super-admin/bookings", label: "Consultation Bookings", icon: CalendarCheck2 },
+        { href: "/super-admin/puja-bookings", label: "Puja Ceremonies", icon: CalendarCheck2 },
+        { href: "/super-admin/pujas", label: "Puja Catalogue", icon: Sparkles },
+        { href: "/super-admin/broadcasts", label: "Live Broadcast Monitor", icon: Radio },
+        { href: "/super-admin/languages", label: "Language Administration", icon: Award },
+        { href: "/super-admin/notifications-system", label: "Notification Channels & Telemetry", icon: Bell },
         { href: "/super-admin/support", label: "Customer & Astrologer Support", icon: LifeBuoy },
         { href: "/super-admin/settings", label: "Platform Settings", icon: Sliders },
       ],
@@ -267,3 +279,5 @@ export function AdminSidebar({
     </>
   );
 }
+
+export const AdminSidebar = memo(AdminSidebarComponent);

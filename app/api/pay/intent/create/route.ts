@@ -78,10 +78,18 @@ export async function POST(req: NextRequest) {
 
     // Automatically create dynamic UPI QR session for this intent
     const note = entity_type === "subscription"
-      ? "Astrologer Professional Plan Subscription"
-      : "Vedic Astrology Consultation Session";
+      ? "Astrologer Subscription Upgrade"
+      : "Astrology Consultation Session";
 
-    const qrData = await createDynamicQRSession(intentRecord, note);
+    const { getLivePaymentRuntimeConfig, isPaymentTestingModeEnabled } = await import("@/lib/pay/config");
+    const runtimeConfig = await getLivePaymentRuntimeConfig();
+    const testingModeEnabled = await isPaymentTestingModeEnabled();
+
+    const qrData = await createDynamicQRSession(intentRecord, note, {
+      merchantVpa: runtimeConfig.merchantVpa,
+      merchantName: runtimeConfig.merchantName,
+      merchantCode: runtimeConfig.merchantCode,
+    });
 
     const qrSessionRecord = {
       id: crypto.randomUUID(),
@@ -107,18 +115,16 @@ export async function POST(req: NextRequest) {
 
     JyotishSimulatorStore.saveSession(qrSessionRecord);
 
-    const { getJyotishPayConfig } = await import("@/lib/pay/config");
-    const gatewayConfig = getJyotishPayConfig();
-
     return NextResponse.json({
       success: true,
       intent: intentRecord,
+      testingModeEnabled,
       qrSession: {
         sessionCode: qrData.sessionCode,
         upiUri: qrData.upiUri,
         qrSvg: qrData.qrSvg,
         expiresAt: qrData.expiresAt,
-        merchantVpa: gatewayConfig.merchantVpa,
+        merchantVpa: runtimeConfig.merchantVpa,
       },
     });
   } catch (error: any) {

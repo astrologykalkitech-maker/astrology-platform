@@ -75,6 +75,38 @@ export default async function AstrologerCRMPage() {
     );
   }
 
+  // 1.5. Server-side Entitlement Check: CRM Private Notes is a Professional Feature
+  const { hasSubscriptionFeature } = await import("@/lib/financial/entitlements");
+  const hasCrmAccess = await hasSubscriptionFeature(astroProfile.id, "crmPrivateNotes");
+
+  if (!hasCrmAccess) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Client CRM & Consultation Records"
+          description="View your seekers, access private consultation notes, and track follow-up schedules."
+        />
+        <div className="rounded-2xl border border-gold/40 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/30 p-8 text-center max-w-2xl mx-auto shadow-sm">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gold/20 text-gold-deep mb-4">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <h3 className="text-lg font-bold text-midnight">Professional Membership Feature</h3>
+          <p className="text-xs text-muted mt-2 leading-relaxed max-w-md mx-auto">
+            Client CRM, private consultation case notes, and follow-up schedules are exclusive to the <strong>Professional Plan</strong>. Upgrade today to unlock client dossiers, verified leads, and priority ranking.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link
+              href="/astrologer/subscription"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] px-5 py-2.5 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition"
+            >
+              <Sparkles className="h-4 w-4" /> Upgrade to Professional
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // 2. Fetch robustly aggregated CRM data
   const crmResult = await getAstrologerCRMAggregate(
     admin,

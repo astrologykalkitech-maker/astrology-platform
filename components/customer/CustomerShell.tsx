@@ -10,6 +10,7 @@ import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBounda
 import { AccountPresenceProvider } from "@/components/chat/AccountPresenceProvider";
 import { VoiceCallProvider } from "@/components/chat/VoiceCallProvider";
 import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
+import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 interface CustomerShellProps {
   customerName: string;
@@ -43,7 +44,8 @@ export function CustomerShell({
   }, [menuOpen]);
 
   return (
-    <VoiceCallProvider role="customer" userId={userId}>
+    <LanguageProvider>
+      <VoiceCallProvider role="customer" userId={userId}>
       <SessionLifecycleGuard userId={userId} role="customer" loginPath="/customer/login" />
     <AccountPresenceProvider role="customer" userId={userId}>
       <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
@@ -106,5 +108,6 @@ export function CustomerShell({
       </div>
     </AccountPresenceProvider>
     </VoiceCallProvider>
+    </LanguageProvider>
   );
 }

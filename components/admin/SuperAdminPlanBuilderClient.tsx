@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Check, Edit2, Archive, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
 import type { PaymentPlanRecord, CreatePlanInput } from "@/lib/financial/types";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
@@ -139,8 +140,8 @@ export function SuperAdminPlanBuilderClient({
       </div>
 
       {/* Plans List Table */}
-      <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto table-scrollbar">
+        <table className="w-full min-w-[700px] text-left text-xs">
           <thead>
             <tr className="border-b border-gold/15 bg-parchment/40 text-[11px] font-semibold text-midnight">
               <th className="py-3 px-4">Plan Name & Slug</th>
@@ -213,23 +214,32 @@ export function SuperAdminPlanBuilderClient({
         </table>
       </div>
 
-      {/* Create / Edit Plan Modal */}
-      {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="relative w-full max-w-xl rounded-2xl border border-gold/30 bg-white p-6 shadow-2xl my-8">
-            <h3 className="text-base font-bold text-midnight flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-gold-deep" />
-              {editingPlanId ? "Edit Subscription Plan" : "Create Subscription Plan"}
-            </h3>
+      {/* Create / Edit Plan Modal via React Portal to escape .rise-in CSS transform containing block */}
+      {isEditing && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-midnight/70 backdrop-blur-sm p-4 overflow-hidden">
+          <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gold/30 bg-white shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gold/15 bg-parchment/40 px-6 py-4 shrink-0">
+              <h3 className="text-base font-bold text-midnight flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-gold-deep" />
+                {editingPlanId ? "Edit Subscription Plan" : "Create Subscription Plan"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700 transition"
+              >
+                ✕
+              </button>
+            </div>
 
             {errorMsg && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800">
+              <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-800 shrink-0">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-semibold text-ink">
@@ -366,7 +376,7 @@ export function SuperAdminPlanBuilderClient({
                 </div>
               </div>
 
-              <div className="flex items-center gap-6 pt-2">
+              <div className="flex flex-wrap items-center gap-6 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer font-semibold text-ink">
                   <input
                     type="checkbox"
@@ -387,7 +397,7 @@ export function SuperAdminPlanBuilderClient({
                 </label>
               </div>
 
-              <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-gold/15">
+              <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-gold/15 sticky bottom-0 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
@@ -406,7 +416,8 @@ export function SuperAdminPlanBuilderClient({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

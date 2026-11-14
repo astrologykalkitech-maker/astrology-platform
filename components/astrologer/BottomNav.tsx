@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,7 +21,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon; exact?: boolean }[
   { href: "/astrologer/profile", label: "Profile", icon: UserRound, exact: true },
 ];
 
-export function BottomNav({ menuOpen, onMore }: { menuOpen: boolean; onMore: () => void }) {
+function BottomNavComponent({ menuOpen, onMore }: { menuOpen: boolean; onMore: () => void }) {
   const pathname = usePathname();
   const base =
     "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-champagne";
@@ -47,3 +48,5 @@ export function BottomNav({ menuOpen, onMore }: { menuOpen: boolean; onMore: () 
     </nav>
   );
 }
+
+export const BottomNav = memo(BottomNavComponent);

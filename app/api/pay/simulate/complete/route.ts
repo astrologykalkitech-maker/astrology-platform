@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completePaymentIntent } from "@/lib/pay/orchestrator";
 import { JyotishSimulatorStore } from "@/lib/pay/simulator";
+import { isPaymentTestingModeEnabled } from "@/lib/pay/config";
 
 export async function POST(req: NextRequest) {
   try {
-    // Strict production guard: Disallow simulation in live production mode
-    if (process.env.NODE_ENV === "production" && process.env.PAYMENT_GATEWAY_MODE === "live") {
+    // Super Admin controlled testing guard: Check if Super Admin enabled testing mode
+    const testingEnabled = await isPaymentTestingModeEnabled();
+    if (!testingEnabled && process.env.NODE_ENV === "production") {
       return NextResponse.json(
-        { success: false, error: "Payment simulation is strictly forbidden in production mode." },
+        { 
+          success: false, 
+          error: "Payment testing mode is currently DISABLED by Super Admin. Real bank payment is required." 
+        },
         { status: 403 }
       );
     }

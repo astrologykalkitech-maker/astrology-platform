@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,7 +21,7 @@ const ITEMS = [
   { href: "/customer/bookings", label: "Bookings", icon: CalendarCheck2 },
 ];
 
-export function CustomerBottomNav({ menuOpen, onMore }: BottomNavProps) {
+function CustomerBottomNavComponent({ menuOpen, onMore }: BottomNavProps) {
   const pathname = usePathname();
 
   return (
@@ -61,3 +62,5 @@ export function CustomerBottomNav({ menuOpen, onMore }: BottomNavProps) {
     </nav>
   );
 }
+
+export const CustomerBottomNav = memo(CustomerBottomNavComponent);

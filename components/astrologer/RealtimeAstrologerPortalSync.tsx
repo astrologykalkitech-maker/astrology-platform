@@ -58,6 +58,17 @@ export function RealtimeAstrologerPortalSync() {
           {
             event: "*",
             schema: "public",
+            table: "puja_bookings",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
             table: "lead_assignments",
           },
           () => {

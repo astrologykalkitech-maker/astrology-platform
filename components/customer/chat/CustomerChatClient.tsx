@@ -449,28 +449,32 @@ export function CustomerChatClient({
     if (!selectedConvoId) return;
 
     const deltaTimer = setInterval(async () => {
-      const cur = messagesRef.current;
-      const lastMsg = cur[cur.length - 1];
-      const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
+      try {
+        const cur = messagesRef.current;
+        const lastMsg = cur[cur.length - 1];
+        const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
 
-      const res = await getLatestMessagesDeltaAction(selectedConvoId, afterIso);
-      if (res.success && res.data && res.data.length > 0) {
-        setMessages((prev) => {
-          const existingIds = new Set(prev.map((m) => m.id));
-          const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
-          if (trulyNew.length === 0) return prev;
-          return [...prev, ...trulyNew];
-        });
-        if (isUserNearBottom()) {
-          setTimeout(() => scrollToBottom(true), 60);
-        } else {
-          setUnreadScrolledCount((prev) => prev + res.data!.length);
+        const res = await getLatestMessagesDeltaAction(selectedConvoId, afterIso);
+        if (res?.success && res.data && res.data.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
+            if (trulyNew.length === 0) return prev;
+            return [...prev, ...trulyNew];
+          });
+          if (isUserNearBottom()) {
+            setTimeout(() => scrollToBottom(true), 60);
+          } else {
+            setUnreadScrolledCount((prev) => prev + res.data!.length);
+          }
         }
+      } catch {
+        // Suppress background polling network transients without console unhandled rejection
       }
     }, 4000);
 
     const convoTimer = setInterval(() => {
-      void resyncConversations();
+      resyncConversations().catch(() => {});
     }, 8000);
 
     return () => {
@@ -500,17 +504,19 @@ export function CustomerChatClient({
           const cur = messagesRef.current;
           const lastMsg = cur[cur.length - 1];
           const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
-          void getLatestMessagesDeltaAction(activeId, afterIso).then((res) => {
-            if (res.success && res.data && res.data.length > 0) {
-              setMessages((prev) => {
-                const existingIds = new Set(prev.map((m) => m.id));
-                const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
-                if (trulyNew.length === 0) return prev;
-                return [...prev, ...trulyNew];
-              });
-              setTimeout(() => scrollToBottom(true), 60);
-            }
-          });
+          getLatestMessagesDeltaAction(activeId, afterIso)
+            .then((res) => {
+              if (res?.success && res.data && res.data.length > 0) {
+                setMessages((prev) => {
+                  const existingIds = new Set(prev.map((m) => m.id));
+                  const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
+                  if (trulyNew.length === 0) return prev;
+                  return [...prev, ...trulyNew];
+                });
+                setTimeout(() => scrollToBottom(true), 60);
+              }
+            })
+            .catch(() => {});
         }
       }
     }
@@ -615,11 +621,30 @@ export function CustomerChatClient({
       setTimeout(() => scrollToBottom(true), 40);
 
       try {
-        const res = await sendDirectMessageAction(selectedConvoId, text, {
-          clientMessageId: clientMsgId,
-          replyToMessageId: replyContext?.id,
-          attachments,
-        });
+        let res: any = null;
+        try {
+          res = await sendDirectMessageAction(selectedConvoId, text, {
+            clientMessageId: clientMsgId,
+            replyToMessageId: replyContext?.id,
+            attachments,
+          });
+        } catch (actionErr) {
+          // Fallback to standard HTTP route if Server Action tunnel drops or is intercepted by hosting proxy
+          const apiFetch = await fetch("/api/chat/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversationId: selectedConvoId,
+              message: text,
+              options: {
+                clientMessageId: clientMsgId,
+                replyToMessageId: replyContext?.id,
+                attachments,
+              },
+            }),
+          });
+          res = await apiFetch.json().catch(() => null);
+        }
 
         if (!res.success || !res.data) {
           setError(res.error || "Failed to deliver message");

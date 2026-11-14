@@ -344,6 +344,7 @@ export async function requestCustomerRefundAction(payload: {
 
 /**
  * Fetches the active subscription and lead quota for the logged-in astrologer.
+ * Uses authoritative getAstrologerEffectiveSubscription() for instant expiry & downgrade reconciliation.
  */
 export async function getAstrologerSubscriptionDetails(): Promise<
   AuthResult<{
@@ -359,14 +360,10 @@ export async function getAstrologerSubscriptionDetails(): Promise<
       return { success: false, error: "Astrologer profile not found." };
     }
 
-    const supabase = await createAdminClient("main");
+    const { getAstrologerEffectiveSubscription } = await import("@/lib/financial/entitlements");
+    const { subscription } = await getAstrologerEffectiveSubscription(profile.id);
 
-    // Fetch subscription
-    const { data: sub } = await supabase
-      .from("astrologer_subscriptions")
-      .select("*, plan:payment_plans(*)")
-      .eq("astrologer_id", profile.id)
-      .maybeSingle();
+    const supabase = await createAdminClient("main");
 
     // Fetch all active plans
     const { data: plans } = await supabase
@@ -378,7 +375,7 @@ export async function getAstrologerSubscriptionDetails(): Promise<
     return {
       success: true,
       data: {
-        subscription: (sub as AstrologerSubscriptionRecord) || null,
+        subscription,
         availablePlans: (plans as PaymentPlanRecord[]) || [],
         astrologerId: profile.id,
       },

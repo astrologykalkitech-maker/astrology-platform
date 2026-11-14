@@ -9,7 +9,6 @@ import { HouseAnalysis } from "@/components/kundli/HouseAnalysis";
 import { NakshatraSection } from "@/components/kundli/NakshatraSection";
 import { DashaTimeline } from "@/components/kundli/DashaTimeline";
 import { AstrologyReportView } from "@/components/kundli/AstrologyReportView";
-import { generateKundliPdf } from "@/lib/pdf/kundli-pdf";
 import type { SavedKundliRecord } from "@/lib/types/database.types";
 import type { FullAstrologyReport, PlanetaryPosition, AscendantInfo, PlanetName } from "@/lib/astrology/types";
 
@@ -33,9 +32,10 @@ export default function KundliDetailClient({ kundli }: KundliDetailClientProps) 
     window.print();
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
+      const { generateKundliPdf } = await import("@/lib/pdf/kundli-pdf");
       generateKundliPdf(kundli, report);
     } finally {
       setIsGeneratingPdf(false);
