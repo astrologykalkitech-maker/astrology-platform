@@ -24,3 +24,13 @@ export function getVoiceCallDurationSeconds(call: VoiceCall, now = Date.now()) {
   const endTime = call.ended_at ? new Date(call.ended_at).getTime() : now;
   return Math.max(0, Math.floor((endTime - new Date(call.started_at).getTime()) / 1000));
 }
+
+export function getVoiceCallCommissionBookingId(
+  bookingId: string | null | undefined,
+  durationSeconds: number
+): string | null {
+  if (!bookingId || !Number.isSafeInteger(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+  return bookingId;
+}

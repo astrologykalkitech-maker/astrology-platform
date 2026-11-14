@@ -18,6 +18,7 @@ import {
   Send,
   Lock,
 } from "lucide-react";
+import { LocationAutocomplete } from "@/components/common/LocationAutocomplete";
 import {
   submitPujaBookingRequest,
   reschedulePujaBooking,
@@ -33,6 +34,7 @@ import {
   evaluatePujaDarshanEligibility,
   type PujaDarshanEligibility,
 } from "@/lib/astrology/puja-darshan-access";
+import { isValidGeoCoordinatePair } from "@/lib/location/coordinates";
 import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 
 const CARD =
@@ -69,8 +71,8 @@ export function CustomerPujaBookingClient({
   const [instructions, setInstructions] = useState("");
   const [venueAddress, setVenueAddress] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [lat, setLat] = useState<number>(28.6139);
-  const [lng, setLng] = useState<number>(77.209);
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"pay_at_drop" | "online_prepaid">("pay_at_drop");
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<PujaBookingRecord | null>(null);
@@ -468,13 +470,32 @@ export function CustomerPujaBookingClient({
                   <span className="text-xs font-bold text-midnight block">Event Venue & OpenStreetMap Pinning</span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-800 mb-1">Event Venue Address *</label>
-                      <input
-                        type="text"
-                        placeholder="House, Temple Mandap, Ashram or Hall Address"
+                      <LocationAutocomplete
+                        id="puja-event-venue"
+                        label="Event Venue Address *"
                         value={venueAddress}
-                        onChange={(e) => setVenueAddress(e.target.value)}
-                        className="w-full p-2 rounded-lg border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                        onChange={(value, suggestion) => {
+                          setVenueAddress(value);
+                          if (
+                            suggestion &&
+                            typeof suggestion.latitude === "number" &&
+                            typeof suggestion.longitude === "number" &&
+                            isValidGeoCoordinatePair(
+                              suggestion.latitude,
+                              suggestion.longitude
+                            )
+                          ) {
+                            setLat(suggestion.latitude);
+                            setLng(suggestion.longitude);
+                          } else {
+                            setLat(null);
+                            setLng(null);
+                          }
+                        }}
+                        placeholder="Search or enter the event venue address"
+                        inputClassName="w-full p-2 rounded-lg border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                        required
+                        enableCurrentLocation={false}
                       />
                     </div>
                     <div>
@@ -493,8 +514,8 @@ export function CustomerPujaBookingClient({
                     <OpenStreetMapViewer
                       latitude={lat}
                       longitude={lng}
-                      address={venueAddress || "Select or enter holy venue address"}
-                      landmark={landmark || "Mandap"}
+                      address={venueAddress}
+                      landmark={landmark}
                     />
                   </div>
                 </div>
@@ -657,6 +678,17 @@ export function CustomerPujaBookingClient({
                     <span className="font-bold text-midnight">{b.astrologer?.display_name || "Assigning Consecrated Priest..."}</span>
                   </div>
                 </div>
+
+                {(b.venue_address || b.latitude != null || b.longitude != null) && (
+                  <div className="border-b border-gold/10 py-3">
+                    <OpenStreetMapViewer
+                      latitude={b.latitude}
+                      longitude={b.longitude}
+                      address={b.venue_address}
+                      landmark={b.landmark}
+                    />
+                  </div>
+                )}
 
                 {/* Darshan Access State & Joining Section */}
                 {(() => {

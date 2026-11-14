@@ -23,7 +23,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatExactDateTime } from "@/lib/astrologer/format";
-import { OlaMap } from "@/components/maps/OlaMap";
+import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
@@ -402,14 +402,15 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
                   </div>
                 </div>
 
-                {/* Interactive Ola Maps Venue Visualizer */}
-                {((booking as any).venue_address || (booking as any).latitude || ((booking.consultation_mode as string) === "InPerson") || (booking as any).service_type?.toLowerCase().includes("offline") || (booking as any).service_type?.toLowerCase().includes("havan")) && (
+                {((booking.event_address && booking.event_address.trim()) ||
+                  booking.latitude != null ||
+                  booking.longitude != null) && (
                   <div className="pt-2 border-t border-gold/15">
-                    <OlaMap
-                      latitude={(booking as any).latitude}
-                      longitude={(booking as any).longitude}
-                      address={(booking as any).venue_address || "Designated Holy Venue (In-Person Mandap)"}
-                      landmark={(booking as any).landmark || "Main Sanctum"}
+                    <OpenStreetMapViewer
+                      latitude={booking.latitude}
+                      longitude={booking.longitude}
+                      address={booking.event_address}
+                      landmark={booking.landmark}
                     />
                   </div>
                 )}

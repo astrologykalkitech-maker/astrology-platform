@@ -74,6 +74,7 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
   const [city, setCity] = useState(profile?.city ?? "");
   const [state, setState] = useState(profile?.state ?? "");
   const [address, setAddress] = useState(profile?.address ?? "");
+  const [upiVpa, setUpiVpa] = useState(profile?.upi_vpa ?? "");
   const [photoUrl, setPhotoUrl] = useState(profile?.profile_photo_url ?? "");
   const [slug, setSlug] = useState(profile?.slug ?? "");
   const [languages, setLanguages] = useState<string[]>(profile?.languages ?? []);
@@ -131,6 +132,7 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
       city: city.trim() || null,
       state: state.trim() || null,
       address: address.trim() || null,
+      upi_vpa: upiVpa.trim() || null,
       profile_photo_url: photoUrl.trim() || null,
       slug: slug.trim() || null,
       specializations,
@@ -223,6 +225,13 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
             <>
               <h2 className="font-display text-2xl font-semibold text-midnight">Consultation Details</h2>
               <FormField label="General Consultation Base Fee (₹)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} error={errors.fee} />
+              <FormField
+                label="Direct UPI ID for Consultation Payments"
+                value={upiVpa}
+                onChange={(e) => setUpiVpa(e.target.value)}
+                placeholder="name@bank"
+                hint="Customers with a booking will use this UPI ID to pay you directly. JyotishSetu never verifies a payment from a submitted UTR alone."
+              />
               
               {/* Dynamic Per-Minute Consultation Rates */}
               <div className="rounded-xl border border-gold/30 bg-parchment/40 p-4 space-y-4">

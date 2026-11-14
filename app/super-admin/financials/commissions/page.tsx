@@ -1,6 +1,7 @@
 import { SuperAdminCommissionDashboardClient } from "@/components/admin/SuperAdminCommissionDashboardClient";
 import { requireSuperAdminPage } from "@/lib/auth/admin-guard";
 import { getSuperAdminCommissionAnalytics } from "@/app/actions/commission-management";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,14 @@ export default async function SuperAdminCommissionsPage() {
           Marketplace Commission & Float Management
         </h1>
         <p className="text-xs text-muted">
-          Real-time double-entry ledger for the 10% booking commission model, consultant negative balance liabilities, and settlements.
+          Configured consultation commission, consultant liabilities, and manually verified settlements.
         </p>
+        <Link
+          href="/super-admin/financials/commissions/verifications"
+          className="mt-3 inline-flex rounded-lg bg-midnight px-3 py-2 text-xs font-semibold text-white hover:bg-plum"
+        >
+          Review direct payments and settlements
+        </Link>
       </div>
 
       <SuperAdminCommissionDashboardClient

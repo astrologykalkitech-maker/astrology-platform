@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getVoiceCallCommissionBookingId,
   getVoiceCallDurationSeconds,
   isLiveVoiceCallStatus,
   isVoiceCallRingExpired,
@@ -56,6 +57,13 @@ test("Voice call duration uses the persisted start and end times", () => {
     ),
     70
   );
+});
+
+test("Voice-call commission reconciliation requires a linked booking and a completed call duration", () => {
+  assert.equal(getVoiceCallCommissionBookingId(null, 60), null);
+  assert.equal(getVoiceCallCommissionBookingId("booking-1", 0), null);
+  assert.equal(getVoiceCallCommissionBookingId("booking-1", 60), "booking-1");
+  assert.equal(getVoiceCallCommissionBookingId("booking-1", 1.5), null);
 });
 
 test("Voice call database migration limits read access to call participants and enables realtime", () => {

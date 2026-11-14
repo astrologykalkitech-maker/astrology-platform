@@ -9,7 +9,12 @@ export interface JournalLineInput {
 
 export interface CreateJournalEntryParams {
   entryNumber?: string;
-  referenceType: "consultation_payment" | "subscription_payment" | "consultant_settlement" | "refund";
+  referenceType:
+    | "consultation_payment"
+    | "subscription_payment"
+    | "consultant_settlement"
+    | "refund"
+    | "jyotish_payment_intent";
   referenceId: string;
   description: string;
   entryDate?: string;
@@ -131,12 +136,15 @@ export async function createDoubleEntryJournal(
       delta = l.creditPaise - l.debitPaise;
     }
 
-    await supabase
+    const { error: balanceError } = await supabase
       .from("financial_accounts")
       .update({
         balance_paise: acc.balance_paise + delta,
       })
       .eq("id", acc.id);
+    if (balanceError) {
+      return { success: false, error: `Failed to update account ${acc.code}: ${balanceError.message}` };
+    }
   }
 
   return { success: true, entryId: entry.id };
@@ -237,6 +245,35 @@ export async function recordFinancialTransaction(params: {
       description: params.description,
     });
   }
+}
+
+export async function recordJyotishPaymentIntentInLedger(params: {
+  intentId: string;
+  entityType: "consultation" | "subscription";
+  amountPaise: number;
+  description: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (params.entityType === "subscription") {
+    return createDoubleEntryJournal({
+      referenceType: "jyotish_payment_intent",
+      referenceId: params.intentId,
+      description: params.description,
+      lines: [
+        { accountCode: ACCOUNT_CODES.INSTAMOJO_CLEARING, debitPaise: params.amountPaise, creditPaise: 0 },
+        { accountCode: ACCOUNT_CODES.SUBSCRIPTION_REVENUE, debitPaise: 0, creditPaise: params.amountPaise },
+      ],
+    });
+  }
+
+  return createDoubleEntryJournal({
+    referenceType: "jyotish_payment_intent",
+    referenceId: params.intentId,
+    description: params.description,
+    lines: [
+      { accountCode: ACCOUNT_CODES.INSTAMOJO_CLEARING, debitPaise: params.amountPaise, creditPaise: 0 },
+      { accountCode: ACCOUNT_CODES.ESCROW_CONSULTATION, debitPaise: 0, creditPaise: params.amountPaise },
+    ],
+  });
 }
 
 

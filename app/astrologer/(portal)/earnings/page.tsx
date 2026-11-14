@@ -24,28 +24,14 @@ export default async function AstrologerEarningsPage() {
     getAstrologerEarningsAction(),
     getConsultantCommissionStatement(),
   ]);
-  const summary =
-    res.success && res.data
-      ? res.data
-      : { totalConsultations: 0, completedConsultations: 0, totalEarningsValue: 0, pendingEarningsValue: 0, records: [] };
+  const summary = res.success ? res.data : null;
 
-  const defaultSummary = {
-    consultant_id: "",
-    total_gross_paise: 0,
-    total_commission_earned_paise: 0,
-    total_settled_paise: 0,
-    total_reversed_paise: 0,
-    outstanding_commission_paise: 0,
-    last_calculated_at: new Date().toISOString(),
-  };
-
-  const commissionData = commissionRes.success && commissionRes.data ? {
-    summary: commissionRes.data.summary ?? defaultSummary,
-    ledger: commissionRes.data.ledger ?? [],
-  } : {
-    summary: defaultSummary,
-    ledger: [],
-  };
+  const commissionData =
+    commissionRes.success && commissionRes.data
+      ? commissionRes.data.summary
+        ? { ...commissionRes.data, summary: commissionRes.data.summary }
+        : null
+      : null;
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -68,10 +54,12 @@ export default async function AstrologerEarningsPage() {
       <div className="flex items-center gap-2 p-3.5 rounded-xl border border-gold/20 bg-parchment/50 text-xs text-ink/80">
         <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>
-          Earnings are accrued after 10% platform commission and verified via Instamojo. Payout settlements are processed directly to your bank account via NEFT/RTGS.
+          Direct customer payments are manually verified against bank/UPI records. Commission is accrued only after payment verification and booking completion.
         </span>
       </div>
 
+      {summary ? (
+        <>
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className={`${CARD} p-4`}>
@@ -83,7 +71,7 @@ export default async function AstrologerEarningsPage() {
           <p className="text-xl font-bold text-emerald-600 mt-1">{summary.completedConsultations}</p>
         </div>
         <div className={`${CARD} p-4`}>
-          <span className="text-xs text-muted">Settled Value</span>
+          <span className="text-xs text-muted">Verified Gross Earnings</span>
           <p className="text-xl font-bold text-midnight mt-1">₹{summary.totalEarningsValue}</p>
         </div>
         <div className={`${CARD} p-4`}>
@@ -139,14 +127,24 @@ export default async function AstrologerEarningsPage() {
                   >
                     {rec.status}
                   </span>
+                  <span className="block mt-1 text-[10px] text-muted">
+                    Payment: {rec.payment_status}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+        </>
+      ) : (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          Could not load earnings: {res.error || "Earnings data is unavailable."}
+        </div>
+      )}
 
       {/* Platform 10% Commission Float & Dues Ledger */}
+      {commissionData ? (
       <div className="pt-6 border-t border-gold/20">
         <div className="flex items-center gap-2 mb-4">
           <Scale className="h-5 w-5 text-gold-deep" />
@@ -155,15 +153,22 @@ export default async function AstrologerEarningsPage() {
               Marketplace Commission & Float Management
             </h2>
             <p className="text-xs text-muted">
-              Official 10% JyotishSetu platform commission ledger, negative balance tracking, and instant dues settlement.
+              Configured JyotishSetu platform commission ledger, negative balance tracking, and verified dues settlement.
             </p>
           </div>
         </div>
         <AstrologerCommissionBalanceClient
           summary={commissionData.summary}
           ledger={commissionData.ledger}
+          directPayments={commissionData.directPayments}
+          settlements={commissionData.settlements}
         />
       </div>
+      ) : (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          Could not load commission wallet: {commissionRes.error || "Commission summary is unavailable."}
+        </div>
+      )}
     </div>
   );
 }

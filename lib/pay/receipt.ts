@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { formatPaiseToInr } from "../financial/pricing";
-import { JyotishPaymentIntent, JyotishPaymentReceipt } from "./types";
+import { JyotishPaymentIntent } from "./types";
 
 export interface GenerateReceiptData {
   receiptNumber: string;
@@ -11,6 +11,8 @@ export interface GenerateReceiptData {
   astrologerName?: string;
   serviceDescription: string;
   utrOrReference?: string;
+  paymentMethod?: string;
+  verificationSource?: string;
   paidAtDate?: Date;
 }
 
@@ -80,17 +82,24 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   doc.setFont("helvetica", "bold");
   doc.text("Payment Method:", 120, 55);
   doc.setFont("helvetica", "normal");
-  doc.text("UPI (JyotishSetu Pay)", 155, 55);
+  doc.text(data.paymentMethod || "UPI (JyotishSetu Pay)", 155, 55);
 
   doc.setFont("helvetica", "bold");
   doc.text("Bank Ref / UTR:", 120, 62);
   doc.setFont("helvetica", "normal");
-  doc.text(data.utrOrReference || "VERIFIED-INSTANT-CREDIT", 155, 62);
+  doc.text(data.utrOrReference || "Not provided", 155, 62);
 
   doc.setFont("helvetica", "bold");
   doc.text("Gateway Mode:", 120, 69);
   doc.setFont("helvetica", "normal");
-  doc.text("Automated Secure Clearance", 155, 69);
+  const verificationLabel = data.verificationSource === "manual_utr"
+    ? "Manually verified"
+    : data.verificationSource === "signed_webhook"
+      ? "Signed gateway event"
+      : data.verificationSource === "simulation"
+        ? "Test payment"
+        : "Verified";
+  doc.text(verificationLabel, 155, 69);
 
   // Horizontal Rule
   doc.setDrawColor(226, 232, 240);
@@ -105,7 +114,7 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.text(data.customerName || "Valued Client", 14, 92);
-  doc.text(data.customerEmail || "client@jyotishsetu.in", 14, 98);
+  doc.text(data.customerEmail || "Not provided", 14, 98);
 
   doc.text(data.astrologerName || "JyotishSetu Platform Services", 120, 92);
   doc.text("support@jyotishsetu.in", 120, 98);
@@ -113,7 +122,7 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   // Line Items Table
   const inrAmount = formatPaiseToInr(data.intent.amount_paise);
 
-  (doc as any).autoTable({
+  autoTable(doc, {
     startY: 110,
     head: [["Item Description", "Type", "Status", "Amount (INR)"]],
     body: [
@@ -143,7 +152,7 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   });
 
   // Summary Totals
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  const finalY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
   doc.setFont("helvetica", "normal");
   doc.text("Subtotal:", 130, finalY);
   doc.text(inrAmount, 195, finalY, { align: "right" });

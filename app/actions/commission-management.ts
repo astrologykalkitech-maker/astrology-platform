@@ -5,13 +5,13 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { requireAdminAccess, requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { revalidatePath } from "next/cache";
 import {
-  postCommissionLedgerEntry,
   refreshConsultantBalanceSummary,
-  getEffectiveCommissionRate,
-  getConsultantCommissionStatement,
   type CommissionSettingsRecord,
 } from "@/lib/financial/commission-engine";
 import { rupeesToPaise } from "@/lib/financial/pricing";
+import { getLivePaymentRuntimeConfig } from "@/lib/pay/config";
+import { buildUPIUri, generateUPIDataUrl } from "@/lib/pay/qr";
+import { normalizeDirectPaymentUtr } from "@/lib/financial/direct-payment-rules";
 
 /**
  * Super Admin retrieves platform-wide commission analytics and consultant dues ledger.
@@ -68,8 +68,8 @@ export async function getSuperAdminCommissionAnalytics() {
         recentLedger: recentEntries || [],
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to load commission analytics", data: null };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to load commission analytics", data: null };
   }
 }
 
@@ -113,8 +113,8 @@ export async function updateSuperAdminCommissionSetting({
     revalidatePath("/astrologer/earnings");
 
     return { success: true, setting: data };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to update commission rate" };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to update commission rate" };
   }
 }
 
@@ -146,8 +146,31 @@ export async function initiateConsultantCommissionSettlementAction(amountRupees?
       return { success: false, error: "No outstanding commission dues to settle." };
     }
 
-    const settlementPaise = amountRupees ? Math.min(rupeesToPaise(amountRupees), outstandingPaise) : outstandingPaise;
+    if (
+      amountRupees !== undefined &&
+      (!Number.isFinite(amountRupees) || amountRupees <= 0)
+    ) {
+      return { success: false, error: "Settlement amount must be greater than zero." };
+    }
+
+    const settlementPaise = amountRupees !== undefined
+      ? Math.min(rupeesToPaise(amountRupees), outstandingPaise)
+      : outstandingPaise;
+    if (settlementPaise <= 0) {
+      return { success: false, error: "Settlement amount must be greater than zero." };
+    }
     const settlementNumber = `JSP_SETTLE_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const paymentConfig = await getLivePaymentRuntimeConfig();
+    const upiUri = buildUPIUri({
+      transactionReference: settlementNumber,
+      amountPaise: settlementPaise,
+      transactionNote: "JyotishSetu platform commission settlement",
+      merchantVpa: paymentConfig.merchantVpa,
+      merchantName: paymentConfig.merchantName,
+      merchantCode: paymentConfig.merchantCode,
+      isPersonalUPI: paymentConfig.merchantCode === "0000",
+    });
+    const qrDataUrl = await generateUPIDataUrl(upiUri);
 
     const { data: settlement, error: settleErr } = await admin
       .from("commission_settlements")
@@ -174,77 +197,103 @@ export async function initiateConsultantCommissionSettlementAction(amountRupees?
         settlementNumber: settlement.settlement_number,
         amountPaise: settlement.amount_paise,
         amountRupees: settlement.amount_paise / 100,
+        upiUri,
+        qrDataUrl,
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to initiate settlement" };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to initiate settlement" };
   }
 }
 
 /**
  * Confirms and allocates a verified commission settlement against consultant's ledger entries.
  */
-export async function confirmConsultantCommissionSettlementAction({
+export async function submitConsultantCommissionSettlementUtrAction({
   settlementId,
   bankReferenceUtr,
+  paymentDate,
 }: {
   settlementId: string;
   bankReferenceUtr: string;
+  paymentDate: string;
 }) {
   try {
     const user = await getCurrentUser();
     if (!user) return { success: false, error: "Authentication required" };
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(settlementId)) {
+      return { success: false, error: "Invalid settlement record." };
+    }
+
+    const utr = normalizeDirectPaymentUtr(bankReferenceUtr);
+    if (!utr) return { success: false, error: "Enter a valid UTR/reference number." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) {
+      return { success: false, error: "Enter a valid payment date." };
+    }
+    const parsedDate = new Date(`${paymentDate}T00:00:00.000Z`);
+    const indiaToday = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== paymentDate ||
+      paymentDate > indiaToday
+    ) {
+      return { success: false, error: "Payment date cannot be invalid or in the future." };
+    }
 
     const admin = await createAdminClient("main");
 
+    const { data: profile, error: profileError } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profileError || !profile) {
+      return { success: false, error: profileError?.message || "Astrologer profile not found." };
+    }
+
     const { data: settlement, error: fetchErr } = await admin
       .from("commission_settlements")
-      .select("*")
+      .select("id, consultant_id, status")
       .eq("id", settlementId)
-      .single();
+      .eq("consultant_id", profile.id)
+      .maybeSingle();
 
     if (fetchErr || !settlement) {
       return { success: false, error: "Settlement record not found" };
     }
 
-    if (settlement.status === "succeeded") {
-      return { success: true, message: "Settlement already processed." };
+    if (!["initiated", "rejected", "failed"].includes(settlement.status)) {
+      return { success: false, error: "This settlement has already been submitted or processed." };
     }
 
-    const nowIso = new Date().toISOString();
-
-    // 1. Mark settlement succeeded
-    await admin
+    const { data: updatedSettlement, error: updateError } = await admin
       .from("commission_settlements")
       .update({
-        status: "succeeded",
-        gateway_reference: bankReferenceUtr.trim(),
-        verified_at: nowIso,
-        updated_at: nowIso,
+        status: "pending",
+        submitted_utr: utr,
+        submitted_by: user.id,
+        submitted_at: new Date().toISOString(),
+        payment_date: paymentDate,
+        rejection_reason: null,
+        reviewed_by: null,
+        reviewed_at: null,
+        review_notes: null,
+        updated_at: new Date().toISOString(),
       })
-      .eq("id", settlementId);
-
-    // 2. Post SETTLEMENT_PAYMENT entry to commission_ledger
-    await admin.from("commission_ledger").insert({
-      consultant_id: settlement.consultant_id,
-      entry_type: "SETTLEMENT_PAYMENT",
-      commission_rate: 0,
-      gross_amount_paise: settlement.amount_paise,
-      commission_amount_paise: settlement.amount_paise,
-      currency: "INR",
-      status: "settled",
-      idempotency_key: `SETTLE_ALLOC_${settlementId}`,
-      description: `Settlement cleared via UTR ${bankReferenceUtr.trim()}`,
-    });
-
-    // 3. Refresh summary
-    await refreshConsultantBalanceSummary(settlement.consultant_id);
+      .eq("id", settlementId)
+      .eq("consultant_id", profile.id)
+      .eq("status", settlement.status)
+      .select("id")
+      .maybeSingle();
+    if (updateError) return { success: false, error: updateError.message };
+    if (!updatedSettlement) return { success: false, error: "Settlement state changed. Refresh and retry." };
 
     revalidatePath("/astrologer/earnings");
+    revalidatePath("/super-admin/financials/commissions/verifications");
     revalidatePath("/super-admin/financials");
 
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to confirm settlement" };
+    return { success: true, message: "UTR submitted. Platform dues remain outstanding until a Super Admin verifies the payment." };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to submit settlement UTR" };
   }
 }

@@ -19,7 +19,7 @@ import {
   ChevronRight,
   MapPin,
 } from "lucide-react";
-import { OlaMap } from "@/components/maps/OlaMap";
+import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 import {
   respondToPujaAssignment,
   updatePujaFulfilmentProgress,
@@ -213,15 +213,16 @@ export function AstrologerPujasClient({
                     </div>
                   )}
 
-                  {/* Interactive Ola Maps Venue Visualizer */}
-                  <div className="mt-2.5">
-                    <OlaMap
-                      latitude={b.latitude}
-                      longitude={b.longitude}
-                      address={b.venue_address || "Designated Holy Venue (Vedic Ritual Grounds)"}
-                      landmark={b.landmark || "Main Sanctum / Puja Mandap"}
-                    />
-                  </div>
+                  {(b.venue_address || b.latitude != null || b.longitude != null) && (
+                    <div className="mt-2.5">
+                      <OpenStreetMapViewer
+                        latitude={b.latitude}
+                        longitude={b.longitude}
+                        address={b.venue_address}
+                        landmark={b.landmark}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-gold/15 flex items-center justify-between gap-2">

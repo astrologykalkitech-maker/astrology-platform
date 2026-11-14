@@ -3,12 +3,20 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { completePaymentIntent } from "@/lib/pay/orchestrator";
 import { JyotishSimulatorStore } from "@/lib/pay/simulator";
 import { isPaymentTestingModeEnabled } from "@/lib/pay/config";
+import { AdminPermissionDeniedError, requireSuperAdmin } from "@/lib/auth/admin-guard";
 
 export async function POST(req: NextRequest) {
   try {
-    // Super Admin controlled testing guard: Check if Super Admin enabled testing mode
+    await requireSuperAdmin();
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { success: false, error: "Payment simulation is disabled in production." },
+        { status: 403 }
+      );
+    }
+
     const testingEnabled = await isPaymentTestingModeEnabled();
-    if (!testingEnabled && process.env.NODE_ENV === "production") {
+    if (!testingEnabled) {
       return NextResponse.json(
         { 
           success: false, 
@@ -77,6 +85,7 @@ export async function POST(req: NextRequest) {
             .from("payment_intents")
             .update({
               status: "succeeded",
+              verification_source: "simulation",
               succeeded_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
@@ -132,8 +141,13 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("[JyotishSetu Pay] Simulation error:", error);
     return NextResponse.json(
-      { success: false, error: error?.message || "Simulation failed" },
-      { status: 500 }
+      {
+        success: false,
+        error: error instanceof AdminPermissionDeniedError
+          ? error.message
+          : error?.message || "Simulation failed",
+      },
+      { status: error instanceof AdminPermissionDeniedError ? 403 : 500 }
     );
   }
 }

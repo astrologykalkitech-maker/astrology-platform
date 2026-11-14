@@ -1,147 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { completePaymentIntent } from "@/lib/pay/orchestrator";
-import { JyotishSimulatorStore } from "@/lib/pay/simulator";
+import { isValidManualPaymentDate, normalizeManualUtr } from "@/lib/pay/manual-utr-rules";
+
+type UtrRequest = {
+  session_code?: unknown;
+  utr?: unknown;
+  payment_date?: unknown;
+};
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { session_code, utr } = body;
+    const { user } = await requireAuth();
+    const body = (await req.json()) as UtrRequest;
+    const sessionCode = typeof body.session_code === "string" ? body.session_code.trim() : "";
+    const utr = normalizeManualUtr(body.utr);
 
-    if (!session_code) {
+    if (!sessionCode) {
       return NextResponse.json(
-        { success: false, error: "Missing session_code" },
+        { success: false, error: "Missing session_code." },
         { status: 400 }
       );
     }
-
-    const trimmedUtr = typeof utr === "string" ? utr.trim() : "";
-
-    // 1. Strict validation: Must not be empty and must be 12 alphanumeric characters
-    if (!trimmedUtr) {
+    if (!utr) {
       return NextResponse.json(
-        { success: false, error: "Please enter a valid 12-digit Bank UTR / Reference ID." },
+        { success: false, error: "UTR must be exactly 12 alphanumeric characters." },
         { status: 400 }
       );
     }
-
-    const utrRegex = /^[A-Za-z0-9]{12}$/;
-    if (!utrRegex.test(trimmedUtr)) {
+    if (!isValidManualPaymentDate(body.payment_date)) {
       return NextResponse.json(
-        { success: false, error: "Invalid UTR format. Bank UTR / Reference ID must be exactly 12 alphanumeric digits." },
+        { success: false, error: "Enter a valid payment date that is not in the future." },
         { status: 400 }
       );
     }
 
     const supabase = await createAdminClient("main");
+    const { data: verificationId, error } = await supabase.rpc("submit_jyotish_pay_utr", {
+      p_session_code: sessionCode,
+      p_submitter_id: user.id,
+      p_utr: utr,
+      p_payment_date: body.payment_date,
+    });
 
-    // 2. Fetch session and intent
-    let qrSession: any = null;
-    let intent: any = null;
-
-    try {
-      const { data: dbSession } = await supabase
-        .from("qr_payment_sessions")
-        .select("*, payment_intents(*)")
-        .eq("session_code", session_code)
-        .maybeSingle();
-
-      if (dbSession) {
-        qrSession = dbSession;
-        intent = dbSession.payment_intents;
-      }
-    } catch (e) {}
-
-    if (!qrSession) {
-      qrSession = JyotishSimulatorStore.getSession(session_code);
-      if (qrSession) {
-        intent = JyotishSimulatorStore.getIntent(qrSession.intent_id);
-      }
-    }
-
-    if (!qrSession) {
+    if (error) {
+      console.error("[JyotishSetu Pay] UTR claim submission failed:", error);
+      const isConflict = /already submitted|active UTR claim/i.test(error.message);
       return NextResponse.json(
-        { success: false, error: "Payment session not found or expired." },
-        { status: 404 }
+        {
+          success: false,
+          error: isConflict ? error.message : "The payment reference could not be submitted for review.",
+        },
+        { status: isConflict ? 409 : 400 }
+      );
+    }
+    if (!verificationId) {
+      console.error("[JyotishSetu Pay] UTR submission RPC returned no verification id.");
+      return NextResponse.json(
+        { success: false, error: "The payment reference was not recorded. Please retry." },
+        { status: 500 }
       );
     }
 
-    // 3. Mark session and intent as completed
-    JyotishSimulatorStore.markSessionCompleted(session_code, trimmedUtr);
-
-    try {
-      await supabase
-        .from("qr_payment_sessions")
-        .update({
-          status: "completed",
-          utr_reference: trimmedUtr,
-          verified_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("session_code", session_code);
-
-      if (qrSession.intent_id) {
-        await supabase
-          .from("payment_intents")
-          .update({
-            status: "succeeded",
-            succeeded_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", qrSession.intent_id);
-      }
-    } catch (e) {}
-
-    // Fallback: If intent doesn't have plan_id and amount is ₹499 (49900 paise), lookup professional plan
-    let effectivePlanId = intent?.plan_id;
-    if (!effectivePlanId && qrSession.amount_paise === 49900) {
-      try {
-        const { data: proPlan } = await supabase
-          .from("payment_plans")
-          .select("id")
-          .eq("slug", "professional")
-          .maybeSingle();
-        if (proPlan) effectivePlanId = proPlan.id;
-      } catch (e) {}
-    }
-
-    // 4. Complete Post-Payment triggers (Double-entry ledger & Subscription activation)
-    const completion = await completePaymentIntent(
-      intent ? { ...intent, plan_id: intent.plan_id || effectivePlanId } : {
-        id: qrSession.intent_id,
-        intent_number: "JSP_UTR_VERIFIED",
-        entity_type: "subscription",
-        amount_paise: qrSession.amount_paise,
-        currency: "INR",
-        status: "succeeded",
-        client_secret: "",
-        payment_method_allowed: [],
-        metadata: {},
-        created_at: qrSession.created_at,
-        expires_at: qrSession.expires_at,
-        updated_at: new Date().toISOString(),
-        astrologer_id: qrSession.astrologer_id,
-        customer_id: qrSession.customer_id,
-        plan_id: effectivePlanId,
-      },
-      trimmedUtr,
-      { supabaseClient: supabase }
-    );
-
-    return NextResponse.json({
-      success: true,
-      status: "completed",
-      sessionCode: session_code,
-      utr: trimmedUtr,
-      receiptNumber: completion.receiptNumber,
-      message: "Bank UTR verified successfully.",
-    });
-  } catch (error: any) {
-    console.error("[JyotishSetu Pay] UTR verification error:", error);
     return NextResponse.json(
-      { success: false, error: error?.message || "UTR verification failed." },
-      { status: 500 }
+      {
+        success: true,
+        status: "pending_verification",
+        verificationId,
+        message: "UTR submitted. Payment is pending Super Admin verification and is not yet marked paid.",
+      },
+      { status: 202 }
+    );
+  } catch (error) {
+    console.error("[JyotishSetu Pay] UTR submission error:", error);
+    const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
+    return NextResponse.json(
+      { success: false, error: isAuthError ? "Authentication required." : "UTR submission failed." },
+      { status: isAuthError ? 401 : 500 }
     );
   }
 }
-

@@ -44,7 +44,11 @@ import {
 } from "@/app/actions/direct-chat";
 import { createClient } from "@/lib/supabase/client";
 import { parseDirectMessageRow } from "@/lib/chat/meta";
-import { playChatNotificationChime } from "@/lib/chat/audio-notification";
+import {
+  playChatNotificationChime,
+  unlockChatAudio,
+} from "@/lib/chat/audio-notification";
+import { rememberIncomingMessage } from "@/lib/chat/notification-rules";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
@@ -124,9 +128,30 @@ export function CustomerChatClient({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const selectedConvoIdRef = useRef<string | null>(selectedConvoId);
   const messagesRef = useRef<DirectMessage[]>(messages);
+  const processedIncomingMessageIdsRef = useRef(new Set<string>());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    let disposed = false;
+    const unlockOnInteraction = () => {
+      void unlockChatAudio().then((unlocked) => {
+        if (unlocked && !disposed) {
+          window.removeEventListener("pointerdown", unlockOnInteraction);
+          window.removeEventListener("keydown", unlockOnInteraction);
+        }
+      });
+    };
+
+    window.addEventListener("pointerdown", unlockOnInteraction);
+    window.addEventListener("keydown", unlockOnInteraction);
+    return () => {
+      disposed = true;
+      window.removeEventListener("pointerdown", unlockOnInteraction);
+      window.removeEventListener("keydown", unlockOnInteraction);
+    };
+  }, []);
 
   useEffect(() => {
     selectedConvoIdRef.current = selectedConvoId;
@@ -174,9 +199,24 @@ export function CustomerChatClient({
     (newMsg: DirectMessage) => {
       if (!newMsg) return;
 
+      if (newMsg.sender_role === "astrologer") {
+        if (
+          !rememberIncomingMessage(
+            newMsg.id,
+            processedIncomingMessageIdsRef.current
+          )
+        ) {
+          return;
+        }
+      }
+
       const activeId = selectedConvoIdRef.current;
       const isCurrentChat = newMsg.conversation_id === activeId;
       const isVisible = typeof document !== "undefined" && document.visibilityState === "visible";
+
+      if (newMsg.sender_role === "astrologer" && isCurrentChat) {
+        playChatNotificationChime(isMuted);
+      }
 
       if (isCurrentChat) {
         setMessages((prev) => {
@@ -198,7 +238,6 @@ export function CustomerChatClient({
         if (isUserNearBottom()) {
           setTimeout(() => scrollToBottom(true), 60);
           if (newMsg.sender_role === "astrologer") {
-            playChatNotificationChime(isMuted);
             void markConversationReadAction(newMsg.conversation_id);
             // Broadcast read receipt so astrologer sees double gold ticks
             channelRef.current?.send({
@@ -211,7 +250,6 @@ export function CustomerChatClient({
           // User is scrolled up
           if (newMsg.sender_role === "astrologer") {
             setUnreadScrolledCount((prev) => prev + 1);
-            playChatNotificationChime(isMuted);
           }
         }
       }

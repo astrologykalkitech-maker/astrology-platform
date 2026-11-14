@@ -506,6 +506,7 @@ export async function getCustomerBookings(): Promise<
         duration_minutes,
         status,
         price,
+        payment_mode,
         notes,
         cancellation_reason,
         cancelled_at,
@@ -529,17 +530,55 @@ export async function getCustomerBookings(): Promise<
       }
     >;
 
+    const bookingIds = rawBookings.map((booking) => booking.id);
+    const astrologerIds = Array.from(new Set(rawBookings.map((booking) => booking.astrologer_id)));
+    const paymentAdmin = bookingIds.length || astrologerIds.length
+      ? await createAdminClient("main")
+      : null;
+    const [directPaymentResult, astrologerResult] = paymentAdmin
+      ? await Promise.all([
+          bookingIds.length
+            ? paymentAdmin
+                .from("direct_consultation_payments")
+                .select("id, booking_id, utr, amount_paise, payment_date, status, rejection_reason, submitted_at")
+                .in("booking_id", bookingIds)
+                .order("submitted_at", { ascending: false })
+            : Promise.resolve({ data: [], error: null }),
+          astrologerIds.length
+            ? paymentAdmin.from("astrologer_profiles").select("id, upi_vpa").in("id", astrologerIds)
+            : Promise.resolve({ data: [], error: null }),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+
+    if (directPaymentResult.error) {
+      return { success: false, error: `Failed to load payment submissions: ${directPaymentResult.error.message}` };
+    }
+    if (astrologerResult.error) {
+      return { success: false, error: `Failed to load astrologer payment details: ${astrologerResult.error.message}` };
+    }
+
+    const directPayments = new Map<string, NonNullable<CustomerBooking["direct_payment"]>>();
+    for (const payment of directPaymentResult.data || []) {
+      if (!directPayments.has(payment.booking_id)) {
+        directPayments.set(payment.booking_id, payment as NonNullable<CustomerBooking["direct_payment"]>);
+      }
+    }
+    const upiVpas = new Map((astrologerResult.data || []).map((astrologer) => [astrologer.id, astrologer.upi_vpa]));
+
     const result: CustomerBooking[] = rawBookings.map((b) => ({
       id: b.id,
       customer_id: b.customer_id,
       astrologer_id: b.astrologer_id,
       astrologer_name: b.astrologer?.display_name || "Vedic Astrologer",
+      astrologer_upi_vpa: upiVpas.get(b.astrologer_id) || null,
       service_type: b.service_type,
       consultation_mode: b.consultation_mode as ConsultationMode,
       scheduled_at: b.scheduled_at,
       duration_minutes: b.duration_minutes,
       status: b.status as BookingStatus,
       price: Number(b.price),
+      payment_mode: b.payment_mode,
+      direct_payment: directPayments.get(b.id) || null,
       notes: b.notes,
       cancellation_reason: b.cancellation_reason,
       cancelled_at: b.cancelled_at,
@@ -1520,24 +1559,48 @@ export async function getCustomerBillingHistory(): Promise<
     const paymentMap: Record<string, { receipt_number: string; payment_id: string }> = {};
     if (bookingIds.length > 0) {
       const adminClient = await createAdminClient("main");
-      const { data: orders } = await adminClient
+      const { data: orders, error: orderError } = await adminClient
         .from("payment_orders")
         .select(`
           entity_id,
-          payments(receipt_number, payment_id)
+          payments(receipt_number, payment_id, status)
         `)
         .eq("entity_type", "consultation")
+        .eq("status", "successful")
         .in("entity_id", bookingIds);
+
+      if (orderError) {
+        return { success: false, error: `Failed to load platform payment records: ${orderError.message}` };
+      }
 
       if (orders) {
         for (const o of orders) {
           const pays = Array.isArray(o.payments) ? o.payments : (o.payments ? [o.payments] : []);
-          if (pays.length > 0 && pays[0]) {
+          const successfulPayment = pays.find((payment) => payment.status === "successful");
+          if (successfulPayment) {
             paymentMap[o.entity_id] = {
-              receipt_number: (pays[0] as { receipt_number: string }).receipt_number,
-              payment_id: (pays[0] as { payment_id: string }).payment_id,
+              receipt_number: successfulPayment.receipt_number,
+              payment_id: successfulPayment.payment_id,
             };
           }
+        }
+      }
+    }
+
+    const directPaymentMap: Record<string, { status: string; utr: string }> = {};
+    if (bookingIds.length > 0) {
+      const adminClient = await createAdminClient("main");
+      const { data: directPayments, error: directPaymentError } = await adminClient
+        .from("direct_consultation_payments")
+        .select("booking_id, status, utr, submitted_at")
+        .in("booking_id", bookingIds)
+        .order("submitted_at", { ascending: false });
+      if (directPaymentError) {
+        return { success: false, error: `Failed to load direct payment records: ${directPaymentError.message}` };
+      }
+      for (const payment of directPayments || []) {
+        if (!directPaymentMap[payment.booking_id]) {
+          directPaymentMap[payment.booking_id] = { status: payment.status, utr: payment.utr };
         }
       }
     }
@@ -1545,7 +1608,8 @@ export async function getCustomerBillingHistory(): Promise<
     const billingRecords: CustomerBillingRecord[] = bookings.map((b) => {
       const priceNum = Number(b.price) || 0;
       const paymentInfo = paymentMap[b.id];
-      const isPaid = b.status === "confirmed" || b.status === "completed" || !!paymentInfo;
+      const directPayment = directPaymentMap[b.id];
+      const isPaid = !!paymentInfo || directPayment?.status === "verified";
 
       return {
         id: `tx-${b.id.slice(0, 8)}`,
@@ -1555,8 +1619,16 @@ export async function getCustomerBillingHistory(): Promise<
         astrologer_name: astroMap[b.astrologer_id] || "Vedic Astrologer",
         amount: priceNum,
         currency: "INR",
-        payment_status: priceNum === 0 ? "complimentary" : isPaid ? "paid" : "pending",
-        transaction_ref: paymentInfo?.receipt_number || `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
+        payment_status: priceNum === 0
+          ? "complimentary"
+          : directPayment?.status === "refunded"
+          ? "refunded"
+          : isPaid
+          ? "paid"
+          : "pending",
+        transaction_ref: paymentInfo?.receipt_number
+          || directPayment?.utr
+          || `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
         receipt_number: paymentInfo?.receipt_number,
         payment_id: paymentInfo?.payment_id,
         created_at: b.created_at,

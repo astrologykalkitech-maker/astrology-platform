@@ -6,8 +6,9 @@ import {
   JyotishQRSession,
   JyotishPayIntentStatus,
 } from "./types";
-import { recordFinancialTransaction } from "../financial/ledger";
+import { recordJyotishPaymentIntentInLedger } from "../financial/ledger";
 import { activateSubscriptionOnPayment } from "../financial/plans";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // In-memory or database-backed fallback storage for high-concurrency sessions
 export interface CreateIntentParams {
@@ -86,54 +87,112 @@ export async function completePaymentIntent(
     verifiedBy?: string;
   }
 ): Promise<{ success: boolean; receiptNumber: string }> {
-  const receiptNo = generateReceiptNumber();
-
-  // 1. Double-Entry Financial Ledger
-  try {
-    const isConsultation = intent.entity_type === "consultation";
-    const commissionPaise = isConsultation ? Math.round(intent.amount_paise * 0.10) : 0;
-    const astrologerPaise = isConsultation ? intent.amount_paise - commissionPaise : 0;
-
-    await recordFinancialTransaction({
-      entityType: intent.entity_type,
-      referenceId: intent.booking_id || intent.plan_id || intent.id,
-      amountPaise: intent.amount_paise,
-      commissionPaise,
-      astrologerPaise,
-      astrologerId: intent.astrologer_id || undefined,
-      description: `JyotishSetu Pay clearance: ${intent.intent_number} [Ref: ${providerRef}]`,
-    });
-  } catch (ledgerErr) {
-    console.error("[JyotishSetu Pay] Ledger recording notice:", ledgerErr);
+  // 1. Double-entry financial ledger. A stable intent reference prevents replay duplication.
+  const ledgerResult = await recordJyotishPaymentIntentInLedger({
+    intentId: intent.id,
+    entityType: intent.entity_type,
+    amountPaise: intent.amount_paise,
+    description: `JyotishSetu Pay clearance: ${intent.intent_number} [Ref: ${providerRef}]`,
+  });
+  if (!ledgerResult.success) {
+    throw new Error(ledgerResult.error || "Failed to record payment in the financial ledger.");
   }
 
   // 2. Subscription Activation (if subscription)
   if (intent.entity_type === "subscription" && intent.astrologer_id && intent.plan_id) {
-    try {
-      await activateSubscriptionOnPayment({
-        astrologerId: intent.astrologer_id,
-        planId: intent.plan_id,
-        paymentId: intent.id,
-        billingCycle: "monthly",
-      });
-    } catch (subErr) {
-      console.error("[JyotishSetu Pay] Subscription activation notice:", subErr);
+    const subscriptionResult = await activateSubscriptionOnPayment({
+      astrologerId: intent.astrologer_id,
+      planId: intent.plan_id,
+      paymentId: intent.id,
+      billingCycle: "monthly",
+    });
+    if (!subscriptionResult.success) {
+      throw new Error(subscriptionResult.error || "Failed to activate the subscription.");
     }
   }
 
   // 3. Consultation Confirmation (if consultation)
-  if (intent.entity_type === "consultation" && intent.booking_id && options?.supabaseClient) {
-    try {
-      await options.supabaseClient
-        .from("customer_bookings")
-        .update({
-          payment_status: "paid",
-          status: "confirmed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", intent.booking_id);
-    } catch (bookingErr) {
-      console.error("[JyotishSetu Pay] Booking status confirmation notice:", bookingErr);
+  if (intent.entity_type === "consultation" && intent.booking_id) {
+    if (!options?.supabaseClient) {
+      throw new Error("A database client is required to complete a consultation payment.");
+    }
+
+    const { data: booking, error: bookingLookupError } = await options.supabaseClient
+      .from("customer_bookings")
+      .select("status")
+      .eq("id", intent.booking_id)
+      .maybeSingle();
+    if (bookingLookupError || !booking) {
+      throw new Error(
+        `Could not validate the consultation booking: ${bookingLookupError?.message || "Booking not found."}`
+      );
+    }
+    if (!["pending", "confirmed", "completed"].includes(booking.status)) {
+      throw new Error("Cancelled or inactive bookings cannot be paid.");
+    }
+
+    const { data: updatedBooking, error: bookingError } = await options.supabaseClient
+      .from("customer_bookings")
+      .update({
+        payment_status: "paid",
+        status: booking.status === "pending" ? "confirmed" : booking.status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", intent.booking_id)
+      .eq("status", booking.status)
+      .select("id")
+      .maybeSingle();
+    if (bookingError || !updatedBooking) {
+      throw new Error(
+        `Failed to confirm the consultation booking: ${bookingError?.message || "Booking state changed during payment."}`
+      );
+    }
+  }
+
+  const paymentDb = options?.supabaseClient || await createAdminClient("main");
+  const { data: existingReceipts, error: existingReceiptError } = await paymentDb
+    .from("payment_receipts")
+    .select("receipt_number")
+    .eq("intent_id", intent.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (existingReceiptError) {
+    throw new Error(`Failed to check existing payment receipts: ${existingReceiptError.message}`);
+  }
+
+  let receiptNo = existingReceipts?.[0]?.receipt_number;
+  if (!receiptNo) {
+    receiptNo = generateReceiptNumber();
+    const verificationHash = crypto
+      .createHash("sha256")
+      .update(`${intent.id}:${providerRef}:${intent.amount_paise}`)
+      .digest("hex");
+    const { error: receiptError } = await paymentDb.from("payment_receipts").insert({
+      receipt_number: receiptNo,
+      intent_id: intent.id,
+      booking_id: intent.booking_id || null,
+      customer_id: intent.customer_id || null,
+      astrologer_id: intent.astrologer_id || null,
+      amount_paise: intent.amount_paise,
+      tax_paise: 0,
+      payment_method: "UPI_VERIFIED",
+      utr_or_txn_id: providerRef,
+      verification_hash: verificationHash,
+      metadata: { receipt_source: "jyotish_pay_intent" },
+    });
+    if (receiptError) {
+      const { data: retryReceipt, error: retryReceiptError } = await paymentDb
+        .from("payment_receipts")
+        .select("receipt_number")
+        .eq("intent_id", intent.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (retryReceiptError || !retryReceipt?.[0]) {
+        throw new Error(
+          `Failed to persist the verified payment receipt: ${receiptError.message}`
+        );
+      }
+      receiptNo = retryReceipt[0].receipt_number;
     }
   }
 

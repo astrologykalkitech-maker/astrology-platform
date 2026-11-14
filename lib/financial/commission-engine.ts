@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getAuthSession } from "@/lib/auth/session";
+import { canAccessCommissionStatement } from "@/lib/financial/commission-access";
+import { isCommissionSettingEffective } from "@/lib/financial/commission-rules";
 import { revalidatePath } from "next/cache";
 
 export interface CommissionSettingsRecord {
@@ -18,6 +20,7 @@ export interface CommissionLedgerRecord {
   id: string;
   consultant_id: string;
   booking_id?: string | null;
+  direct_payment_id?: string | null;
   puja_booking_id?: string | null;
   payment_order_id?: string | null;
   payment_intent_id?: string | null;
@@ -39,6 +42,36 @@ export interface CommissionLedgerRecord {
   created_at: string;
 }
 
+export interface DirectConsultationPaymentRecord {
+  id: string;
+  booking_id: string;
+  customer_id: string;
+  utr: string;
+  amount_paise: number;
+  payment_date: string;
+  status: "pending" | "verified" | "rejected" | "refunded" | "failed";
+  submitted_at: string;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  rejection_reason: string | null;
+  refunded_at: string | null;
+  refund_reason: string | null;
+}
+
+export interface ConsultantCommissionSettlementRecord {
+  id: string;
+  settlement_number: string;
+  amount_paise: number;
+  status: string;
+  submitted_utr: string | null;
+  payment_date: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  review_notes: string | null;
+  created_at: string;
+}
+
 export interface ConsultantBalanceSummary {
   consultant_id: string;
   total_gross_paise: number;
@@ -55,43 +88,67 @@ export interface ConsultantBalanceSummary {
  * Defaults to 10% if unconfigured.
  */
 export async function getEffectiveCommissionRate(consultantId?: string): Promise<number> {
-  try {
-    const admin = await createAdminClient("main");
+  const admin = await createAdminClient("main");
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const selection = "commission_rate, effective_from, effective_until, is_active";
 
-    // Check consultant-specific override first
-    if (consultantId) {
-      const { data: specific } = await admin
-        .from("commission_settings")
-        .select("commission_rate")
-        .eq("consultant_id", consultantId)
-        .eq("is_active", true)
-        .order("effective_from", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (specific && typeof specific.commission_rate === "number") {
-        return Number(specific.commission_rate);
-      }
-    }
-
-    // Default to global setting
-    const { data: globalSetting } = await admin
+  if (consultantId) {
+    const { data: specific, error } = await admin
       .from("commission_settings")
-      .select("commission_rate")
-      .eq("applicable_scope", "all")
+      .select(selection)
+      .eq("consultant_id", consultantId)
       .eq("is_active", true)
+      .lte("effective_from", nowIso)
+      .or(`effective_until.is.null,effective_until.gt.${nowIso}`)
       .order("effective_from", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (globalSetting && typeof globalSetting.commission_rate === "number") {
-      return Number(globalSetting.commission_rate);
+    if (error) {
+      throw new Error(`Failed to load consultant commission rate: ${error.message}`);
     }
 
-    return 10.0;
-  } catch {
-    return 10.0;
+    const rate = Number(specific?.commission_rate);
+    if (
+      specific &&
+      isCommissionSettingEffective(specific, now) &&
+      Number.isFinite(rate) &&
+      rate >= 0 &&
+      rate <= 100
+    ) {
+      return rate;
+    }
   }
+
+  const { data: globalSetting, error } = await admin
+    .from("commission_settings")
+    .select(selection)
+    .eq("applicable_scope", "all")
+    .is("consultant_id", null)
+    .eq("is_active", true)
+    .lte("effective_from", nowIso)
+    .or(`effective_until.is.null,effective_until.gt.${nowIso}`)
+    .order("effective_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load global commission rate: ${error.message}`);
+  }
+
+  const globalRate = Number(globalSetting?.commission_rate);
+  if (
+    globalSetting &&
+    isCommissionSettingEffective(globalSetting, now) &&
+    Number.isFinite(globalRate) &&
+    globalRate >= 0 &&
+    globalRate <= 100
+  ) {
+    return globalRate;
+  }
+
+  return 10.0;
 }
 
 /**
@@ -120,15 +177,23 @@ export async function postCommissionLedgerEntry({
   customRate?: number;
 }): Promise<{ success: boolean; entryId?: string; error?: string }> {
   try {
-    if (!consultantId || grossAmountPaise <= 0) {
+    if (!consultantId || !Number.isSafeInteger(grossAmountPaise) || grossAmountPaise <= 0) {
       return { success: false, error: "Invalid consultant or transaction amount" };
     }
 
     const admin = await createAdminClient("main");
     const rate = customRate !== undefined ? customRate : await getEffectiveCommissionRate(consultantId);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+      return { success: false, error: "Invalid commission rate" };
+    }
     const commissionPaise = Math.round((grossAmountPaise * rate) / 100);
 
-    const idempotency = idempotencyKey || `COMM_${consultantId}_${bookingId || pujaBookingId || Date.now()}`;
+    const referenceId = bookingId || pujaBookingId || paymentOrderId || paymentIntentId;
+    if (!idempotencyKey && !referenceId) {
+      return { success: false, error: "An idempotency key or transaction reference is required" };
+    }
+    const idempotency =
+      idempotencyKey || `COMM_${consultantId}_${referenceId}`;
 
     // 1. Insert into commission_ledger
     const { data: ledgerEntry, error: insertErr } = await admin
@@ -152,9 +217,32 @@ export async function postCommissionLedgerEntry({
       .single();
 
     if (insertErr) {
-      // Idempotent duplicate check
       if (insertErr.code === "23505") {
-        return { success: true };
+        const { data: existingEntry, error: existingEntryError } = await admin
+          .from("commission_ledger")
+          .select("id, consultant_id, booking_id, puja_booking_id, payment_order_id, payment_intent_id, gross_amount_paise")
+          .eq("idempotency_key", idempotency)
+          .maybeSingle();
+
+        if (existingEntryError) {
+          return { success: false, error: existingEntryError.message };
+        }
+        if (
+          !existingEntry ||
+          existingEntry.consultant_id !== consultantId ||
+          existingEntry.booking_id !== (bookingId || null) ||
+          existingEntry.puja_booking_id !== (pujaBookingId || null) ||
+          existingEntry.payment_order_id !== (paymentOrderId || null) ||
+          existingEntry.payment_intent_id !== (paymentIntentId || null) ||
+          Number(existingEntry.gross_amount_paise) !== grossAmountPaise
+        ) {
+          return { success: false, error: "Idempotency key is already associated with a different transaction" };
+        }
+
+        await refreshConsultantBalanceSummary(consultantId);
+        revalidatePath("/astrologer/earnings");
+        revalidatePath("/super-admin/financials");
+        return { success: true, entryId: existingEntry.id };
       }
       return { success: false, error: insertErr.message };
     }
@@ -166,8 +254,8 @@ export async function postCommissionLedgerEntry({
     revalidatePath("/super-admin/financials");
 
     return { success: true, entryId: ledgerEntry.id };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to post commission" };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to post commission" };
   }
 }
 
@@ -177,63 +265,18 @@ export async function postCommissionLedgerEntry({
 export async function refreshConsultantBalanceSummary(
   consultantId: string
 ): Promise<ConsultantBalanceSummary | null> {
-  try {
-    const admin = await createAdminClient("main");
-
-    const { data: entries, error } = await admin
-      .from("commission_ledger")
-      .select("entry_type, gross_amount_paise, commission_amount_paise, status")
-      .eq("consultant_id", consultantId);
-
-    if (error || !entries) return null;
-
-    let totalGross = 0;
-    let totalCommissionEarned = 0;
-    let totalSettled = 0;
-    let totalReversed = 0;
-
-    for (const e of entries) {
-      if (e.entry_type === "COMMISSION_EARNED" && e.status !== "reversed") {
-        totalGross += Number(e.gross_amount_paise || 0);
-        totalCommissionEarned += Number(e.commission_amount_paise || 0);
-      } else if (e.entry_type === "SETTLEMENT_PAYMENT" || e.entry_type === "SETTLEMENT_ALLOCATION") {
-        totalSettled += Number(e.commission_amount_paise || 0);
-      } else if (e.entry_type === "COMMISSION_REVERSED" || e.entry_type === "REFUND_ADJUSTMENT") {
-        totalReversed += Number(e.commission_amount_paise || 0);
-      }
-    }
-
-    const outstandingPaise = Math.max(0, totalCommissionEarned - totalSettled - totalReversed);
-    const nowIso = new Date().toISOString();
-
-    const summary: ConsultantBalanceSummary = {
-      consultant_id: consultantId,
-      total_gross_paise: totalGross,
-      total_commission_earned_paise: totalCommissionEarned,
-      total_settled_paise: totalSettled,
-      total_reversed_paise: totalReversed,
-      outstanding_commission_paise: outstandingPaise,
-      last_calculated_at: nowIso,
-    };
-
-    await admin.from("consultant_balance_summaries").upsert(
-      {
-        consultant_id: consultantId,
-        total_gross_paise: totalGross,
-        total_commission_earned_paise: totalCommissionEarned,
-        total_settled_paise: totalSettled,
-        total_reversed_paise: totalReversed,
-        outstanding_commission_paise: outstandingPaise,
-        last_calculated_at: nowIso,
-        updated_at: nowIso,
-      },
-      { onConflict: "consultant_id" }
-    );
-
-    return summary;
-  } catch {
-    return null;
+  const admin = await createAdminClient("main");
+  const { data, error } = await admin.rpc("refresh_consultant_balance_summary", {
+    p_consultant_id: consultantId,
+  });
+  if (error) {
+    throw new Error(`Failed to refresh consultant balance summary: ${error.message}`);
   }
+  const summary = Array.isArray(data) ? data[0] : data;
+  if (!summary) {
+    throw new Error("Consultant balance summary refresh returned no record.");
+  }
+  return summary as ConsultantBalanceSummary;
 }
 
 /**
@@ -241,59 +284,84 @@ export async function refreshConsultantBalanceSummary(
  */
 export async function getConsultantCommissionStatement(consultantIdOverride?: string) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const session = await getAuthSession();
+    if (!session) {
       return { success: false, error: "Authentication required", data: null };
     }
 
     const admin = await createAdminClient("main");
-    let targetConsultantId = consultantIdOverride;
+    const { data: callerProfile, error: callerProfileError } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
 
-    if (!targetConsultantId) {
-      const { data: profile } = await admin
-        .from("astrologer_profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!profile) {
-        return { success: false, error: "Astrologer profile not found", data: null };
-      }
-      targetConsultantId = profile.id;
+    if (callerProfileError) {
+      return { success: false, error: callerProfileError.message, data: null };
     }
 
+    const targetConsultantId = consultantIdOverride || callerProfile?.id;
     if (!targetConsultantId) {
-      return { success: false, error: "Target consultant ID unresolved", data: null };
+      return { success: false, error: "Astrologer profile not found", data: null };
+    }
+
+    if (
+      !canAccessCommissionStatement(
+        session.profile.role,
+        callerProfile?.id || null,
+        targetConsultantId
+      )
+    ) {
+      return { success: false, error: "Not authorized to access this consultant statement", data: null };
     }
 
     // Refresh summary
-    const fetchedSummary = await refreshConsultantBalanceSummary(targetConsultantId);
-    const summary: ConsultantBalanceSummary = fetchedSummary ?? {
-      consultant_id: targetConsultantId,
-      total_gross_paise: 0,
-      total_commission_earned_paise: 0,
-      total_settled_paise: 0,
-      total_reversed_paise: 0,
-      outstanding_commission_paise: 0,
-      last_calculated_at: new Date().toISOString(),
-    };
+    const summary = await refreshConsultantBalanceSummary(targetConsultantId);
 
     // Fetch entries
-    const { data: ledgerEntries } = await admin
+    const { data: ledgerEntries, error: ledgerError } = await admin
       .from("commission_ledger")
       .select("*")
       .eq("consultant_id", targetConsultantId)
       .order("created_at", { ascending: false })
       .limit(50);
 
+    if (ledgerError) {
+      return { success: false, error: ledgerError.message, data: null };
+    }
+
+    const { data: directPayments, error: directPaymentError } = await admin
+      .from("direct_consultation_payments")
+      .select("id, booking_id, customer_id, utr, amount_paise, payment_date, status, submitted_at, reviewed_at, review_notes, rejection_reason, refunded_at, refund_reason")
+      .eq("astrologer_id", targetConsultantId)
+      .order("submitted_at", { ascending: false })
+      .limit(50);
+
+    if (directPaymentError) {
+      return { success: false, error: directPaymentError.message, data: null };
+    }
+
+    const { data: settlements, error: settlementError } = await admin
+      .from("commission_settlements")
+      .select("id, settlement_number, amount_paise, status, submitted_utr, payment_date, submitted_at, reviewed_at, rejection_reason, review_notes, created_at")
+      .eq("consultant_id", targetConsultantId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (settlementError) {
+      return { success: false, error: settlementError.message, data: null };
+    }
+
     return {
       success: true,
       data: {
         summary,
         ledger: (ledgerEntries || []) as CommissionLedgerRecord[],
+        directPayments: (directPayments || []) as DirectConsultationPaymentRecord[],
+        settlements: (settlements || []) as ConsultantCommissionSettlementRecord[],
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to load statement", data: null };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to load statement", data: null };
   }
 }

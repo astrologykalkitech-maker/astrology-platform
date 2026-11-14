@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   DollarSign,
   TrendingUp,
   CreditCard,
   History,
   CheckCircle2,
-  Clock,
-  ArrowUpRight,
   ShieldCheck,
   AlertTriangle,
   QrCode,
@@ -17,34 +17,52 @@ import {
 import { formatPaiseToInr } from "@/lib/financial/pricing";
 import {
   initiateConsultantCommissionSettlementAction,
-  confirmConsultantCommissionSettlementAction,
+  submitConsultantCommissionSettlementUtrAction,
 } from "@/app/actions/commission-management";
-import type { CommissionLedgerRecord, ConsultantBalanceSummary } from "@/lib/financial/commission-engine";
+import type {
+  CommissionLedgerRecord,
+  ConsultantBalanceSummary,
+  DirectConsultationPaymentRecord,
+  ConsultantCommissionSettlementRecord,
+} from "@/lib/financial/commission-engine";
 
 interface AstrologerCommissionBalanceProps {
   summary: ConsultantBalanceSummary;
   ledger: CommissionLedgerRecord[];
+  directPayments: DirectConsultationPaymentRecord[];
+  settlements: ConsultantCommissionSettlementRecord[];
 }
 
 export function AstrologerCommissionBalanceClient({
   summary,
   ledger,
+  directPayments,
+  settlements,
 }: AstrologerCommissionBalanceProps) {
-  const [activeSummary, setActiveSummary] = useState(summary);
+  const router = useRouter();
+  const activeSummary = summary;
   const [isSettling, setIsSettling] = useState(false);
   const [settlementData, setSettlementData] = useState<{
     id: string;
     settlementNumber: string;
     amountPaise: number;
-    amountRupees: number;
+    upiUri: string;
+    qrDataUrl: string;
   } | null>(null);
   const [utrInput, setUtrInput] = useState("");
+  const [paymentDate, setPaymentDate] = useState(() => localDateInputValue());
   const [isConfirming, setIsConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const outstandingPaise = activeSummary.outstanding_commission_paise;
   const isNegativeBalance = outstandingPaise > 0;
+  const netEarningsPaise = Math.max(
+    0,
+    activeSummary.total_gross_paise
+      - activeSummary.total_commission_earned_paise
+      + activeSummary.total_reversed_paise
+  );
 
   const handlePayNow = async () => {
     setErrorMsg(null);
@@ -69,20 +87,17 @@ export function AstrologerCommissionBalanceClient({
     setErrorMsg(null);
     setIsConfirming(true);
     try {
-      const res = await confirmConsultantCommissionSettlementAction({
+      const res = await submitConsultantCommissionSettlementUtrAction({
         settlementId: settlementData.id,
         bankReferenceUtr: utrInput.trim(),
+        paymentDate,
       });
 
       if (res.success) {
-        setSuccessMsg("Commission payment submitted and verified! Your balance has been refreshed.");
-        setActiveSummary((prev) => ({
-          ...prev,
-          total_settled_paise: prev.total_settled_paise + settlementData.amountPaise,
-          outstanding_commission_paise: Math.max(0, prev.outstanding_commission_paise - settlementData.amountPaise),
-        }));
+        setSuccessMsg(res.message || "UTR submitted. Dues remain outstanding until a Super Admin verifies the payment.");
         setSettlementData(null);
         setUtrInput("");
+        router.refresh();
       } else {
         setErrorMsg(res.error || "Failed to confirm payment.");
       }
@@ -94,7 +109,7 @@ export function AstrologerCommissionBalanceClient({
   return (
     <div className="space-y-6">
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Outstanding Dues (Negative Balance) */}
         <div className={`p-5 rounded-2xl border shadow-xs ${
           isNegativeBalance
@@ -122,7 +137,7 @@ export function AstrologerCommissionBalanceClient({
           </div>
           <p className="mt-1 text-[11px] text-muted">
             {isNegativeBalance
-              ? "Platform 10% commission liability owed to JyotishSetu"
+              ? "Platform commission liability owed to JyotishSetu"
               : "All marketplace commissions are fully settled"}
           </p>
           {isNegativeBalance && (
@@ -150,7 +165,23 @@ export function AstrologerCommissionBalanceClient({
           <div className="mt-3 font-display text-2xl font-bold text-midnight">
             {formatPaiseToInr(activeSummary.total_commission_earned_paise)}
           </div>
-          <p className="mt-1 text-[11px] text-muted">Cumulative 10% marketplace commission</p>
+          <p className="mt-1 text-[11px] text-muted">Commission accrued at the configured rate</p>
+        </div>
+
+        {/* Net Earnings */}
+        <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted">
+              Net Earnings
+            </span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 font-display text-2xl font-bold text-emerald-700">
+            {formatPaiseToInr(netEarningsPaise)}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">Gross earnings less commission, with verified reversals</p>
         </div>
 
         {/* Total Settled */}
@@ -173,7 +204,7 @@ export function AstrologerCommissionBalanceClient({
         <div className="rounded-2xl border border-gold/25 bg-white/95 p-5 shadow-xs backdrop-blur-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-muted">
-              Gross Volume
+              Verified Volume
             </span>
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
               <TrendingUp className="h-4 w-4" />
@@ -182,7 +213,7 @@ export function AstrologerCommissionBalanceClient({
           <div className="mt-3 font-display text-2xl font-bold text-midnight">
             {formatPaiseToInr(activeSummary.total_gross_paise)}
           </div>
-          <p className="mt-1 text-[11px] text-muted">Completed bookings & consultations</p>
+          <p className="mt-1 text-[11px] text-muted">Completed consultations, net of verified refunds</p>
         </div>
       </div>
 
@@ -225,41 +256,63 @@ export function AstrologerCommissionBalanceClient({
                 {formatPaiseToInr(settlementData.amountPaise)}
               </div>
               <p className="text-[11px] text-muted">
-                Scan via any UPI app (GPay, PhonePe, Paytm, BHIM)
+                Pay JyotishSetu using any UPI app. UTR submission is not verification.
               </p>
             </div>
 
             {/* UPI QR Box */}
             <div className="flex flex-col items-center justify-center p-4 bg-parchment/30 rounded-xl border border-gold/20 shadow-inner">
-              <div className="w-48 h-48 bg-white border border-dashed border-gold/40 rounded-lg flex flex-col items-center justify-center text-gray-500 p-2 text-center text-xs">
-                <QrCode className="h-16 w-16 text-midnight mb-2" />
-                <span className="font-mono text-[10px] text-ink/80 break-all">
-                  upi://pay?pa=jyotishsetu@icici&pn=JyotishSetu&am={settlementData.amountRupees}&cu=INR
-                </span>
-              </div>
+              <Image
+                src={settlementData.qrDataUrl}
+                alt="UPI QR code for commission settlement"
+                width={192}
+                height={192}
+                unoptimized
+                className="rounded-lg border border-gold/30 bg-white p-2"
+              />
+              <a href={settlementData.upiUri} className="mt-2 text-xs font-semibold text-gold-deep underline">
+                Open UPI app
+              </a>
             </div>
 
             <form onSubmit={handleConfirmPayment} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-ink/80 mb-1">
-                  Enter 12-Digit Bank UTR / Reference No.
+                  UTR / transaction reference
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 432109876543"
+                  minLength={8}
+                  maxLength={20}
+                  pattern="[A-Za-z0-9-]{8,20}"
+                  placeholder="8-20 letters or numbers"
                   value={utrInput}
-                  onChange={(e) => setUtrInput(e.target.value)}
+                  onChange={(e) => setUtrInput(e.target.value.toUpperCase())}
                   className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold font-mono shadow-xs"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-ink/80 mb-1">Payment date</label>
+                <input
+                  type="date"
+                  required
+                  max={localDateInputValue()}
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold shadow-xs"
+                />
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Dues will remain outstanding until a Super Admin verifies this payment against bank records.
+              </p>
 
               <button
                 type="submit"
                 disabled={isConfirming || !utrInput.trim()}
                 className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition disabled:opacity-50 shadow-xs"
               >
-                {isConfirming ? "Verifying Transaction..." : "Confirm & Clear Balance"}
+                {isConfirming ? "Submitting UTR..." : "Submit for Verification"}
               </button>
             </form>
           </div>
@@ -267,6 +320,94 @@ export function AstrologerCommissionBalanceClient({
       )}
 
       {/* Commission Ledger Table */}
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gold/15 pb-4">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-gold-deep" />
+            <h3 className="font-display text-sm font-bold text-midnight">Direct Payment Verification History</h3>
+          </div>
+          <span className="text-[11px] text-muted">{directPayments.length} submissions</span>
+        </div>
+        {directPayments.length === 0 ? (
+          <p className="text-center text-xs text-muted">No customer UTR submissions yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-gold/15 text-[11px] text-muted uppercase tracking-wider">
+                  <th className="pb-2.5 font-semibold">Submitted</th>
+                  <th className="pb-2.5 font-semibold">Booking / UTR</th>
+                  <th className="pb-2.5 text-right font-semibold">Amount</th>
+                  <th className="pb-2.5 text-center font-semibold">Status</th>
+                  <th className="pb-2.5 font-semibold">Review / Rejection</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gold/10">
+                {directPayments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className="py-3 text-muted whitespace-nowrap">{new Date(payment.submitted_at).toLocaleDateString()}</td>
+                    <td className="py-3">
+                      <div className="font-mono text-[10px]">{payment.booking_id.slice(0, 8)} · {payment.utr}</div>
+                      <div className="text-[10px] text-muted">Payment date: {payment.payment_date}</div>
+                    </td>
+                    <td className="py-3 text-right font-semibold">{formatPaiseToInr(payment.amount_paise)}</td>
+                    <td className="py-3 text-center capitalize">{payment.status}</td>
+                    <td className="py-3 text-muted">{payment.rejection_reason || payment.refund_reason || payment.review_notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gold/15 pb-4">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-gold-deep" />
+            <h3 className="font-display text-sm font-bold text-midnight">Commission Settlement History</h3>
+          </div>
+          <span className="text-[11px] text-muted">{settlements.length} settlements</span>
+        </div>
+        {settlements.length === 0 ? (
+          <p className="text-center text-xs text-muted">No commission settlements yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-gold/15 text-[11px] text-muted uppercase tracking-wider">
+                  <th className="pb-2.5 font-semibold">Initiated</th>
+                  <th className="pb-2.5 font-semibold">Settlement / UTR</th>
+                  <th className="pb-2.5 text-right font-semibold">Amount</th>
+                  <th className="pb-2.5 text-center font-semibold">Status</th>
+                  <th className="pb-2.5 font-semibold">Review</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gold/10">
+                {settlements.map((settlement) => (
+                  <tr key={settlement.id}>
+                    <td className="py-3 text-muted whitespace-nowrap">
+                      {new Date(settlement.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-3">
+                      <div className="font-mono text-[10px]">{settlement.settlement_number}</div>
+                      {settlement.submitted_utr && (
+                        <div className="text-[10px] text-muted">UTR: {settlement.submitted_utr}</div>
+                      )}
+                    </td>
+                    <td className="py-3 text-right font-semibold">{formatPaiseToInr(settlement.amount_paise)}</td>
+                    <td className="py-3 text-center capitalize">{settlement.status}</td>
+                    <td className="py-3 text-muted">
+                      {settlement.rejection_reason || settlement.review_notes || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-gold/25 bg-white/95 p-6 shadow-xs backdrop-blur-xs space-y-4">
         <div className="flex items-center justify-between border-b border-gold/15 pb-4">
           <div className="flex items-center gap-2">
@@ -323,7 +464,7 @@ export function AstrologerCommissionBalanceClient({
                       {entry.commission_rate > 0 ? `${entry.commission_rate}%` : "—"}
                     </td>
                     <td className="py-3 text-right font-bold text-gold-deep whitespace-nowrap">
-                      {entry.entry_type === "SETTLEMENT_PAYMENT" ? "-" : "+"}
+                      {["SETTLEMENT_PAYMENT", "SETTLEMENT_ALLOCATION", "COMMISSION_REVERSED", "REFUND_ADJUSTMENT"].includes(entry.entry_type) ? "-" : "+"}
                       {formatPaiseToInr(entry.commission_amount_paise)}
                     </td>
                     <td className="py-3 text-center whitespace-nowrap">
@@ -340,4 +481,9 @@ export function AstrologerCommissionBalanceClient({
       </div>
     </div>
   );
+}
+
+function localDateInputValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }

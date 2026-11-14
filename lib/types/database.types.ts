@@ -83,6 +83,7 @@ export interface AstrologerProfile {
   city: string | null;
   state: string | null;
   address: string | null;
+  upi_vpa?: string | null;
   consultation_fee: number | null;
   voice_price_per_minute?: number | null;
   chat_price_per_minute?: number | null;
@@ -207,10 +208,26 @@ export interface CustomerBooking {
   astrologer_name?: string;
   service_type: string;
   consultation_mode: ConsultationMode;
+  event_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  landmark?: string | null;
+  special_instructions?: string | null;
   scheduled_at: string;
   duration_minutes: number;
   status: BookingStatus;
   price: number;
+  payment_mode?: "direct_consultant" | "pay_at_drop" | "platform_gateway" | null;
+  astrologer_upi_vpa?: string | null;
+  direct_payment?: {
+    id: string;
+    utr: string;
+    amount_paise: number;
+    payment_date: string;
+    status: "pending" | "verified" | "rejected" | "refunded" | "failed";
+    rejection_reason?: string | null;
+    submitted_at: string;
+  } | null;
   notes: string | null;
   cancellation_reason?: string | null;
   cancelled_at?: string | null;

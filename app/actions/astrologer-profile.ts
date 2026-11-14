@@ -83,6 +83,7 @@ export async function createAstrologerProfile(
       city: input.city ?? null,
       state: input.state ?? null,
       address: input.address ?? null,
+      upi_vpa: input.upi_vpa ?? null,
       profile_photo_url: input.profile_photo_url ?? null,
       approval_status: "pending" as const,
     };

@@ -37,14 +37,11 @@ interface JyotishPayModalProps {
 export function JyotishPayModal({
   isOpen,
   onClose,
-  amountPaise,
   entityType,
   title,
   description,
   bookingId,
   planId,
-  astrologerId,
-  customerId,
   onSuccess,
 }: JyotishPayModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -63,19 +60,20 @@ export function JyotishPayModal({
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
 
   // Manual UTR submission - default to visible so user never has to search for it
-  const [showManualUtrInput, setShowManualUtrInput] = useState(true);
   const [manualUtr, setManualUtr] = useState("");
   const [submittingUtr, setSubmittingUtr] = useState(false);
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Intent & QR Session details
   const [sessionCode, setSessionCode] = useState<string | null>(null);
+  const [sessionAmountPaise, setSessionAmountPaise] = useState<number | null>(null);
   const [upiUri, setUpiUri] = useState<string | null>(null);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [merchantVpa, setMerchantVpa] = useState<string>("jyotishsetu@upi");
-  const [status, setStatus] = useState<"initiating" | "active" | "completed" | "expired">("initiating");
+  const [status, setStatus] = useState<
+    "initiating" | "active" | "pending_verification" | "completed" | "rejected" | "expired"
+  >("initiating");
   const [secondsRemaining, setSecondsRemaining] = useState(600);
-  const [simulating, setSimulating] = useState(false);
-  const [testingModeEnabled, setTestingModeEnabled] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
@@ -122,6 +120,7 @@ export function JyotishPayModal({
   const initializeIntent = async () => {
     setLoading(true);
     setError(null);
+    setSessionAmountPaise(null);
     setAppLaunchStatus("idle");
     setLaunchMessage(null);
     try {
@@ -129,12 +128,9 @@ export function JyotishPayModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount_paise: amountPaise,
           entity_type: entityType,
           booking_id: bookingId,
           plan_id: planId,
-          astrologer_id: astrologerId,
-          customer_id: customerId,
         }),
       });
 
@@ -144,9 +140,12 @@ export function JyotishPayModal({
       }
 
       setSessionCode(data.qrSession.sessionCode);
+      if (!Number.isSafeInteger(data.qrSession.amountPaise) || data.qrSession.amountPaise <= 0) {
+        throw new Error("The server returned an invalid payment amount.");
+      }
+      setSessionAmountPaise(data.qrSession.amountPaise);
       setUpiUri(data.qrSession.upiUri);
       setQrSvg(data.qrSession.qrSvg);
-      setTestingModeEnabled(Boolean(data.testingModeEnabled));
       if (data.qrSession.merchantVpa) {
         setMerchantVpa(data.qrSession.merchantVpa);
       }
@@ -164,11 +163,12 @@ export function JyotishPayModal({
       setSessionCode(null);
       setUpiUri(null);
       setQrSvg(null);
+      setSessionAmountPaise(null);
       setStatus("initiating");
       setError(null);
       setReceiptNumber(null);
-      setShowManualUtrInput(true);
       setManualUtr("");
+      setPaymentDate(new Date().toISOString().slice(0, 10));
       setAppLaunchStatus("idle");
       setLaunchMessage(null);
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
@@ -180,7 +180,7 @@ export function JyotishPayModal({
     return () => {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     };
-  }, [isOpen, amountPaise, entityType, bookingId, planId, astrologerId, customerId]);
+  }, [isOpen, entityType, bookingId, planId]);
 
   // Polling for QR Payment Status
   const isPollingRef = useRef(false);
@@ -202,6 +202,11 @@ export function JyotishPayModal({
         setStatus("completed");
         setReceiptNumber(finalReceipt);
         onSuccess(finalReceipt);
+      } else if (data.success && data.status === "pending_verification") {
+        setStatus("pending_verification");
+      } else if (data.success && data.status === "rejected") {
+        setStatus("rejected");
+        setError(data.rejectionReason || "This payment reference was not verified. Start a new payment session to try again.");
       } else if (data.status === "expired") {
         setStatus("expired");
       }
@@ -214,7 +219,7 @@ export function JyotishPayModal({
   };
 
   useEffect(() => {
-    if (!sessionCode || status !== "active") return;
+    if (!sessionCode || (status !== "active" && status !== "pending_verification")) return;
     const interval = setInterval(() => {
       checkPaymentStatus(false);
     }, 2500);
@@ -289,33 +294,6 @@ export function JyotishPayModal({
     }, 2200);
   };
 
-  const handleSimulatePayment = async () => {
-    if (!sessionCode) return;
-    setSimulating(true);
-    try {
-      const res = await fetch("/api/pay/simulate/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_code: sessionCode,
-          utr: `BANK${Date.now().toString().slice(-8)}`,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStatus("completed");
-        setReceiptNumber(data.receiptNumber);
-        onSuccess(data.receiptNumber);
-      } else {
-        setError(data.error || "Simulation failed");
-      }
-    } catch (e: any) {
-      setError(e.message || "Simulation failed");
-    } finally {
-      setSimulating(false);
-    }
-  };
-
   const handleSubmitManualUtr = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanUtr = manualUtr.trim();
@@ -338,15 +316,14 @@ export function JyotishPayModal({
         body: JSON.stringify({
           session_code: sessionCode,
           utr: cleanUtr,
+          payment_date: paymentDate,
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        setStatus("completed");
-        setReceiptNumber(data.receiptNumber);
-        onSuccess(data.receiptNumber);
+      if (res.status === 202 && data.success && data.status === "pending_verification") {
+        setStatus("pending_verification");
       } else {
-        setError(data.error || "Failed to verify UTR reference.");
+        setError(data.error || "Failed to submit UTR for review.");
       }
     } catch (e: any) {
       setError(e.message || "UTR confirmation error");
@@ -420,7 +397,9 @@ export function JyotishPayModal({
             </div>
             <div className="text-right shrink-0">
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium block">Total Payable</span>
-              <p className="text-base sm:text-lg font-bold text-emerald-400 leading-tight">{formatPaiseToInr(amountPaise)}</p>
+              <p className="text-base sm:text-lg font-bold text-emerald-400 leading-tight">
+                {sessionAmountPaise === null ? "—" : formatPaiseToInr(sessionAmountPaise)}
+              </p>
             </div>
           </div>
 
@@ -551,32 +530,55 @@ export function JyotishPayModal({
                       disabled={submittingUtr || manualUtr.trim().length !== 12}
                       className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs rounded-lg disabled:opacity-40 transition-all shadow-md flex items-center gap-1.5"
                     >
-                      {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Verify"}
+                      {submittingUtr ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Submit for review"}
                     </button>
                   </div>
+                  <label className="block text-[11px] font-medium text-slate-200">
+                    Payment date
+                    <input
+                      type="date"
+                      required
+                      max={new Date().toISOString().slice(0, 10)}
+                      value={paymentDate}
+                      onChange={(event) => setPaymentDate(event.target.value)}
+                      className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
+                    />
+                  </label>
                   <p className="text-[10px] text-slate-400">
-                    Find the 12-digit UPI Ref / UTR number in your PhonePe / GPay / Paytm payment details.
+                    The UTR is only a claim. Payment remains pending until Super Admin checks the bank or UPI transaction records.
                   </p>
                 </form>
               </div>
 
-              {/* Test Sandbox Simulation Action (Only shown when Super Admin enables Testing Mode or in dev) */}
-              {(testingModeEnabled || process.env.NODE_ENV !== "production") && (
-                <div className="w-full pt-1 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={handleSimulatePayment}
-                    disabled={simulating}
-                    className="w-full py-2 bg-emerald-950/70 hover:bg-emerald-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-colors disabled:opacity-50 shadow-md"
-                  >
-                    {simulating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 text-emerald-400" />}
-                    <span>Test Sandbox: Simulate Successful Payment & Upgrade</span>
-                  </button>
-                  <p className="text-[10px] text-center text-slate-400 mt-1">
-                    Super Admin Testing Mode Active: Test the full payment confirmation, auto-close, and plan upgrade without real money.
-                  </p>
-                </div>
-              )}
+            </div>
+          )}
+
+          {status === "pending_verification" && (
+            <div className="py-8 flex flex-col items-center text-center space-y-3">
+              <Clock className="h-10 w-10 text-amber-400" />
+              <h4 className="text-base font-bold text-slate-100">Payment awaiting verification</h4>
+              <p className="max-w-sm text-xs text-slate-300">
+                Your UTR was submitted as a claim. This payment is not marked paid yet; a Super Admin must match it against the bank or UPI transaction records.
+              </p>
+              <p className="text-[11px] font-mono text-amber-300">Reference: {manualUtr.toUpperCase()}</p>
+            </div>
+          )}
+
+          {status === "rejected" && (
+            <div className="py-6 flex flex-col items-center text-center space-y-3">
+              <AlertCircle className="h-10 w-10 text-rose-400" />
+              <h4 className="text-base font-bold text-slate-100">Payment reference not verified</h4>
+              <p className="max-w-sm text-xs text-slate-300">
+                {error || "Start a new payment session to try again."}
+              </p>
+              <button
+                type="button"
+                onClick={initializeIntent}
+                className="py-2 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg flex items-center space-x-1.5 shadow"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Start a new payment session</span>
+              </button>
             </div>
           )}
 
@@ -606,15 +608,17 @@ export function JyotishPayModal({
               </div>
 
               <div className="flex gap-3 pt-2">
-                <a
-                  href={`/api/pay/receipt/download?session_code=${sessionCode}&receipt_number=${receiptNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl flex items-center space-x-2 transition-colors"
-                >
-                  <FileText className="h-4 w-4 text-amber-400" />
-                  <span>Download Invoice</span>
-                </a>
+                {receiptNumber && (
+                  <a
+                    href={`/api/pay/receipt/download?session_code=${sessionCode}&receipt_number=${receiptNumber}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-semibold rounded-xl flex items-center space-x-2 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 text-amber-400" />
+                    <span>Download Invoice</span>
+                  </a>
+                )}
 
                 <button
                   onClick={onClose}

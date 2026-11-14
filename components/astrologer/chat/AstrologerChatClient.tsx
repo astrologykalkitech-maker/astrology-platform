@@ -47,7 +47,16 @@ import {
   parseDirectMessageRow,
 } from "@/lib/chat/meta";
 import { createClient } from "@/lib/supabase/client";
-import { playChatNotificationChime, startContinuousChatRinging, type ContinuousRingerController } from "@/lib/chat/audio-notification";
+import {
+  playChatNotificationChime,
+  startContinuousChatRinging,
+  type ContinuousRingerController,
+  unlockChatAudio,
+} from "@/lib/chat/audio-notification";
+import {
+  getIncomingChatSound,
+  rememberIncomingMessage,
+} from "@/lib/chat/notification-rules";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
@@ -124,10 +133,32 @@ export function AstrologerChatClient({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const selectedConvoIdRef = useRef<string | null>(selectedConvoId);
   const messagesRef = useRef<DirectMessage[]>(messages);
+  const processedIncomingMessageIdsRef = useRef(new Set<string>());
+  const pendingRingingConversationIdsRef = useRef(new Set<string>());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
   const ringerControllerRef = useRef<ContinuousRingerController | null>(null);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    let disposed = false;
+    const unlockOnInteraction = () => {
+      void unlockChatAudio().then((unlocked) => {
+        if (unlocked && !disposed) {
+          window.removeEventListener("pointerdown", unlockOnInteraction);
+          window.removeEventListener("keydown", unlockOnInteraction);
+        }
+      });
+    };
+
+    window.addEventListener("pointerdown", unlockOnInteraction);
+    window.addEventListener("keydown", unlockOnInteraction);
+    return () => {
+      disposed = true;
+      window.removeEventListener("pointerdown", unlockOnInteraction);
+      window.removeEventListener("keydown", unlockOnInteraction);
+    };
+  }, []);
 
   useEffect(() => {
     selectedConvoIdRef.current = selectedConvoId;
@@ -187,9 +218,28 @@ export function AstrologerChatClient({
     (newMsg: DirectMessage) => {
       if (!newMsg) return;
 
+      if (newMsg.sender_role === "customer") {
+        if (
+          !rememberIncomingMessage(
+            newMsg.id,
+            processedIncomingMessageIdsRef.current
+          )
+        ) {
+          return;
+        }
+      }
+
       const activeId = selectedConvoIdRef.current;
       const isCurrentChat = newMsg.conversation_id === activeId;
       const isVisible = typeof document !== "undefined" && document.visibilityState === "visible";
+      const notificationSound = getIncomingChatSound(
+        newMsg.sender_role,
+        isCurrentChat
+      );
+
+      if (notificationSound === "chime") {
+        playChatNotificationChime(isMuted);
+      }
 
       if (isCurrentChat) {
         setMessages((prev) => {
@@ -210,7 +260,6 @@ export function AstrologerChatClient({
         if (isUserNearBottom()) {
           setTimeout(() => scrollToBottom(true), 60);
           if (newMsg.sender_role === "customer") {
-            playChatNotificationChime(isMuted);
             void markConversationReadAction(newMsg.conversation_id);
             // Broadcast read receipt so seeker sees double gold ticks immediately
             channelRef.current?.send({
@@ -222,7 +271,6 @@ export function AstrologerChatClient({
         } else {
           if (newMsg.sender_role === "customer") {
             setUnreadScrolledCount((prev) => prev + 1);
-            playChatNotificationChime(isMuted);
           }
         }
       }
@@ -274,12 +322,18 @@ export function AstrologerChatClient({
         })
       );
 
-      if (newMsg.sender_role === "customer" && !isCurrentChat) {
+      if (notificationSound === "ring") {
         setToastMessage(`Seeker message: "${newMsg.message.slice(0, 45)}"`);
         setTimeout(() => setToastMessage(null), 4000);
-        // Requirement: Incoming chat triggers continuous ringing on the consultant web app until opened
-        if (!ringerControllerRef.current?.isRinging()) {
-          ringerControllerRef.current = startContinuousChatRinging(isMuted);
+        pendingRingingConversationIdsRef.current.add(newMsg.conversation_id);
+        if (
+          pendingRingingConversationIdsRef.current.size > 0 &&
+          !ringerControllerRef.current?.isRinging()
+        ) {
+          const controller = startContinuousChatRinging(isMuted);
+          if (controller.isRinging()) {
+            ringerControllerRef.current = controller;
+          }
         }
       }
     },
@@ -299,8 +353,11 @@ export function AstrologerChatClient({
       setIsSearchingChat(false);
       setUnreadScrolledCount(0);
 
-      // Stop continuous ringing when consultant opens/answers the chat
-      if (ringerControllerRef.current?.isRinging()) {
+      pendingRingingConversationIdsRef.current.delete(convoId);
+      if (
+        pendingRingingConversationIdsRef.current.size === 0 &&
+        ringerControllerRef.current?.isRinging()
+      ) {
         ringerControllerRef.current.stop();
         ringerControllerRef.current = null;
       }
@@ -381,6 +438,7 @@ export function AstrologerChatClient({
   // REALTIME SUBSCRIPTION (Broadcast + PostgreSQL Changes)
   // --------------------------------------------------------------------------
   useEffect(() => {
+    const pendingRingingConversationIds = pendingRingingConversationIdsRef.current;
     const supabase = createClient();
     const channel = supabase.channel(LIVE_CHAT_SHARED_CHANNEL, {
       config: { broadcast: { ack: false } },
@@ -515,6 +573,7 @@ export function AstrologerChatClient({
         ringerControllerRef.current.stop();
         ringerControllerRef.current = null;
       }
+      pendingRingingConversationIds.clear();
       void supabase.removeChannel(channel);
     };
   }, [currentUserId, handleIncomingMessage, resyncConversations, resyncSeekers]);
@@ -1380,9 +1439,21 @@ export function AstrologerChatClient({
 
                 <button
                   type="button"
-                  onClick={() => setIsMuted((prev) => !prev)}
+                  onClick={() => {
+                    const muted = !isMuted;
+                    setIsMuted(muted);
+                    if (muted) {
+                      ringerControllerRef.current?.stop();
+                      ringerControllerRef.current = null;
+                    } else if (pendingRingingConversationIdsRef.current.size > 0) {
+                      const controller = startContinuousChatRinging(false);
+                      if (controller.isRinging()) {
+                        ringerControllerRef.current = controller;
+                      }
+                    }
+                  }}
                   className="p-2 rounded-xl text-muted hover:text-midnight hover:bg-gold/10 transition-colors cursor-pointer"
-                  title={isMuted ? "Unmute message chime" : "Mute message chime"}
+                  title={isMuted ? "Unmute chat sounds" : "Mute chat sounds"}
                 >
                   {isMuted ? <VolumeX className="h-4 w-4 text-rose-500" /> : <Volume2 className="h-4 w-4" />}
                 </button>
