@@ -223,6 +223,13 @@ export function SuperAdminNotificationDispatchClient({
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by name, email, or UUID..."
                     className="w-full rounded-xl border border-gold/30 bg-white pl-8 pr-8 py-2 text-xs outline-none focus:border-gold"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    suppressHydrationWarning
                   />
                   {searchQuery && (
                     <button

@@ -237,11 +237,23 @@ export async function dispatchMultiChannelNotification({
 
     // Also mirror to legacy customer_notifications for backwards compatibility
     if (channels.includes("in_app")) {
+      // Determine recipient role to provide correct portal link
+      const { data: recipientProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", recipientId)
+        .maybeSingle();
+
+      const defaultLink =
+        recipientProfile?.role === "astrologer"
+          ? "/astrologer/dashboard"
+          : "/customer/astrologers";
+
       await admin.from("customer_notifications").insert({
         customer_id: recipientId,
         title,
         message: body,
-        link_url: payload.linkUrl || "/customer/dashboard",
+        link_url: payload.linkUrl || defaultLink,
         event_type: eventType,
         metadata: payload,
         is_read: false,
