@@ -39,6 +39,8 @@ export function SuperAdminNotificationDispatchClient({
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [category, setCategory] = useState<string>("platform_announcement");
+  const [priority, setPriority] = useState<"low" | "normal" | "high" | "urgent">("normal");
   const [eventType, setEventType] = useState("admin_broadcast_announcement");
   const [selectedChannels, setSelectedChannels] = useState<NotificationChannel[]>([
     "in_app",
@@ -114,6 +116,13 @@ export function SuperAdminNotificationDispatchClient({
         body,
         eventType,
         channels: selectedChannels,
+        payload: {
+          category,
+          priority,
+          sender_type: "super_admin",
+          sender_name: "Super Admin",
+          linkUrl: "/astrologer/communications",
+        },
       });
 
       if (res.success) {
@@ -349,6 +358,40 @@ export function SuperAdminNotificationDispatchClient({
               <span className="font-bold text-xs px-2.5 py-0.5 rounded-full bg-gold text-midnight">
                 {effectiveRecipientIds.length} Astrologer(s)
               </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-bold text-midnight mb-1">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full rounded-xl border border-gold/30 bg-white p-2 text-xs outline-none focus:border-gold"
+                >
+                  <option value="platform_announcement">General Announcement</option>
+                  <option value="important_notice">Important Notice</option>
+                  <option value="account_information">Account Information</option>
+                  <option value="verification_update">Verification Update</option>
+                  <option value="booking_update">Booking Update</option>
+                  <option value="payment_information">Payment Information</option>
+                  <option value="subscription_update">Subscription Update</option>
+                  <option value="policy_update">Policy Update</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-midnight mb-1">Priority</label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as any)}
+                  className="w-full rounded-xl border border-gold/30 bg-white p-2 text-xs outline-none focus:border-gold"
+                >
+                  <option value="low">Low Priority</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High Priority</option>
+                  <option value="urgent">Urgent / Critical</option>
+                </select>
+              </div>
             </div>
 
             <div>

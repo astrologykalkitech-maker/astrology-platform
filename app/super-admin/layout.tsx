@@ -12,10 +12,11 @@ export default async function SuperAdminLayout({
 }: {
   children: ReactNode;
 }) {
-  const { profile, permissions } = await requireSuperAdminPage();
+  const { user, profile, permissions } = await requireSuperAdminPage();
 
   return (
     <AdminShell
+      userId={user.id}
       displayName={profile.full_name ?? "Platform Owner"}
       role={profile.role}
       isSuperAdmin={true}

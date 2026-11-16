@@ -136,6 +136,8 @@ export async function dispatchBulkMultiChannelNotification({
     }
 
     revalidatePath("/super-admin/notifications-system");
+    revalidatePath("/astrologer/notifications");
+    revalidatePath("/astrologer/communications");
     return {
       success: true,
       totalRecipients: uniqueUserIds.length,
@@ -249,15 +251,25 @@ export async function dispatchMultiChannelNotification({
           ? "/astrologer/communications"
           : "/customer/astrologers";
 
-      await admin.from("customer_notifications").insert({
+      const { error: notifErr } = await admin.from("customer_notifications").insert({
         customer_id: recipientId,
         title,
         message: body,
         link_url: payload.linkUrl || defaultLink,
         event_type: eventType,
-        metadata: payload,
+        metadata: {
+          ...payload,
+          category: payload.category || "platform_announcement",
+          priority: payload.priority || "normal",
+          sender_type: payload.sender_type || "super_admin",
+          sender_name: payload.sender_name || "Super Admin",
+        },
         is_read: false,
       });
+
+      if (notifErr) {
+        console.warn("[dispatchMultiChannelNotification] In-app notification insertion warning:", notifErr.message);
+      }
     }
 
     return { success: true, count: deliveriesToInsert.length };

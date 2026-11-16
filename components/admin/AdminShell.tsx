@@ -8,6 +8,7 @@ import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 
 interface AdminShellProps {
   children: ReactNode;
+  userId?: string;
   displayName: string;
   role: UserRole;
   isSuperAdmin: boolean;
@@ -16,6 +17,7 @@ interface AdminShellProps {
 
 export function AdminShell({
   children,
+  userId,
   displayName,
   role,
   isSuperAdmin,
@@ -34,7 +36,7 @@ export function AdminShell({
 
   return (
     <div className="h-screen flex flex-col portal-bg text-ink antialiased overflow-hidden">
-      <SessionLifecycleGuard userId={role} role={role} loginPath={isSuperAdmin ? "/super-admin" : "/admin"} />
+      <SessionLifecycleGuard userId={userId || role} role={role} loginPath={isSuperAdmin ? "/super-admin" : "/admin"} />
       {/* Accessibility: Skip to Content */}
       <a
         href="#admin-main-content"

@@ -12,6 +12,9 @@ import {
   Trash2,
   Loader2,
   CheckCheck,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import type { CustomerNotification } from "@/lib/types/database.types";
 import {
@@ -35,6 +38,12 @@ export default function AstrologerNotificationsClient({
   const [clearing, setClearing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Sync the header badge after notification state has committed.
   useEffect(() => {
@@ -202,6 +211,16 @@ export default function AstrologerNotificationsClient({
         <div className="space-y-3">
           {notifications.map((n) => {
             const isRead = n.is_read;
+            const meta = (n.metadata as Record<string, any>) || {};
+            const isSuperAdmin =
+              meta.sender_type === "super_admin" ||
+              n.event_type === "admin_broadcast_announcement" ||
+              n.event_type === "super_admin_direct_message" ||
+              n.event_type === "platform_compliance_notice";
+            const priority = meta.priority || (isSuperAdmin ? "normal" : null);
+            const category = meta.category || null;
+            const isExpanded = !!expandedIds[n.id];
+            const isLongMessage = (n.message || "").length > 180;
 
             return (
               <div
@@ -212,13 +231,19 @@ export default function AstrologerNotificationsClient({
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     <span
                       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                        !isRead ? "bg-gold text-midnight" : "bg-gold/15 text-gold-deep"
+                        isSuperAdmin
+                          ? "bg-midnight text-gold shadow-xs"
+                          : !isRead
+                          ? "bg-gold text-midnight"
+                          : "bg-gold/15 text-gold-deep"
                       }`}
                     >
-                      {n.event_type === "booking_created" ? (
+                      {isSuperAdmin ? (
+                        <ShieldCheck className="h-4 w-4 text-gold" />
+                      ) : n.event_type === "booking_created" ? (
                         <Calendar className="h-4 w-4" />
                       ) : n.event_type === "consultation_message" ? (
                         <MessageSquare className="h-4 w-4" />
@@ -226,22 +251,76 @@ export default function AstrologerNotificationsClient({
                         <Sparkles className="h-4 w-4" />
                       )}
                     </span>
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-sm font-semibold text-midnight">{n.title}</h4>
                         {!isRead && (
                           <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
                         )}
+                        {isSuperAdmin && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-midnight px-2 py-0.5 text-[9px] font-bold text-champagne">
+                            <ShieldCheck className="h-2.5 w-2.5 text-gold" />
+                            From Super Admin
+                          </span>
+                        )}
+                        {category && (
+                          <span className="rounded-full bg-gold/15 border border-gold/30 px-2 py-0.5 text-[9px] font-semibold text-gold-deep capitalize">
+                            {category.replace(/_/g, " ")}
+                          </span>
+                        )}
+                        {priority && priority !== "normal" && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${
+                              priority === "urgent"
+                                ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                : priority === "high"
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {priority}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-ink/80 mt-0.5 leading-relaxed">{n.message}</p>
-                      <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1.5">
-                        <Clock className="h-3 w-3" />
+
+                      {/* Complete Notification Body */}
+                      <div className="mt-1">
+                        <p
+                          className={`text-xs text-ink/90 whitespace-pre-wrap leading-relaxed ${
+                            !isExpanded && isLongMessage ? "line-clamp-2" : ""
+                          }`}
+                        >
+                          {n.message}
+                        </p>
+                        {isLongMessage && (
+                          <button
+                            type="button"
+                            onClick={(e) => toggleExpand(n.id, e)}
+                            className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-gold-deep hover:text-midnight mt-1 cursor-pointer"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <span>Show less</span>
+                                <ChevronUp className="h-3 w-3" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Read full message</span>
+                                <ChevronDown className="h-3 w-3" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-muted mt-2 flex items-center gap-1.5">
+                        <Clock className="h-3 w-3 text-gold-deep/70" />
                         {formatExactDateTime(n.created_at)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0 pt-0.5">
                     {!isRead && (
                       <button
                         type="button"

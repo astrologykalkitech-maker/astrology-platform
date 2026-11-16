@@ -12,10 +12,11 @@ export default async function ConsultantAdminLayout({
 }: {
   children: ReactNode;
 }) {
-  const { profile, permissions } = await requireConsultantAdminPage();
+  const { user, profile, permissions } = await requireConsultantAdminPage();
 
   return (
     <AdminShell
+      userId={user.id}
       displayName={profile.full_name ?? "Consultant Admin"}
       role={profile.role}
       isSuperAdmin={false}
