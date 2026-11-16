@@ -257,17 +257,30 @@ export default function AstrologerNotificationsClient({
                       </button>
                     )}
 
-                    {n.link_url && (
-                      <Link
-                        href={n.link_url}
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 text-gold-deep hover:text-midnight transition-colors"
-                        title="View details"
-                        aria-label="View link"
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </Link>
-                    )}
+                    {(() => {
+                      // Smart link fallback: if link points to customer dashboard or is empty, route to communications or dashboard
+                      let targetLink = n.link_url;
+                      if (!targetLink || targetLink.startsWith("/customer/")) {
+                        targetLink =
+                          n.event_type === "admin_broadcast_announcement" ||
+                          n.event_type === "super_admin_direct_message" ||
+                          n.event_type === "platform_compliance_notice"
+                            ? "/astrologer/communications"
+                            : "/astrologer/dashboard";
+                      }
+
+                      return (
+                        <Link
+                          href={targetLink}
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 text-gold-deep hover:text-midnight transition-colors"
+                          title="View details & connect"
+                          aria-label="View link"
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      );
+                    })()}
 
                     <button
                       type="button"

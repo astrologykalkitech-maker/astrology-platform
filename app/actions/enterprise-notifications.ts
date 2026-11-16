@@ -246,7 +246,7 @@ export async function dispatchMultiChannelNotification({
 
       const defaultLink =
         recipientProfile?.role === "astrologer"
-          ? "/astrologer/dashboard"
+          ? "/astrologer/communications"
           : "/customer/astrologers";
 
       await admin.from("customer_notifications").insert({
