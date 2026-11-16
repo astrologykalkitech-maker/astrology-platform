@@ -9,6 +9,8 @@ import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type { CustomerBooking, CustomerFullProfile, Lead, Profile } from "@/lib/types/database.types";
 import { isValidUUID } from "@/lib/validations/lead";
+import { logAdminAction } from "@/lib/admin/audit";
+import { revalidatePath } from "next/cache";
 
 export interface AdminCustomerSummary extends Profile {
   email?: string | null;
@@ -260,6 +262,142 @@ export async function getAdminCustomerDetails(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to load customer details.",
+    };
+  }
+}
+
+/**
+ * Super Admin: Delete Customer Account at any time.
+ * Purges personal data and cancels pending requests with authoritative audit logging.
+ */
+export async function deleteCustomerAccountBySuperAdmin(
+  customerId: string,
+  reason: string
+): Promise<AuthResult<{ customerId: string }>> {
+  try {
+    const { user: adminUser } = await requireSuperAdmin();
+
+    if (!isValidUUID(customerId)) {
+      return { success: false, error: "Invalid customer ID." };
+    }
+
+    if (!reason || !reason.trim()) {
+      return { success: false, error: "A valid deletion justification reason is required." };
+    }
+
+    const supabase = await createAdminClient("main");
+
+    // Fetch before-state
+    const { data: customerProfile, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .eq("id", customerId)
+      .maybeSingle();
+
+    if (fetchErr || !customerProfile) {
+      return { success: false, error: "Customer not found." };
+    }
+
+    if (customerProfile.role !== "customer") {
+      return { success: false, error: "This user is not a customer account." };
+    }
+
+    // Try RPC procedure if installed in migration 060
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+      "admin_hard_delete_user_account",
+      {
+        p_user_id: customerId,
+        p_actor_id: adminUser.id,
+        p_reason: reason.trim(),
+      }
+    );
+
+    if (!rpcErr && rpcResult?.success) {
+      revalidatePath("/super-admin/customers");
+      revalidatePath("/super-admin");
+      return { success: true, data: { customerId } };
+    }
+
+    // Fallback if RPC is not yet applied on remote DB: Execute transactional cleanup
+    // 1. Cancel future bookings
+    await supabase
+      .from("customer_bookings")
+      .update({
+        status: "cancelled",
+        cancellation_reason: `Customer account deleted by Super Admin: ${reason.trim()}`,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: adminUser.id,
+      })
+      .eq("customer_id", customerId)
+      .in("status", ["pending", "confirmed"]);
+
+    // 2. Close active leads
+    await supabase
+      .from("leads")
+      .update({
+        status: "closed",
+        notes: `[Closed: Customer account deleted by Super Admin - ${reason.trim()}]`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("customer_id", customerId);
+
+    // 3. Mark any open deletion requests as COMPLETED
+    await supabase
+      .from("account_deletion_requests")
+      .update({
+        status: "COMPLETED",
+        completed_at: new Date().toISOString(),
+        reviewed_by: adminUser.id,
+        reviewed_at: new Date().toISOString(),
+        admin_notes: reason.trim(),
+      })
+      .eq("user_id", customerId);
+
+    // 4. Try auth.admin.deleteUser
+    let authDeleted = false;
+    try {
+      const { error: authErr } = await supabase.auth.admin.deleteUser(customerId);
+      if (!authErr) authDeleted = true;
+    } catch {
+      // Continue to profile anonymization if direct auth deletion is restricted
+    }
+
+    if (!authDeleted) {
+      // Anonymize profile directly
+      await supabase
+        .from("profiles")
+        .update({
+          full_name: "[Deleted Customer]",
+          phone: null,
+          date_of_birth: null,
+          time_of_birth: null,
+          birthplace: null,
+          avatar_url: null,
+          gender: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", customerId);
+    }
+
+    // 5. Audit Log
+    await logAdminAction({
+      actorId: adminUser.id,
+      actorRole: "super_admin",
+      action: "customer.delete_account",
+      targetType: "customer",
+      targetId: customerId,
+      reason: reason.trim(),
+      beforeState: customerProfile,
+      afterState: { status: "DELETED", purgedAt: new Date().toISOString() },
+    });
+
+    revalidatePath("/super-admin/customers");
+    revalidatePath("/super-admin");
+    return { success: true, data: { customerId } };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete customer account.",
     };
   }
 }

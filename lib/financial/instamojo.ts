@@ -341,6 +341,18 @@ export function verifyInstamojoMac(
   }
 }
 
+export function verifyRequiredInstamojoMac(
+  payload: Record<string, string | number | undefined | null>,
+  macToVerify: unknown,
+  salt?: string
+): boolean {
+  return (
+    typeof macToVerify === "string" &&
+    macToVerify.trim().length > 0 &&
+    verifyInstamojoMac(payload, macToVerify, salt)
+  );
+}
+
 /**
  * Initiates an authorized refund via Instamojo API.
  */

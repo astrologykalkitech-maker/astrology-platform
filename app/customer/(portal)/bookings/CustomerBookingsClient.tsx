@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
+import { DirectBookingPaymentForm } from "@/components/customer/DirectBookingPaymentForm";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
@@ -279,6 +280,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       )}
                     </div>
                   </div>
+                  <DirectBookingPaymentForm booking={booking} />
                 </div>
               );
             })}
@@ -306,7 +308,8 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                   const isCompleted = booking.status === "completed";
 
                   return (
-                    <tr key={booking.id} className="hover:bg-parchment/30 transition-colors">
+                    <React.Fragment key={booking.id}>
+                    <tr className="hover:bg-parchment/30 transition-colors">
                       <td className="py-4 px-4 font-mono text-xs text-muted">
                         {booking.id.slice(0, 8)}...
                       </td>
@@ -408,6 +411,12 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                         </div>
                       </td>
                     </tr>
+                    <tr className="border-b border-gold/10 bg-parchment/10">
+                      <td colSpan={7} className="px-4 py-3">
+                        <DirectBookingPaymentForm booking={booking} />
+                      </td>
+                    </tr>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

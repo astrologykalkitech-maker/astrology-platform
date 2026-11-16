@@ -135,7 +135,7 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
 
     // Execute all queries concurrently with exact counts
     const [
-      // 1. Leads Queries (DB1 - Main)
+      // 1. Leads Queries (DB Admin - Complete Administrative Lifecycle)
       resTotalLeads,
       resLeadsToday,
       resUnassignedLeads,
@@ -166,17 +166,17 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       resCompletedBookings,
       resCancelledBookings,
     ] = await Promise.all([
-      dbMain.from("leads").select("*", { count: "exact", head: true }),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null).not("status", "in", '("closed","converted","invalid")'),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "assigned"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "closed"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "invalid"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("status", "duplicate"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "platform"),
-      dbMain.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "direct"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).is("astrologer_id", null).is("assigned_to", null).not("status", "in", '("closed","converted","invalid","duplicate")'),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "assigned"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "contacted"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "converted"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "closed"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "invalid"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("status", "duplicate"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "platform"),
+      dbAdmin.from("leads").select("*", { count: "exact", head: true }).eq("source_type", "direct"),
 
       dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "pending"),
       dbMain.from("astrologer_profiles").select("*", { count: "exact", head: true }).eq("approval_status", "approved"),
@@ -195,17 +195,17 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
     ]);
 
     // Validate each result strictly against errors and non-numeric counts
-    const totalLeads = await validateCountQueryResult(resTotalLeads, { queryName: "totalLeads", table: "leads", targetDb: "main", correlationId });
-    const leadsToday = await validateCountQueryResult(resLeadsToday, { queryName: "leadsToday", table: "leads", targetDb: "main", correlationId });
-    const unassignedLeads = await validateCountQueryResult(resUnassignedLeads, { queryName: "unassignedLeads", table: "leads", targetDb: "main", correlationId });
-    const assignedLeads = await validateCountQueryResult(resAssignedLeads, { queryName: "assignedLeads", table: "leads", targetDb: "main", correlationId });
-    const contactedLeads = await validateCountQueryResult(resContactedLeads, { queryName: "contactedLeads", table: "leads", targetDb: "main", correlationId });
-    const convertedLeads = await validateCountQueryResult(resConvertedLeads, { queryName: "convertedLeads", table: "leads", targetDb: "main", correlationId });
-    const closedLeads = await validateCountQueryResult(resClosedLeads, { queryName: "closedLeads", table: "leads", targetDb: "main", correlationId });
-    const invalidLeads = await validateCountQueryResult(resInvalidLeads, { queryName: "invalidLeads", table: "leads", targetDb: "main", correlationId });
-    const duplicateLeads = await validateCountQueryResult(resDuplicateLeads, { queryName: "duplicateLeads", table: "leads", targetDb: "main", correlationId });
-    const platformGeneratedLeads = await validateCountQueryResult(resPlatformLeads, { queryName: "platformGeneratedLeads", table: "leads", targetDb: "main", correlationId });
-    const directLeads = await validateCountQueryResult(resDirectLeads, { queryName: "directLeads", table: "leads", targetDb: "main", correlationId });
+    const totalLeads = await validateCountQueryResult(resTotalLeads, { queryName: "totalLeads", table: "leads", targetDb: "admin", correlationId });
+    const leadsToday = await validateCountQueryResult(resLeadsToday, { queryName: "leadsToday", table: "leads", targetDb: "admin", correlationId });
+    const unassignedLeads = await validateCountQueryResult(resUnassignedLeads, { queryName: "unassignedLeads", table: "leads", targetDb: "admin", correlationId });
+    const assignedLeads = await validateCountQueryResult(resAssignedLeads, { queryName: "assignedLeads", table: "leads", targetDb: "admin", correlationId });
+    const contactedLeads = await validateCountQueryResult(resContactedLeads, { queryName: "contactedLeads", table: "leads", targetDb: "admin", correlationId });
+    const convertedLeads = await validateCountQueryResult(resConvertedLeads, { queryName: "convertedLeads", table: "leads", targetDb: "admin", correlationId });
+    const closedLeads = await validateCountQueryResult(resClosedLeads, { queryName: "closedLeads", table: "leads", targetDb: "admin", correlationId });
+    const invalidLeads = await validateCountQueryResult(resInvalidLeads, { queryName: "invalidLeads", table: "leads", targetDb: "admin", correlationId });
+    const duplicateLeads = await validateCountQueryResult(resDuplicateLeads, { queryName: "duplicateLeads", table: "leads", targetDb: "admin", correlationId });
+    const platformGeneratedLeads = await validateCountQueryResult(resPlatformLeads, { queryName: "platformGeneratedLeads", table: "leads", targetDb: "admin", correlationId });
+    const directLeads = await validateCountQueryResult(resDirectLeads, { queryName: "directLeads", table: "leads", targetDb: "admin", correlationId });
 
     const pendingListings = await validateCountQueryResult(resPendingListings, { queryName: "pendingListings", table: "astrologer_profiles", targetDb: "main", correlationId });
     const approvedListings = await validateCountQueryResult(resApprovedListings, { queryName: "approvedListings", table: "astrologer_profiles", targetDb: "main", correlationId });

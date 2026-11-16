@@ -18,6 +18,7 @@ import {
   CalendarCheck2,
   X,
   Shield,
+  ShieldCheck,
   Sparkles,
   LifeBuoy,
   Star,
@@ -78,6 +79,7 @@ function AdminSidebarComponent({
     {
       title: "Finance & Subscriptions",
       items: [
+        { href: "/super-admin/financials/commissions", label: "Commission & Float Ledger", icon: Award },
         { href: "/super-admin/subscriptions", label: "Astrologer Subscriptions", icon: Users2 },
         { href: "/super-admin/subscription-audits", label: "Subscription Audit Trail", icon: ScrollText },
         { href: "/super-admin/financials", label: "Financial Ledger & Payouts", icon: Sliders },
@@ -95,6 +97,7 @@ function AdminSidebarComponent({
         { href: "/super-admin/pujas", label: "Puja Catalogue", icon: Sparkles },
         { href: "/super-admin/broadcasts", label: "Live Broadcast Monitor", icon: Radio },
         { href: "/super-admin/languages", label: "Language Administration", icon: Award },
+        { href: "/super-admin/privacy-requests", label: "Privacy & Account Deletions", icon: ShieldCheck },
         { href: "/super-admin/notifications-system", label: "Notification Channels & Telemetry", icon: Bell },
         { href: "/super-admin/support", label: "Customer & Astrologer Support", icon: LifeBuoy },
         { href: "/super-admin/settings", label: "Platform Settings", icon: Sliders },

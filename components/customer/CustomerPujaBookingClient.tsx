@@ -18,6 +18,7 @@ import {
   Send,
   Lock,
 } from "lucide-react";
+import { LocationAutocomplete } from "@/components/common/LocationAutocomplete";
 import {
   submitPujaBookingRequest,
   reschedulePujaBooking,
@@ -33,6 +34,8 @@ import {
   evaluatePujaDarshanEligibility,
   type PujaDarshanEligibility,
 } from "@/lib/astrology/puja-darshan-access";
+import { isValidGeoCoordinatePair } from "@/lib/location/coordinates";
+import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] p-5";
@@ -66,6 +69,11 @@ export function CustomerPujaBookingClient({
   const [sankalpName, setSankalpName] = useState(customerName);
   const [gotra, setGotra] = useState("Kashyap");
   const [instructions, setInstructions] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"pay_at_drop" | "online_prepaid">("pay_at_drop");
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<PujaBookingRecord | null>(null);
   const [resultMsg, setResultMsg] = useState<{ type: "success" | "error"; text: string } | null>(
@@ -144,6 +152,11 @@ export function CustomerPujaBookingClient({
         gotra,
         specialInstructions: instructions,
         astrologerId: selectedPriestId || undefined,
+        venueAddress: venueAddress || undefined,
+        landmark: landmark || undefined,
+        latitude: lat,
+        longitude: lng,
+        paymentMethod: paymentMethod,
         idempotencyKey: `bk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       });
 
@@ -453,6 +466,92 @@ export function CustomerPujaBookingClient({
                   </div>
                 </div>
 
+                <div className="rounded-xl border border-gold/30 bg-parchment/40 p-4 space-y-3">
+                  <span className="text-xs font-bold text-midnight block">Event Venue & OpenStreetMap Pinning</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <LocationAutocomplete
+                        id="puja-event-venue"
+                        label="Event Venue Address *"
+                        value={venueAddress}
+                        onChange={(value, suggestion) => {
+                          setVenueAddress(value);
+                          if (
+                            suggestion &&
+                            typeof suggestion.latitude === "number" &&
+                            typeof suggestion.longitude === "number" &&
+                            isValidGeoCoordinatePair(
+                              suggestion.latitude,
+                              suggestion.longitude
+                            )
+                          ) {
+                            setLat(suggestion.latitude);
+                            setLng(suggestion.longitude);
+                          } else {
+                            setLat(null);
+                            setLng(null);
+                          }
+                        }}
+                        placeholder="Search or enter the event venue address"
+                        inputClassName="w-full p-2 rounded-lg border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                        required
+                        enableCurrentLocation={false}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-800 mb-1">Landmark</label>
+                      <input
+                        type="text"
+                        placeholder="Near Temple, Gate No., Metro station..."
+                        value={landmark}
+                        onChange={(e) => setLandmark(e.target.value)}
+                        className="w-full p-2 rounded-lg border border-gold/30 text-xs outline-none focus:border-gold bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-2">
+                    <OpenStreetMapViewer
+                      latitude={lat}
+                      longitude={lng}
+                      address={venueAddress}
+                      landmark={landmark}
+                    />
+                  </div>
+                </div>
+
+                {/* Pay at Drop Payment Choice */}
+                <div className="rounded-xl border border-emerald-300 bg-emerald-50/50 p-4 space-y-2">
+                  <span className="text-xs font-bold text-emerald-900 block">Payment Method</span>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="pay_at_drop"
+                        checked={paymentMethod === "pay_at_drop"}
+                        onChange={() => setPaymentMethod("pay_at_drop")}
+                        className="accent-gold h-4 w-4"
+                      />
+                      <span>Pay at Drop (Pay pandit directly after puja completion)</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="online_prepaid"
+                        checked={paymentMethod === "online_prepaid"}
+                        onChange={() => setPaymentMethod("online_prepaid")}
+                        className="accent-gold h-4 w-4"
+                      />
+                      <span>Online Pre-paid (Platform Gateway)</span>
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-emerald-800">
+                    With Pay at Drop, you inspect and participate in the sacred ritual first, then settle charges directly with the presiding pandit upon completion.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-800 mb-1">
                     Special Wishes or Specific Intention (Optional)
@@ -579,6 +678,17 @@ export function CustomerPujaBookingClient({
                     <span className="font-bold text-midnight">{b.astrologer?.display_name || "Assigning Consecrated Priest..."}</span>
                   </div>
                 </div>
+
+                {(b.venue_address || b.latitude != null || b.longitude != null) && (
+                  <div className="border-b border-gold/10 py-3">
+                    <OpenStreetMapViewer
+                      latitude={b.latitude}
+                      longitude={b.longitude}
+                      address={b.venue_address}
+                      landmark={b.landmark}
+                    />
+                  </div>
+                )}
 
                 {/* Darshan Access State & Joining Section */}
                 {(() => {

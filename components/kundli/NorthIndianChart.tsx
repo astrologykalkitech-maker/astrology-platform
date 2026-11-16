@@ -6,6 +6,7 @@ import type { PlanetaryPosition, AscendantInfo, PlanetName } from "@/lib/astrolo
 interface NorthIndianChartProps {
   ascendant: AscendantInfo;
   planets: Record<PlanetName, PlanetaryPosition>;
+  chartTitle?: string;
   className?: string;
 }
 
@@ -24,7 +25,7 @@ const PLANET_SHORT_CODES: Record<PlanetName, string> = {
 /**
  * Traditional Diamond-Style North Indian Kundli SVG Component
  */
-export function NorthIndianChart({ ascendant, planets, className = "" }: NorthIndianChartProps) {
+export function NorthIndianChart({ ascendant, planets, chartTitle = "Lagna Kundli (D1)", className = "" }: NorthIndianChartProps) {
   const gradientId = useId();
 
   // Group planets by house (1 to 12)
@@ -64,7 +65,7 @@ export function NorthIndianChart({ ascendant, planets, className = "" }: NorthIn
       <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-gold/20 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
-          <span className="font-semibold text-champagne font-display tracking-wider">Lagna Kundli (D1)</span>
+          <span className="font-semibold text-champagne font-display tracking-wider">{chartTitle}</span>
         </div>
         <div className="text-[11px] text-ivory/70">
           Ascendant: <span className="text-gold font-semibold">{ascendant.rashi}</span> ({ascendant.formattedDegrees})

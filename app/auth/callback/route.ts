@@ -290,6 +290,29 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+  } else if (oauthRole === "customer" && profile.role === "astrologer") {
+    // User initiated sign-in via Customer login/signup, but profile in DB is set to 'astrologer'
+    // Check if the user has an actual registered astrologer profile
+    const { data: existingAstroProfile, error: astroCheckErr } = await dbClient
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!astroCheckErr && !existingAstroProfile) {
+      // Account has no astrologer profile record (e.g. initial registration test or misassigned role).
+      // Automatically self-heal the role back to customer.
+      if (isPrivileged) {
+        const { error: updateErr } = await dbClient
+          .from("profiles")
+          .update({ role: "customer" })
+          .eq("id", user.id);
+
+        if (!updateErr) {
+          userRole = "customer";
+        }
+      }
+    }
   }
 
   // Backfill full_name from OAuth user metadata if missing or placeholder

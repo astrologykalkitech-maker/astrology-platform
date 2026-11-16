@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarCheck2,
   Search,
@@ -24,13 +25,35 @@ import {
 import type { BookingStatus, ConsultationMode } from "@/lib/types/database.types";
 import { formatDateTime } from "@/lib/astrologer/format";
 
+const VALID_BOOKING_STATUSES: BookingStatus[] = [
+  "pending",
+  "confirmed",
+  "completed",
+  "cancelled",
+  "no_show",
+];
+
 export default function SuperAdminBookingsPage() {
+  const searchParams = useSearchParams();
+  const rawStatus = searchParams.get("status") as BookingStatus | null;
+  const initialStatus = rawStatus && VALID_BOOKING_STATUSES.includes(rawStatus) ? rawStatus : "all";
+
   const [bookings, setBookings] = useState<AdminBookingItem[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
-  const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">(initialStatus);
   const [modeFilter, setModeFilter] = useState<ConsultationMode | "all">("all");
   const [search, setSearch] = useState<string>("");
+
+  // Sync state if URL searchParams change
+  useEffect(() => {
+    const param = searchParams.get("status") as BookingStatus | null;
+    if (param && VALID_BOOKING_STATUSES.includes(param)) {
+      setStatusFilter(param);
+    } else if (!param) {
+      setStatusFilter("all");
+    }
+  }, [searchParams]);
 
   // Status Action Modal State
   const [activeBooking, setActiveBooking] = useState<AdminBookingItem | null>(null);

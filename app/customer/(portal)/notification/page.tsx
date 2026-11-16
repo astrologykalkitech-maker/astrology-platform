@@ -5,6 +5,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { getCustomerNotifications } from "@/app/actions/customer";
 import CustomerNotificationsClient from "./CustomerNotificationsClient";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
+import { SoundSettings } from "@/components/sound/SoundSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ export default async function NotificationsPage() {
       </div>
 
       <CustomerNotificationsClient initialNotifications={notifications} />
+
+      <SoundSettings />
     </div>
   );
 }

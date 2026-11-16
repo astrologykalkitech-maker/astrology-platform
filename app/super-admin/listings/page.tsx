@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Users2,
   Search,
@@ -17,12 +18,34 @@ import { getAdminListings } from "@/app/actions/admin-listings";
 import { ListingModerationModal } from "@/components/admin/ListingModerationModal";
 import type { ApprovalStatus, AstrologerProfile } from "@/lib/types/database.types";
 
+const VALID_APPROVAL_STATUSES: ApprovalStatus[] = [
+  "pending",
+  "approved",
+  "changes_requested",
+  "rejected",
+  "suspended",
+];
+
 export default function SuperAdminListingsPage() {
+  const searchParams = useSearchParams();
+  const rawStatus = searchParams.get("status") as ApprovalStatus | null;
+  const initialStatus = rawStatus && VALID_APPROVAL_STATUSES.includes(rawStatus) ? rawStatus : "all";
+
   const [listings, setListings] = useState<AstrologerProfile[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<ApprovalStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<ApprovalStatus | "all">(initialStatus);
+
+  // Sync state if URL searchParams change
+  useEffect(() => {
+    const param = searchParams.get("status") as ApprovalStatus | null;
+    if (param && VALID_APPROVAL_STATUSES.includes(param)) {
+      setStatusFilter(param);
+    } else if (!param) {
+      setStatusFilter("all");
+    }
+  }, [searchParams]);
 
   const [selectedListing, setSelectedListing] = useState<AstrologerProfile | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

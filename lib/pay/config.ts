@@ -10,7 +10,7 @@ export function getJyotishPayConfig(): JyotishGatewayConfig {
     merchantName: (process.env.JYOTISH_PAY_MERCHANT_NAME || "JyotishSetu Astrology Services").trim(),
     merchantCode: (process.env.JYOTISH_PAY_MCC || "8299").trim(), // 8299/8999 for Merchant, 0000 for Personal
     appBaseUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-    webhookSecret: process.env.JYOTISH_PAY_WEBHOOK_SECRET || "jsp_secret_dev_key_secure_2026",
+    webhookSecret: (process.env.JYOTISH_PAY_WEBHOOK_SECRET || "").trim(),
     autoApproveSandbox: mode === "sandbox",
   };
 }

@@ -5,6 +5,7 @@ import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerNotificationsAction } from "@/app/actions/astrologer-portal";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import AstrologerNotificationsClient from "./AstrologerNotificationsClient";
+import { SoundSettings } from "@/components/sound/SoundSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export default async function AstrologerNotificationsPage() {
       </div>
 
       <AstrologerNotificationsClient initialNotifications={notifications} />
+
+      <SoundSettings />
     </div>
   );
 }

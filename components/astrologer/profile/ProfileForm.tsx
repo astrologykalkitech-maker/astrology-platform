@@ -65,9 +65,16 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [experience, setExperience] = useState(profile?.experience_years?.toString() ?? "");
   const [fee, setFee] = useState(profile?.consultation_fee?.toString() ?? "");
+  const [voicePrice, setVoicePrice] = useState(profile?.voice_price_per_minute?.toString() ?? "15");
+  const [chatPrice, setChatPrice] = useState(profile?.chat_price_per_minute?.toString() ?? "10");
+  const [videoPrice, setVideoPrice] = useState(profile?.video_price_per_minute?.toString() ?? "25");
+  const [voiceEnabled, setVoiceEnabled] = useState(profile?.voice_enabled ?? true);
+  const [chatEnabled, setChatEnabled] = useState(profile?.chat_enabled ?? true);
+  const [videoEnabled, setVideoEnabled] = useState(profile?.video_enabled ?? true);
   const [city, setCity] = useState(profile?.city ?? "");
   const [state, setState] = useState(profile?.state ?? "");
   const [address, setAddress] = useState(profile?.address ?? "");
+  const [upiVpa, setUpiVpa] = useState(profile?.upi_vpa ?? "");
   const [photoUrl, setPhotoUrl] = useState(profile?.profile_photo_url ?? "");
   const [slug, setSlug] = useState(profile?.slug ?? "");
   const [languages, setLanguages] = useState<string[]>(profile?.languages ?? []);
@@ -116,9 +123,16 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
       bio: bio.trim() || null,
       experience_years: toNumber(experience),
       consultation_fee: toNumber(fee),
+      voice_price_per_minute: toNumber(voicePrice),
+      chat_price_per_minute: toNumber(chatPrice),
+      video_price_per_minute: toNumber(videoPrice),
+      voice_enabled: voiceEnabled,
+      chat_enabled: chatEnabled,
+      video_enabled: videoEnabled,
       city: city.trim() || null,
       state: state.trim() || null,
       address: address.trim() || null,
+      upi_vpa: upiVpa.trim() || null,
       profile_photo_url: photoUrl.trim() || null,
       slug: slug.trim() || null,
       specializations,
@@ -210,7 +224,86 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
           {step === 2 && (
             <>
               <h2 className="font-display text-2xl font-semibold text-midnight">Consultation Details</h2>
-              <FormField label="Consultation fee (₹ per session)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} error={errors.fee} />
+              <FormField label="General Consultation Base Fee (₹)" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} error={errors.fee} />
+              <FormField
+                label="Direct UPI ID for Consultation Payments"
+                value={upiVpa}
+                onChange={(e) => setUpiVpa(e.target.value)}
+                placeholder="name@bank"
+                hint="Customers with a booking will use this UPI ID to pay you directly. JyotishSetu never verifies a payment from a submitted UTR alone."
+              />
+              
+              {/* Dynamic Per-Minute Consultation Rates */}
+              <div className="rounded-xl border border-gold/30 bg-parchment/40 p-4 space-y-4">
+                <span className="text-xs font-bold text-midnight block">Custom Per-Minute Consultation Pricing</span>
+                <p className="text-[11px] text-muted">
+                  Set independent per-minute pricing for Voice, Chat, and Video sessions. Seekers pay directly according to these published rates.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-midnight flex items-center justify-between">
+                      <span>Voice Call (₹/min)</span>
+                      <input
+                        type="checkbox"
+                        checked={voiceEnabled}
+                        onChange={(e) => setVoiceEnabled(e.target.checked)}
+                        className="rounded accent-gold h-3.5 w-3.5"
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      disabled={!voiceEnabled}
+                      value={voicePrice}
+                      onChange={(e) => setVoicePrice(e.target.value)}
+                      className="w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs text-ink focus:border-gold disabled:opacity-50"
+                      placeholder="15"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-midnight flex items-center justify-between">
+                      <span>Chat Session (₹/min)</span>
+                      <input
+                        type="checkbox"
+                        checked={chatEnabled}
+                        onChange={(e) => setChatEnabled(e.target.checked)}
+                        className="rounded accent-gold h-3.5 w-3.5"
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      disabled={!chatEnabled}
+                      value={chatPrice}
+                      onChange={(e) => setChatPrice(e.target.value)}
+                      className="w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs text-ink focus:border-gold disabled:opacity-50"
+                      placeholder="10"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-midnight flex items-center justify-between">
+                      <span>Video Call (₹/min)</span>
+                      <input
+                        type="checkbox"
+                        checked={videoEnabled}
+                        onChange={(e) => setVideoEnabled(e.target.checked)}
+                        className="rounded accent-gold h-3.5 w-3.5"
+                      />
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      disabled={!videoEnabled}
+                      value={videoPrice}
+                      onChange={(e) => setVideoPrice(e.target.value)}
+                      className="w-full rounded-lg border border-line bg-white px-2.5 py-1.5 text-xs text-ink focus:border-gold disabled:opacity-50"
+                      placeholder="25"
+                    />
+                  </div>
+                </div>
+              </div>
               <LocationAutocomplete
                 id="address"
                 label="Address (private)"

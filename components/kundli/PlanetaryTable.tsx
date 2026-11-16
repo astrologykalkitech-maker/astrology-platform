@@ -102,8 +102,10 @@ export function PlanetaryTable({ ascendant, planets }: PlanetaryTableProps) {
                       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                         p.dignity === "Exalted" || p.dignity === "Own Sign"
                           ? "bg-emerald-100 text-emerald-800"
-                          : p.dignity === "Debilitated"
+                          : p.dignity === "Debilitated" || p.dignity === "Inimical"
                           ? "bg-rose-100 text-rose-800"
+                          : p.dignity === "Friendly"
+                          ? "bg-amber-100 text-amber-800"
                           : "bg-gray-100 text-gray-700"
                       }`}
                     >

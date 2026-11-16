@@ -26,6 +26,7 @@ export interface AstrologerEarningsRecord {
   service_type: string;
   consultation_mode: string;
   fee_amount: number;
+  payment_status: "verified" | "pending" | "unpaid" | "refunded";
   currency: string;
   scheduled_at: string;
   status: string;
@@ -134,6 +135,14 @@ export async function updateAstrologerBookingStatusAction(params: {
     }
     if (transition.noop) {
       // Repeated request for the state the booking is already in: succeed without side effects
+      if (params.status === "completed") {
+        const { error: accrualError } = await admin.rpc("accrue_verified_booking_commissions", {
+          p_booking_id: params.bookingId,
+        });
+        if (accrualError) {
+          console.warn("[updateAstrologerBookingStatusAction] verified commission reconciliation notice:", accrualError.message);
+        }
+      }
       return { success: true, data: beforeBooking as unknown as CustomerBooking };
     }
 
@@ -223,6 +232,15 @@ export async function updateAstrologerBookingStatusAction(params: {
     revalidatePath("/astrologer/earnings");
     revalidatePath("/customer/bookings");
     revalidatePath("/customer");
+
+    if (params.status === "completed") {
+      const { error: accrualError } = await admin.rpc("accrue_verified_booking_commissions", {
+        p_booking_id: beforeBooking.id,
+      });
+      if (accrualError) {
+        console.warn("[updateAstrologerBookingStatusAction] verified commission accrual notice:", accrualError.message);
+      }
+    }
 
     return {
       success: true,
@@ -316,6 +334,62 @@ export async function getAstrologerEarningsAction(): Promise<
         customer?: { full_name?: string | null } | null;
       }
     >;
+    const bookingIds = allBookings.map((booking) => booking.id);
+    const paymentStatusByBooking = new Map<string, AstrologerEarningsRecord["payment_status"]>();
+    if (bookingIds.length > 0) {
+      const admin = await createAdminClient("main");
+      const [directPayments, paymentOrders, paymentIntents] = await Promise.all([
+        admin
+          .from("direct_consultation_payments")
+          .select("booking_id, status, submitted_at")
+          .in("booking_id", bookingIds)
+          .order("submitted_at", { ascending: false }),
+        admin
+          .from("payment_orders")
+          .select("entity_id")
+          .eq("entity_type", "consultation")
+          .eq("status", "successful")
+          .in("entity_id", bookingIds),
+        admin
+          .from("payment_intents")
+          .select("booking_id")
+          .eq("entity_type", "consultation")
+          .eq("status", "succeeded")
+          .in("booking_id", bookingIds),
+      ]);
+
+      if (directPayments.error) {
+        // Handle gracefully if table is not yet migrated in database schema
+        console.warn("[getAstrologerEarningsAction] direct_consultation_payments lookup:", directPayments.error.message);
+      }
+      if (paymentOrders.error) {
+        return { success: false, error: `Failed to load platform payment records: ${paymentOrders.error.message}` };
+      }
+      if (paymentIntents.error) {
+        return { success: false, error: `Failed to load payment intent records: ${paymentIntents.error.message}` };
+      }
+
+      for (const payment of (directPayments.error ? [] : directPayments.data) || []) {
+        if (paymentStatusByBooking.has(payment.booking_id)) continue;
+        paymentStatusByBooking.set(
+          payment.booking_id,
+          payment.status === "verified"
+            ? "verified"
+            : payment.status === "pending"
+            ? "pending"
+            : payment.status === "refunded"
+            ? "refunded"
+            : "unpaid"
+        );
+      }
+      for (const order of paymentOrders.data || []) {
+        paymentStatusByBooking.set(order.entity_id, "verified");
+      }
+      for (const intent of paymentIntents.data || []) {
+        paymentStatusByBooking.set(intent.booking_id, "verified");
+      }
+    }
+
     const customerMap: Record<string, string> = {};
 
     // First populate names from the joined customer relation
@@ -350,9 +424,12 @@ export async function getAstrologerEarningsAction(): Promise<
 
     const records: AstrologerEarningsRecord[] = allBookings.map((b) => {
       const price = Number(b.price) || 0;
+      const paymentStatus = paymentStatusByBooking.get(b.id) || "unpaid";
       if (b.status === "completed") {
         completedCount++;
-        totalEarnings += price;
+        if (paymentStatus === "verified") {
+          totalEarnings += price;
+        }
       } else if (b.status === "confirmed" || b.status === "pending") {
         pendingEarnings += price;
       }
@@ -364,6 +441,7 @@ export async function getAstrologerEarningsAction(): Promise<
         service_type: b.service_type,
         consultation_mode: b.consultation_mode,
         fee_amount: price,
+        payment_status: paymentStatus,
         currency: "INR",
         scheduled_at: b.scheduled_at,
         status: b.status,

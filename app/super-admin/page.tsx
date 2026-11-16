@@ -27,6 +27,7 @@ import { getAdminAuditLogs } from "@/app/actions/admin-system";
 import { getSuperAdminChatOverviewAction } from "@/app/actions/direct-chat";
 import { formatDateTime } from "@/lib/astrologer/format";
 import { DashboardRefreshButton } from "@/components/admin/DashboardRefreshButton";
+import { CommandCenterActionBanner } from "@/components/admin/CommandCenterActionBanner";
 
 export default async function SuperAdminOverviewPage() {
   const [metricsResult, closedLeadsResult, listingsResult, auditLogsResult, chatOverviewResult] = await Promise.all([
@@ -113,49 +114,12 @@ export default async function SuperAdminOverviewPage() {
       )}
 
       {/* Actionable Alerts Banner */}
-      {metrics && (metrics.pendingListings > 0 || metrics.unassignedLeads > 0 || metrics.pendingBookings > 0) && (
-        <div className="rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/40 p-4 shadow-xs">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
-                Immediate Action Required
-              </h4>
-              <p className="text-xs text-amber-900/90 mt-0.5">
-                {metrics.unassignedLeads > 0 && (
-                  <span>
-                    <strong className="underline">{metrics.unassignedLeads} unassigned lead{metrics.unassignedLeads === 1 ? "" : "s"}</strong>
-                  </span>
-                )}
-                {metrics.unassignedLeads > 0 && (metrics.pendingListings > 0 || metrics.pendingBookings > 0) && ", "}
-                {metrics.pendingListings > 0 && (
-                  <span>
-                    <strong className="underline">{metrics.pendingListings} pending astrologer application{metrics.pendingListings === 1 ? "" : "s"}</strong>
-                  </span>
-                )}
-                {metrics.pendingListings > 0 && metrics.pendingBookings > 0 && ", "}
-                {metrics.pendingBookings > 0 && (
-                  <span>
-                    <strong className="underline">{metrics.pendingBookings} pending booking request{metrics.pendingBookings === 1 ? "" : "s"}</strong>
-                  </span>
-                )}{" "}
-                awaiting review and action.
-              </p>
-            </div>
-            <Link
-              href={
-                metrics.unassignedLeads > 0
-                  ? "/super-admin/leads?unassignedOnly=true"
-                  : metrics.pendingListings > 0
-                  ? "/super-admin/listings?status=pending"
-                  : "/super-admin/bookings?status=pending"
-              }
-              className="shrink-0 rounded-xl bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-800 transition-colors"
-            >
-              Take Action
-            </Link>
-          </div>
-        </div>
+      {metrics && (
+        <CommandCenterActionBanner
+          unassignedLeads={metrics.unassignedLeads}
+          pendingListings={metrics.pendingListings}
+          pendingBookings={metrics.pendingBookings}
+        />
       )}
 
       {/* Primary Metric Cards Grid */}

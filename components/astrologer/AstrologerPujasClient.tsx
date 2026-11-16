@@ -17,7 +17,9 @@ import {
   RefreshCw,
   Sparkles,
   ChevronRight,
+  MapPin,
 } from "lucide-react";
+import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 import {
   respondToPujaAssignment,
   updatePujaFulfilmentProgress,
@@ -31,8 +33,10 @@ const CARD =
 
 export function AstrologerPujasClient({
   initialBookings,
+  profileHint,
 }: {
   initialBookings: AstrologerAssignedPujaItem[];
+  profileHint?: string;
 }) {
   const [bookings, setBookings] = useState<AstrologerAssignedPujaItem[]>(initialBookings);
 
@@ -46,7 +50,7 @@ export function AstrologerPujasClient({
     let active = true;
     const interval = setInterval(async () => {
       try {
-        const res = await getAstrologerAssignedPujas();
+        const res = await getAstrologerAssignedPujas(profileHint);
         if (active && res.success && res.data) {
           setBookings(res.data);
         }
@@ -57,7 +61,7 @@ export function AstrologerPujasClient({
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [profileHint]);
   const [selectedBooking, setSelectedBooking] = useState<AstrologerAssignedPujaItem | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -206,6 +210,17 @@ export function AstrologerPujasClient({
                     <div className="p-2 rounded-lg bg-parchment/60 text-[11px] text-muted border border-gold/15">
                       <span className="font-semibold text-slate-800">Seeker Intention: </span>
                       {b.special_instructions}
+                    </div>
+                  )}
+
+                  {(b.venue_address || b.latitude != null || b.longitude != null) && (
+                    <div className="mt-2.5">
+                      <OpenStreetMapViewer
+                        latitude={b.latitude}
+                        longitude={b.longitude}
+                        address={b.venue_address}
+                        landmark={b.landmark}
+                      />
                     </div>
                   )}
                 </div>

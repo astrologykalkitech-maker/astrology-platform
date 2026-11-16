@@ -53,3 +53,20 @@ test("Message realtime migration grants participant-filtered reads and publishes
   assert.match(migration, /alter table public\.direct_messages replica identity full/i);
   assert.match(migration, /alter publication supabase_realtime add table public\.direct_messages/i);
 });
+
+test("Empty conversation inserts resync lists without ringing", () => {
+  const astrologerClient = fs.readFileSync(
+    path.join(process.cwd(), "components/astrologer/chat/AstrologerChatClient.tsx"),
+    "utf8"
+  );
+  const conversationHandler = astrologerClient.match(
+    /channel\.on\(\s*"postgres_changes",\s*\{\s*event:\s*"INSERT",\s*schema:\s*"public",\s*table:\s*"conversations"\s*\},\s*\(\) => \{([\s\S]*?)\}\s*\);/
+  );
+
+  assert.ok(conversationHandler);
+  assert.match(conversationHandler[1], /resyncConversations/);
+  assert.doesNotMatch(
+    conversationHandler[1],
+    /startContinuousChatRinging|playChatNotificationChime/
+  );
+});

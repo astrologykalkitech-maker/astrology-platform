@@ -9,6 +9,7 @@ import type { VoiceCall, VoiceCallStatus } from "@/lib/types/database.types";
 import {
   isLiveVoiceCallStatus,
   isVoiceCallRingExpired,
+  getVoiceCallCommissionBookingId,
   LIVE_VOICE_CALL_STATUSES,
   VOICE_CALL_STALE_TIMEOUT_MS,
 } from "@/lib/chat/voice-call";
@@ -250,7 +251,36 @@ export async function updateVoiceCallStatusAction(
     }
 
     const currentCall = call as VoiceCall;
+    const reconcileVerifiedBookingCommission = async (
+      durationSeconds = currentCall.duration_seconds
+    ): Promise<string | null> => {
+      const { data: conversation, error: conversationError } = await admin
+        .from("conversations")
+        .select("booking_id")
+        .eq("id", currentCall.conversation_id)
+        .maybeSingle();
+
+      if (conversationError) return conversationError.message;
+
+      const bookingId = getVoiceCallCommissionBookingId(
+        conversation?.booking_id,
+        durationSeconds
+      );
+      if (!bookingId) return null;
+
+      const { error: accrualError } = await admin.rpc("accrue_verified_booking_commissions", {
+        p_booking_id: bookingId,
+      });
+      return accrualError?.message || null;
+    };
+
     if (!isLiveVoiceCallStatus(currentCall.status)) {
+      if (currentCall.status === "ended") {
+        const reconciliationError = await reconcileVerifiedBookingCommission();
+        if (reconciliationError) {
+          console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
+        }
+      }
       return { success: true, call: currentCall };
     }
 
@@ -313,6 +343,13 @@ export async function updateVoiceCallStatusAction(
         await roomService.deleteRoom(currentCall.room_name);
       } catch (roomError) {
         console.warn("[updateVoiceCallStatusAction] LiveKit room cleanup notice:", roomError);
+      }
+
+      if (status === "ended" && updates.duration_seconds && updates.duration_seconds > 0) {
+        const reconciliationError = await reconcileVerifiedBookingCommission(updates.duration_seconds);
+        if (reconciliationError) {
+          console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
+        }
       }
     }
 

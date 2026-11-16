@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatExactDateTime } from "@/lib/astrologer/format";
+import { OpenStreetMapViewer } from "@/components/maps/OpenStreetMapViewer";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
@@ -270,134 +271,149 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
             return (
               <div
                 key={booking.id}
-                className={`${CARD} p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5`}
+                className={`${CARD} p-5 space-y-4`}
               >
-                {/* Left: Avatar + Details */}
-                <div className="flex items-start gap-4 min-w-0 flex-1">
-                  <Avatar
-                    name={booking.customer_name || "Seeker"}
-                    src={booking.customer_avatar_url || null}
-                    size="md"
-                    className="shrink-0 mt-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-midnight capitalize truncate max-w-[280px]">
-                        {booking.service_type || "Vedic Consultation"}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                          isCompleted
-                            ? "bg-emerald-100 text-emerald-800"
-                            : isConfirmed
-                            ? "bg-sky-100 text-sky-800"
-                            : isCancelled
-                            ? "bg-rose-100 text-rose-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {booking.status}
-                      </span>
-                    </div>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+                  {/* Left: Avatar + Details */}
+                  <div className="flex items-start gap-4 min-w-0 flex-1">
+                    <Avatar
+                      name={booking.customer_name || "Seeker"}
+                      src={booking.customer_avatar_url || null}
+                      size="md"
+                      className="shrink-0 mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold text-midnight capitalize truncate max-w-[280px]">
+                          {booking.service_type || "Vedic Consultation"}
+                        </h3>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                            isCompleted
+                              ? "bg-emerald-100 text-emerald-800"
+                              : isConfirmed
+                              ? "bg-sky-100 text-sky-800"
+                              : isCancelled
+                              ? "bg-rose-100 text-rose-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {booking.status}
+                        </span>
+                      </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <Link
-                        href={`/astrologer/customers/${booking.customer_id}`}
-                        className="font-semibold text-gold-deep hover:text-midnight transition-colors inline-flex items-center gap-1"
-                      >
-                        <User className="h-3 w-3" />
-                        {booking.customer_name || "Verified Seeker"}
-                      </Link>
-                      <span className="text-muted flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatExactDateTime(booking.scheduled_at)}
-                      </span>
-                    </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                        <Link
+                          href={`/astrologer/customers/${booking.customer_id}`}
+                          className="font-semibold text-gold-deep hover:text-midnight transition-colors inline-flex items-center gap-1"
+                        >
+                          <User className="h-3 w-3" />
+                          {booking.customer_name || "Verified Seeker"}
+                        </Link>
+                        <span className="text-muted flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatExactDateTime(booking.scheduled_at)}
+                        </span>
+                      </div>
 
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink/80">
-                      <span className="inline-flex items-center gap-1 font-medium">
-                        <ModeIcon className="h-3.5 w-3.5 text-gold-deep" />
-                        {booking.consultation_mode} ({booking.duration_minutes || 30} mins)
-                      </span>
-                      <span>&bull;</span>
-                      <span className="font-semibold text-midnight">
-                        Fee: ₹{booking.price || 0}
-                      </span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink/80">
+                        <span className="inline-flex items-center gap-1 font-medium">
+                          <ModeIcon className="h-3.5 w-3.5 text-gold-deep" />
+                          {booking.consultation_mode} ({booking.duration_minutes || 30} mins)
+                        </span>
+                        <span>&bull;</span>
+                        <span className="font-semibold text-midnight">
+                          Fee: ₹{booking.price || 0}
+                        </span>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end border-t border-line md:border-0 pt-3 md:pt-0 shrink-0">
+                    <Link
+                      href={`/astrologer/customers/${booking.customer_id}`}
+                      className={buttonStyles({ variant: "outline", size: "sm" })}
+                    >
+                      View Seeker
+                    </Link>
+
+                    {/* Status transition: Pending -> Confirm */}
+                    {booking.status === "pending" && (
+                      <button
+                        type="button"
+                        disabled={updatingId === booking.id}
+                        onClick={() => handleUpdateStatus(booking.id, "confirmed")}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+                      >
+                        {updatingId === booking.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                        Confirm
+                      </button>
+                    )}
+
+                    {/* Status transition: Confirmed -> Mark Completed */}
+                    {isConfirmed && (
+                      <button
+                        type="button"
+                        disabled={updatingId === booking.id}
+                        onClick={() => handleUpdateStatus(booking.id, "completed")}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/40 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                        title="Mark consultation as completed"
+                      >
+                        {updatingId === booking.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        )}
+                        Mark Completed
+                      </button>
+                    )}
+
+                    {isConfirmed && booking.consultation_mode !== "Chat" && (
+                      joinActive ? (
+                        <Link
+                          href={`/consultation/${booking.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-gold-deep text-midnight hover:bg-gold px-3.5 py-1.5 text-xs font-semibold shadow transition-colors"
+                        >
+                          <Video className="h-3.5 w-3.5" />
+                          Join {booking.consultation_mode}
+                        </Link>
+                      ) : (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
+                            Scheduled
+                          </span>
+                          <span className="text-[10px] text-muted">
+                            Join opens 15m before
+                          </span>
+                        </div>
+                      )
+                    )}
+
+                    {isConfirmed && booking.consultation_mode === "Chat" && (
+                      <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
+                        Chat Consultation
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Right: Actions */}
-                <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end border-t border-line md:border-0 pt-3 md:pt-0 shrink-0">
-                  <Link
-                    href={`/astrologer/customers/${booking.customer_id}`}
-                    className={buttonStyles({ variant: "outline", size: "sm" })}
-                  >
-                    View Seeker
-                  </Link>
-
-                  {/* Status transition: Pending -> Confirm */}
-                  {booking.status === "pending" && (
-                    <button
-                      type="button"
-                      disabled={updatingId === booking.id}
-                      onClick={() => handleUpdateStatus(booking.id, "confirmed")}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
-                    >
-                      {updatingId === booking.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                      Confirm
-                    </button>
-                  )}
-
-                  {/* Status transition: Confirmed -> Mark Completed */}
-                  {isConfirmed && (
-                    <button
-                      type="button"
-                      disabled={updatingId === booking.id}
-                      onClick={() => handleUpdateStatus(booking.id, "completed")}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/40 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
-                      title="Mark consultation as completed"
-                    >
-                      {updatingId === booking.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      )}
-                      Mark Completed
-                    </button>
-                  )}
-
-                  {isConfirmed && booking.consultation_mode !== "Chat" && (
-                    joinActive ? (
-                      <Link
-                        href={`/consultation/${booking.id}`}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-gold-deep text-midnight hover:bg-gold px-3.5 py-1.5 text-xs font-semibold shadow transition-colors"
-                      >
-                        <Video className="h-3.5 w-3.5" />
-                        Join {booking.consultation_mode}
-                      </Link>
-                    ) : (
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
-                          Scheduled
-                        </span>
-                        <span className="text-[10px] text-muted">
-                          Join opens 15m before
-                        </span>
-                      </div>
-                    )
-                  )}
-
-                  {isConfirmed && booking.consultation_mode === "Chat" && (
-                    <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
-                      Chat Consultation
-                    </span>
-                  )}
-                </div>
+                {((booking.event_address && booking.event_address.trim()) ||
+                  booking.latitude != null ||
+                  booking.longitude != null) && (
+                  <div className="pt-2 border-t border-gold/15">
+                    <OpenStreetMapViewer
+                      latitude={booking.latitude}
+                      longitude={booking.longitude}
+                      address={booking.event_address}
+                      landmark={booking.landmark}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}

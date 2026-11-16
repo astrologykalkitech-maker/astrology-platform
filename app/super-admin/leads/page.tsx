@@ -39,6 +39,7 @@ export default function SuperAdminLeadsPage() {
   const [totalCount, setTotalCount] = useState<number>(0);
   const [astrologers, setAstrologers] = useState<AstrologerProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">(initialStatus);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
@@ -50,58 +51,93 @@ export default function SuperAdminLeadsPage() {
   const [selectedLeadForAssign, setSelectedLeadForAssign] = useState<AdminLeadItem | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
+  // Load astrologer directory once or on-demand without blocking inquiries
+  const loadAstrologers = async () => {
+    try {
+      const astroRes = await getAdminListings({ status: "approved" });
+      if (astroRes.success) {
+        setAstrologers(astroRes.data.listings);
+      }
+    } catch (e) {
+      console.warn("Could not load astrologers for modal triage:", e);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
-    const [leadsRes, astroRes] = await Promise.all([
-      getAdminLeads({
+    setError(null);
+    try {
+      // Create timeout safety deadline so UI is never stuck on Loading Inquiries
+      const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) =>
+        setTimeout(() => resolve({ success: false, error: "Network timeout: Inquiries request took too long." }), 12000)
+      );
+
+      const fetchPromise = getAdminLeads({
         search: search.trim() || undefined,
         status: statusFilter,
         sourceType: sourceFilter,
         priority: priorityFilter,
         unassignedOnly: unassignedOnly || undefined,
-      }),
-      getAdminListings({ status: "approved" }),
-    ]);
+      });
 
-    if (leadsRes.success) {
-      setLeads(leadsRes.data.leads);
-      setTotalCount(leadsRes.data.totalCount);
+      const leadsRes = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (leadsRes.success) {
+        setLeads(leadsRes.data.leads);
+        setTotalCount(leadsRes.data.totalCount);
+      } else {
+        setError(leadsRes.error || "Failed to load platform leads.");
+      }
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred while loading inquiries.");
+    } finally {
+      setLoading(false);
     }
 
-    if (astroRes.success) {
-      setAstrologers(astroRes.data.listings);
-    }
-    setLoading(false);
+    // Load astrologer directory independently in background
+    loadAstrologers();
   };
 
   useEffect(() => {
     let ignore = false;
     async function fetchLeads() {
-      const [leadsRes, astroRes] = await Promise.all([
-        getAdminLeads({
+      setLoading(true);
+      setError(null);
+      try {
+        const timeoutPromise = new Promise<{ success: false; error: string }>((resolve) =>
+          setTimeout(() => resolve({ success: false, error: "Network timeout: Inquiries request took too long." }), 12000)
+        );
+
+        const fetchPromise = getAdminLeads({
           search: search.trim() || undefined,
           status: statusFilter,
           sourceType: sourceFilter,
           priority: priorityFilter,
           unassignedOnly: unassignedOnly || undefined,
-        }),
-        getAdminListings({ status: "approved" }),
-      ]);
+        });
 
-      if (!ignore) {
-        if (leadsRes.success) {
-          setLeads(leadsRes.data.leads);
-          setTotalCount(leadsRes.data.totalCount);
+        const leadsRes = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (!ignore) {
+          if (leadsRes.success) {
+            setLeads(leadsRes.data.leads);
+            setTotalCount(leadsRes.data.totalCount);
+          } else {
+            setError(leadsRes.error || "Failed to load platform leads.");
+          }
+          setLoading(false);
         }
-        if (astroRes.success) {
-          setAstrologers(astroRes.data.listings);
+      } catch (err: any) {
+        if (!ignore) {
+          setError(err?.message || "An unexpected error occurred.");
+          setLoading(false);
         }
-        setLoading(false);
       }
     }
 
     fetchLeads();
+    loadAstrologers();
+
     return () => {
       ignore = true;
     };
@@ -377,6 +413,21 @@ export default function SuperAdminLeadsPage() {
                     Loading platform inquiries...
                   </td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center">
+                    <div className="max-w-md mx-auto space-y-2">
+                      <p className="text-xs font-semibold text-rose-700">{error}</p>
+                      <button
+                        type="button"
+                        onClick={loadData}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-midnight text-champagne hover:bg-plum transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="h-3 w-3" /> Retry Loading
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ) : leads.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-muted text-xs">
@@ -531,6 +582,17 @@ export default function SuperAdminLeadsPage() {
           <div className="rounded-2xl border border-gold/25 bg-white p-8 text-center text-muted">
             <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-gold" />
             Loading platform inquiries...
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 text-center text-xs space-y-2">
+            <p className="font-semibold text-rose-800">{error}</p>
+            <button
+              type="button"
+              onClick={loadData}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-midnight text-champagne hover:bg-plum transition-colors cursor-pointer"
+            >
+              <RefreshCw className="h-3 w-3" /> Retry Loading
+            </button>
           </div>
         ) : leads.length === 0 ? (
           <div className="rounded-2xl border border-gold/25 bg-white p-8 text-center text-muted text-xs">

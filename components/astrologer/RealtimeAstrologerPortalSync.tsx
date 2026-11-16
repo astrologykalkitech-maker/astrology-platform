@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 
 /**
  * RealtimeAstrologerPortalSync:
@@ -49,7 +50,19 @@ export function RealtimeAstrologerPortalSync() {
             schema: "public",
             table: "customer_bookings",
           },
-          () => {
+          (payload) => {
+            const record = payload.new as { id?: string; status?: string } | undefined;
+            if (payload.eventType === "INSERT") {
+              void soundNotificationService.playConsultationRequestSound(record?.id);
+            } else if (payload.eventType === "UPDATE") {
+              if (record?.status === "cancelled") {
+                void soundNotificationService.playBookingCancelledSound(record?.id ? `${record.id}-cancelled` : undefined);
+              } else if (record?.status === "confirmed" || record?.status === "accepted") {
+                void soundNotificationService.playBookingConfirmedSound(record?.id ? `${record.id}-confirmed` : undefined);
+              } else {
+                void soundNotificationService.playNotificationSound(record?.id ? `${record.id}-updated` : undefined);
+              }
+            }
             triggerRefresh();
           }
         )
@@ -60,7 +73,19 @@ export function RealtimeAstrologerPortalSync() {
             schema: "public",
             table: "puja_bookings",
           },
-          () => {
+          (payload) => {
+            const record = payload.new as { id?: string; status?: string } | undefined;
+            if (payload.eventType === "INSERT") {
+              void soundNotificationService.playConsultationRequestSound(record?.id);
+            } else if (payload.eventType === "UPDATE") {
+              if (record?.status === "cancelled") {
+                void soundNotificationService.playBookingCancelledSound(record?.id ? `${record.id}-cancelled` : undefined);
+              } else if (record?.status === "confirmed" || record?.status === "accepted") {
+                void soundNotificationService.playBookingConfirmedSound(record?.id ? `${record.id}-confirmed` : undefined);
+              } else {
+                void soundNotificationService.playNotificationSound(record?.id ? `${record.id}-updated` : undefined);
+              }
+            }
             triggerRefresh();
           }
         )
@@ -71,7 +96,63 @@ export function RealtimeAstrologerPortalSync() {
             schema: "public",
             table: "lead_assignments",
           },
-          () => {
+          (payload) => {
+            const record = payload.new as { id?: string; status?: string } | undefined;
+            if (payload.eventType === "INSERT") {
+              void soundNotificationService.playConsultationRequestSound(record?.id);
+            } else if (payload.eventType === "UPDATE") {
+              if (record?.status === "cancelled") {
+                void soundNotificationService.playBookingCancelledSound(record?.id ? `${record.id}-cancelled` : undefined);
+              } else if (record?.status === "confirmed" || record?.status === "accepted") {
+                void soundNotificationService.playBookingConfirmedSound(record?.id ? `${record.id}-confirmed` : undefined);
+              } else {
+                void soundNotificationService.playNotificationSound(record?.id ? `${record.id}-updated` : undefined);
+              }
+            }
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_notifications",
+          },
+          (payload) => {
+            const record = payload.new as { id?: string } | undefined;
+            void soundNotificationService.playNotificationSound(record?.id);
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "direct_messages",
+          },
+          (payload) => {
+            const record = payload.new as { id?: string; sender_role?: string } | undefined;
+            if (record?.sender_role === "customer") {
+              void soundNotificationService.playMessageSound(record.id);
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "consultation_meetings",
+          },
+          (payload) => {
+            const record = payload.new as { id?: string; status?: string } | undefined;
+            if (record?.status === "waiting" || record?.status === "active") {
+              void soundNotificationService.playIncomingVideoCallSound(record?.id);
+            } else if (record?.status === "ended" || record?.status === "cancelled") {
+              soundNotificationService.stopRingtone();
+            }
             triggerRefresh();
           }
         )

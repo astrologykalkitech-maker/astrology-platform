@@ -12,6 +12,7 @@ import {
   type ConsultationTokenResult,
 } from "@/lib/consultation/token";
 import { isMeetingWindowActive } from "@/lib/consultation/meeting-window";
+import { isVideoPaymentVerifiedForMode } from "@/lib/consultation/payment-access";
 import { logConsultationDiagnostic } from "@/lib/consultation/diagnostics";
 import type {
   ConsultationMeeting,
@@ -60,6 +61,7 @@ export async function getOrCreateConsultationMeeting(
         scheduled_at,
         duration_minutes,
         status,
+        payment_mode,
         customer:customer_id (
           full_name,
           avatar_url
@@ -101,6 +103,71 @@ export async function getOrCreateConsultationMeeting(
     }
     if (booking.status === "pending") {
       return { success: false, error: "This consultation has not been confirmed yet." };
+    }
+
+    if (booking.consultation_mode === "video" && booking.payment_mode !== "pay_at_drop") {
+      let hasVerifiedDirectPayment = false;
+      let hasSuccessfulPlatformPayment = false;
+
+      if (booking.payment_mode === "direct_consultant") {
+        const { data: verifiedPayments, error: directPaymentError } = await admin
+          .from("direct_consultation_payments")
+          .select("id")
+          .eq("booking_id", booking.id)
+          .eq("status", "verified")
+          .limit(1);
+        if (directPaymentError) {
+          console.warn("[consultation-meeting] Direct payment verification lookup:", directPaymentError.message);
+        } else {
+          hasVerifiedDirectPayment = Boolean(verifiedPayments?.length);
+        }
+      } else if (booking.payment_mode === "platform_gateway") {
+        const { data: successfulIntents, error: intentError } = await admin
+          .from("payment_intents")
+          .select("id, verification_source")
+          .eq("booking_id", booking.id)
+          .eq("entity_type", "consultation")
+          .eq("status", "succeeded")
+          .in(
+            "verification_source",
+            process.env.NODE_ENV === "production"
+              ? ["manual_utr", "signed_webhook"]
+              : ["manual_utr", "signed_webhook", "simulation"]
+          )
+          .limit(1);
+        if (intentError) {
+          console.error("[consultation-meeting] Platform payment intent lookup failed:", intentError);
+          return { success: false, error: "Unable to verify this booking's payment. Please try again later." };
+        }
+
+        if (successfulIntents?.length) {
+          hasSuccessfulPlatformPayment = true;
+        } else {
+          const { data: successfulOrders, error: orderError } = await admin
+            .from("payment_orders")
+            .select("id")
+            .eq("entity_type", "consultation")
+            .eq("entity_id", booking.id)
+            .eq("status", "successful")
+            .limit(1);
+          if (orderError) {
+            console.error("[consultation-meeting] Platform payment order lookup failed:", orderError);
+            return { success: false, error: "Unable to verify this booking's payment. Please try again later." };
+          }
+          hasSuccessfulPlatformPayment = Boolean(successfulOrders?.length);
+        }
+      }
+
+      if (!isVideoPaymentVerifiedForMode({
+        paymentMode: booking.payment_mode,
+        hasVerifiedDirectPayment,
+        hasSuccessfulPlatformPayment,
+      })) {
+        return {
+          success: false,
+          error: "A verified payment is required before joining this prepaid video consultation.",
+        };
+      }
     }
 
     // 4. Schedule window verification (15 minutes before until duration + 60 min)
@@ -363,6 +430,15 @@ export async function endConsultationMeetingAction(
       }
     } catch (revalErr) {
       console.warn("[endConsultationMeetingAction] Revalidation notice:", revalErr);
+    }
+
+    if (meeting.booking_id) {
+      const { error: accrualError } = await admin.rpc("accrue_verified_booking_commissions", {
+        p_booking_id: meeting.booking_id,
+      });
+      if (accrualError) {
+        console.warn("[endConsultationMeetingAction] Verified commission reconciliation notice:", accrualError.message);
+      }
     }
 
     logConsultationDiagnostic("meeting_ended_for_all", {

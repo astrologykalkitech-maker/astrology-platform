@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { AccessToken } from "livekit-server-sdk";
 import { getLiveKitConfig } from "@/lib/consultation/token";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, requireCustomer } from "@/lib/auth/session";
+import { validatePujaVenueLocation } from "@/lib/location/coordinates";
 
 export interface PujaItem {
   id: string;
@@ -52,6 +53,10 @@ export interface PujaBookingRecord {
   completed_at?: string | null;
   rating?: number | null;
   review_feedback?: string | null;
+  venue_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  landmark?: string | null;
   created_at: string;
   puja?: PujaItem;
   astrologer?: {
@@ -70,6 +75,11 @@ export interface SubmitPujaBookingInput {
   specialInstructions?: string;
   idempotencyKey?: string;
   astrologerId?: string;
+  venueAddress?: string;
+  landmark?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  paymentMethod?: "pay_at_drop" | "online_prepaid";
 }
 
 import {
@@ -167,11 +177,7 @@ export async function getCustomerPujaBookings(): Promise<{
   error?: string;
 }> {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return { success: false, data: [], error: "Authentication required" };
-    }
+    const { user } = await requireCustomer();
 
     const admin = await createAdminClient("main");
     const { data, error } = await admin
@@ -201,11 +207,18 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
 }> {
   try {
     // 1. Authenticate customer
-    const user = await getCurrentUser();
+    const { user } = await requireCustomer();
 
-    if (!user) {
-      return { success: false, error: "Authentication required. Please log in to book a Puja." };
+    const venueValidation = validatePujaVenueLocation({
+      venueAddress: params.venueAddress,
+      landmark: params.landmark,
+      latitude: params.latitude,
+      longitude: params.longitude,
+    });
+    if (!venueValidation.success) {
+      return { success: false, error: venueValidation.error };
     }
+    const { location } = venueValidation;
 
     // 2. Validate input fields
     const pujaId = (params.pujaId || "").trim();
@@ -333,6 +346,12 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
         fulfilment_status: initialFulfilmentStatus,
         darshan_room_name: darshanRoom,
         idempotency_key: idempotencyKey,
+        venue_address: location.venueAddress,
+        landmark: location.landmark,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        payment_method: params.paymentMethod || "pay_at_drop",
+        payment_collection_status: "pending",
       })
       .select("*, puja:puja_catalog(*), astrologer:astrologer_profiles(id, display_name, profile_photo_url)")
       .single();
@@ -347,16 +366,26 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
 
     // FEATURE-12: NOTIFY CUSTOMER & ASSIGNED ASTROLOGER
     try {
-      await admin.from("customer_notifications").insert({
-        customer_id: user.id,
-        title: `🪔 Puja Booking Received`,
-        message: `Your booking for ${existingPuja.title} on ${preferredDate} (${timeSlot}) has been registered with Reference #${insertedBooking.id.slice(0, 8).toUpperCase()}.${
-          assignedAstrologerId ? " Presiding Pandit has been assigned." : " A consecrated priest will be assigned shortly."
-        }`,
-        link_url: `/customer/puja`,
-        event_type: "puja_booking",
-        metadata: { booking_id: insertedBooking.id },
-      });
+      const { error: customerNotificationError } = await admin
+        .from("customer_notifications")
+        .insert({
+          customer_id: user.id,
+          title: `🪔 Puja Booking Received`,
+          message: `Your booking for ${existingPuja.title} on ${preferredDate} (${timeSlot}) has been registered with Reference #${insertedBooking.id.slice(0, 8).toUpperCase()}.${
+            assignedAstrologerId
+              ? " Presiding Pandit has been assigned."
+              : " A consecrated priest will be assigned shortly."
+          }`,
+          link_url: `/customer/puja`,
+          event_type: "puja_booking",
+          metadata: { booking_id: insertedBooking.id },
+        });
+      if (customerNotificationError) {
+        console.error(
+          "Failed to persist customer puja booking notification",
+          customerNotificationError
+        );
+      }
 
       // If an astrologer was assigned, notify their user account
       if (assignedAstrologerId) {
@@ -367,17 +396,27 @@ export async function submitPujaBookingRequest(params: SubmitPujaBookingInput): 
           .maybeSingle();
 
         if (astroProf?.user_id) {
-          await admin.from("customer_notifications").insert({
-            customer_id: astroProf.user_id,
-            title: `🪔 New Assigned Puja Ceremony`,
-            message: `You have been selected to preside over a sacred ${existingPuja.title} ceremony for ${sankalpName} on ${preferredDate} (${timeSlot}).`,
-            link_url: `/astrologer/pujas`,
-            event_type: "puja_assignment",
-            metadata: { booking_id: insertedBooking.id },
-          });
+          const { error: astrologerNotificationError } = await admin
+            .from("customer_notifications")
+            .insert({
+              customer_id: astroProf.user_id,
+              title: `🪔 New Assigned Puja Ceremony`,
+              message: `You have been selected to preside over a sacred ${existingPuja.title} ceremony for ${sankalpName} on ${preferredDate} (${timeSlot}).`,
+              link_url: `/astrologer/pujas`,
+              event_type: "puja_assignment",
+              metadata: { booking_id: insertedBooking.id },
+            });
+          if (astrologerNotificationError) {
+            console.error(
+              "Failed to persist astrologer puja assignment notification",
+              astrologerNotificationError
+            );
+          }
         }
       }
-    } catch {}
+    } catch (notificationError) {
+      console.error("Failed to create puja booking notifications", notificationError);
+    }
 
     revalidatePath("/customer/puja");
     revalidatePath("/astrologer/pujas");

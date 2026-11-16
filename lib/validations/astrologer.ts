@@ -19,7 +19,14 @@ const ALLOWED_FIELDS = new Set([
   "city",
   "state",
   "address",
+  "upi_vpa",
   "consultation_fee",
+  "voice_price_per_minute",
+  "chat_price_per_minute",
+  "video_price_per_minute",
+  "voice_enabled",
+  "chat_enabled",
+  "video_enabled",
   "profile_photo_url",
   "slug",
 ]);
@@ -213,6 +220,9 @@ export function validateCreateAstrologerProfileInput(
   const addressRes = parseOptionalText(rawObj.address, 255, "Address");
   if (addressRes.error) return { valid: false, error: addressRes.error };
 
+  const upiVpaRes = parseUpiVpa(rawObj.upi_vpa);
+  if (upiVpaRes.error) return { valid: false, error: upiVpaRes.error };
+
   // 10. Profile photo URL (optional)
   let profilePhotoUrl: string | null = null;
   if (rawObj.profile_photo_url !== undefined && rawObj.profile_photo_url !== null && rawObj.profile_photo_url !== "") {
@@ -242,6 +252,7 @@ export function validateCreateAstrologerProfileInput(
       city: cityRes.val,
       state: stateRes.val,
       address: addressRes.val,
+      upi_vpa: upiVpaRes.value,
       profile_photo_url: profilePhotoUrl,
     },
   };
@@ -354,6 +365,33 @@ export function validateUpdateAstrologerProfileInput(
     }
   }
 
+  // 6b. Validate per-minute consultation rates & toggles
+  const parseRate = (field: "voice_price_per_minute" | "chat_price_per_minute" | "video_price_per_minute", name: string) => {
+    if (field in rawObj) {
+      if (rawObj[field] === null || rawObj[field] === "") {
+        result[field] = null;
+      } else {
+        const num = Number(rawObj[field]);
+        if (isNaN(num) || num < 0 || num > 10000) {
+          return `${name} price per minute must be between 0 and 10,000.`;
+        }
+        result[field] = Math.round(num * 100) / 100;
+      }
+    }
+    return null;
+  };
+
+  const vErr = parseRate("voice_price_per_minute", "Voice");
+  if (vErr) return { valid: false, error: vErr };
+  const cErr = parseRate("chat_price_per_minute", "Chat");
+  if (cErr) return { valid: false, error: cErr };
+  const vidErr = parseRate("video_price_per_minute", "Video");
+  if (vidErr) return { valid: false, error: vidErr };
+
+  if ("voice_enabled" in rawObj) result.voice_enabled = Boolean(rawObj.voice_enabled);
+  if ("chat_enabled" in rawObj) result.chat_enabled = Boolean(rawObj.chat_enabled);
+  if ("video_enabled" in rawObj) result.video_enabled = Boolean(rawObj.video_enabled);
+
   // 7. Validate specializations if provided
   if ("specializations" in rawObj) {
     if (!Array.isArray(rawObj.specializations)) {
@@ -425,6 +463,12 @@ export function validateUpdateAstrologerProfileInput(
   const addressErr = parseField("address", 255);
   if (addressErr) return { valid: false, error: addressErr };
 
+  if ("upi_vpa" in rawObj) {
+    const upiVpaRes = parseUpiVpa(rawObj.upi_vpa);
+    if (upiVpaRes.error) return { valid: false, error: upiVpaRes.error };
+    result.upi_vpa = upiVpaRes.value;
+  }
+
   // 10. Profile photo URL if provided
   if ("profile_photo_url" in rawObj) {
     if (rawObj.profile_photo_url === null || rawObj.profile_photo_url === "") {
@@ -445,4 +489,18 @@ export function validateUpdateAstrologerProfileInput(
   }
 
   return { valid: true, data: result };
+}
+
+function parseUpiVpa(value: unknown): { value: string | null; error?: string } {
+  if (value === undefined || value === null || value === "") {
+    return { value: null };
+  }
+  if (
+    typeof value !== "string" ||
+    value.trim().length > 321 ||
+    !/^[A-Za-z0-9._-]{2,256}@[A-Za-z0-9.-]{2,64}$/.test(value.trim())
+  ) {
+    return { value: null, error: "Enter a valid astrologer UPI ID (for example, name@bank)." };
+  }
+  return { value: value.trim() };
 }

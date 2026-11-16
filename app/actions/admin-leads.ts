@@ -69,7 +69,8 @@ export async function getAdminLeads(
       return { success: false, error: "Access denied: insufficient lead permissions." };
     }
 
-    const supabase = await createAdminClient("main");
+    // Admin leads workspace queries the administrative database holding the full lead lifecycle & audit history
+    const supabase = await createAdminClient("admin");
     const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
     const offset = Math.max(filter.offset ?? 0, 0);
 
@@ -91,10 +92,6 @@ export async function getAdminLeads(
       }
     }
 
-    if (filter.status && filter.status !== "all") {
-      query = query.eq("status", filter.status);
-    }
-
     if (filter.sourceType && filter.sourceType !== "all") {
       query = query.eq("source_type", filter.sourceType);
     }
@@ -108,10 +105,19 @@ export async function getAdminLeads(
     }
 
     if (filter.unassignedOnly) {
+      // Unassigned leads awaiting assignment: not assigned to any astrologer or admin, and not in closed/converted/invalid terminal states.
+      // If caller passed status="all" or "new", we ensure all active unassigned leads are returned.
       query = query
         .is("assigned_to", null)
         .is("astrologer_id", null)
         .not("status", "in", '("closed","converted","invalid")');
+
+      // Only apply status equality if caller explicitly specified a specific non-"all" and non-"new" status
+      if (filter.status && filter.status !== "all" && filter.status !== "new") {
+        query = query.eq("status", filter.status);
+      }
+    } else if (filter.status && filter.status !== "all") {
+      query = query.eq("status", filter.status);
     }
 
     const safeSearch = filter.search ? sanitizeFilterTerm(filter.search) : "";

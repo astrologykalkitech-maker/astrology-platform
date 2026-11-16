@@ -39,13 +39,16 @@ export function GoogleAuthButton({
       if (mode) callbackUrl.searchParams.set("mode", mode);
       if (next) callbackUrl.searchParams.set("next", next);
 
+      // Sign out locally first so switching roles or Google accounts doesn't reuse an active opposing session
+      await supabase.auth.signOut().catch(() => {});
+
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: callbackUrl.toString(),
           queryParams: {
             access_type: "offline",
-            prompt: "consent",
+            prompt: "select_account",
           },
         },
       });

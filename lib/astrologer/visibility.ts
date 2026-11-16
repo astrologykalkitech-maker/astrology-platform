@@ -15,13 +15,13 @@ export const PUBLIC_VISIBLE_APPROVAL_STATUS: ApprovalStatus = "approved";
  * Strictly omits user_id, address, review_notes, reviewed_by, reviewed_at, and sensitive data.
  */
 export const CORE_SAFE_PUBLIC_FIELDS =
-  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url, approval_status, created_at";
+  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, voice_price_per_minute, chat_price_per_minute, video_price_per_minute, voice_enabled, chat_enabled, video_enabled, profile_photo_url, approval_status, created_at";
 
 /**
  * Extended safe columns including optional ranking metadata
  */
 export const EXTENDED_SAFE_PUBLIC_FIELDS =
-  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, profile_photo_url, approval_status, is_featured, featured_until, ranking_priority, created_at";
+  "id, slug, display_name, bio, experience_years, specializations, languages, city, state, consultation_fee, voice_price_per_minute, chat_price_per_minute, video_price_per_minute, voice_enabled, chat_enabled, video_enabled, profile_photo_url, approval_status, is_featured, featured_until, ranking_priority, created_at";
 
 export const AUTHORITATIVE_SAFE_PUBLIC_FIELDS = CORE_SAFE_PUBLIC_FIELDS;
 

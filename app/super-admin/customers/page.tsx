@@ -13,10 +13,12 @@ import {
   CalendarCheck2,
   Inbox,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import {
   getAdminCustomers,
   getAdminCustomerDetails,
+  deleteCustomerAccountBySuperAdmin,
   type AdminCustomerSummary,
   type AdminCustomerDetailedView,
 } from "@/app/actions/admin-customers";
@@ -33,6 +35,12 @@ export default function SuperAdminCustomersPage() {
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [detailData, setDetailData] = useState<AdminCustomerDetailedView | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Deletion Dialog State
+  const [deletingCustomer, setDeletingCustomer] = useState<AdminCustomerSummary | null>(null);
+  const [deletionReason, setDeletionReason] = useState<string>("");
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deletionError, setDeletionError] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -90,6 +98,28 @@ export default function SuperAdminCustomersPage() {
     setSelectedCustomerId(null);
     setDetailData(null);
     setDetailError(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingCustomer) return;
+    if (!deletionReason.trim()) {
+      setDeletionError("Please provide a reason for deleting this customer account.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeletionError(null);
+
+    const res = await deleteCustomerAccountBySuperAdmin(deletingCustomer.id, deletionReason.trim());
+    if (res.success) {
+      setDeletingCustomer(null);
+      setDeletionReason("");
+      setSelectedCustomerId(null);
+      await fetchCustomers();
+    } else {
+      setDeletionError(res.error || "Failed to delete customer account.");
+    }
+    setIsDeleting(false);
   };
 
   return (
@@ -228,14 +258,29 @@ export default function SuperAdminCustomersPage() {
                     </td>
 
                     <td className="px-5 py-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetails(customer.id)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gold/30 bg-white px-2.5 py-1 text-xs font-medium text-midnight shadow-2xs hover:bg-gold/15 transition-colors"
-                      >
-                        <Sparkles className="h-3 w-3 text-gold" />
-                        View Profile
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetails(customer.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gold/30 bg-white px-2.5 py-1 text-xs font-medium text-midnight shadow-2xs hover:bg-gold/15 transition-colors cursor-pointer"
+                        >
+                          <Sparkles className="h-3 w-3 text-gold" />
+                          View Profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeletingCustomer(customer);
+                            setDeletionReason("");
+                            setDeletionError(null);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-rose-50/70 px-2.5 py-1 text-xs font-medium text-rose-700 shadow-2xs hover:bg-rose-100 transition-colors cursor-pointer"
+                          title="Super Admin: Delete customer account at any time"
+                        >
+                          <Trash2 className="h-3 w-3 text-rose-600" />
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -410,13 +455,102 @@ export default function SuperAdminCustomersPage() {
               </div>
             ) : null}
 
-            <div className="border-t border-gold/20 pt-3 text-right">
+            <div className="border-t border-gold/20 pt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const targetCustomer = customers.find((c) => c.id === selectedCustomerId);
+                  if (targetCustomer) {
+                    setDeletingCustomer(targetCustomer);
+                    setDeletionReason("");
+                    setDeletionError(null);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-50 px-3.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                Delete Customer Account
+              </button>
+
               <button
                 type="button"
                 onClick={handleCloseDetails}
-                className="rounded-xl border border-gold/30 bg-white px-4 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/15 transition-colors shadow-2xs"
+                className="rounded-xl border border-gold/30 bg-white px-4 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/15 transition-colors shadow-2xs cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-midnight/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md rounded-2xl border border-rose-300 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-700">
+                <Trash2 className="h-5 w-5" />
+                <h3 className="font-display text-base font-bold text-midnight">
+                  Delete Customer Account
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingCustomer(null)}
+                className="rounded-lg p-1 text-muted hover:bg-parchment hover:text-midnight transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs text-ink/80">
+              <p>
+                Are you sure you want to permanently delete the account for{" "}
+                <strong className="text-midnight">{deletingCustomer.full_name || "Unnamed Customer"}</strong>?
+              </p>
+              <p className="text-muted">
+                This will immediately revoke login access, anonymize customer PII, cancel active bookings, and close open leads while preserving financial ledger integrity.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-midnight uppercase tracking-wider">
+                Authoritative Deletion Reason <span className="text-rose-600">*</span>
+              </label>
+              <textarea
+                value={deletionReason}
+                onChange={(e) => setDeletionReason(e.target.value)}
+                placeholder="e.g. Requested by customer via phone support or terms violation..."
+                rows={3}
+                className="w-full rounded-xl border border-gold/30 p-2.5 text-xs text-midnight placeholder:text-muted/60 focus:border-rose-500 focus:outline-none"
+              />
+            </div>
+
+            {deletionError && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                <span>{deletionError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gold/15">
+              <button
+                type="button"
+                onClick={() => setDeletingCustomer(null)}
+                disabled={isDeleting}
+                className="rounded-xl border border-gold/30 bg-white px-3.5 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/15 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting || !deletionReason.trim()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                <span>{isDeleting ? "Deleting..." : "Permanently Delete Account"}</span>
               </button>
             </div>
           </div>

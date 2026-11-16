@@ -10,6 +10,7 @@ import {
   FileText,
   Edit2,
   Reply,
+  QrCode,
 } from "lucide-react";
 import type { DirectMessage, DirectMessageAttachment } from "@/lib/chat/meta";
 
@@ -23,6 +24,7 @@ interface ChatComposerProps {
   onCancelReply: () => void;
   isSending: boolean;
   disabled?: boolean;
+  onSharePaymentQR?: () => void;
 }
 
 export const ChatComposer = memo(function ChatComposer({
@@ -35,6 +37,7 @@ export const ChatComposer = memo(function ChatComposer({
   onCancelReply,
   isSending,
   disabled,
+  onSharePaymentQR,
 }: ChatComposerProps) {
   const [text, setText] = useState("");
   const [pendingAttachments, setPendingAttachments] = useState<DirectMessageAttachment[]>([]);
@@ -224,6 +227,18 @@ export const ChatComposer = memo(function ChatComposer({
         >
           <Smile className="h-4 w-4" />
         </button>
+
+        {onSharePaymentQR && (
+          <button
+            type="button"
+            onClick={onSharePaymentQR}
+            disabled={disabled}
+            className="p-2.5 rounded-xl border border-gold/30 bg-gold/15 text-gold-deep hover:bg-gold/25 hover:border-gold transition-colors shrink-0 cursor-pointer"
+            title="Share Payment QR with Seeker"
+          >
+            <QrCode className="h-4 w-4" />
+          </button>
+        )}
 
         <textarea
           ref={textareaRef}

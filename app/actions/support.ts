@@ -583,12 +583,23 @@ export async function adminReplySupportTicketAction(payload: {
 
       // Dispatch customer/astrologer notification
       try {
+        const { data: recipientProfile } = await adminSupabase
+          .from("profiles")
+          .select("role")
+          .eq("id", ticket.user_id)
+          .maybeSingle();
+
+        const targetLink =
+          recipientProfile?.role === "astrologer"
+            ? `/astrologer/support?ticket=${ticket.id}`
+            : `/customer/support?ticket=${ticket.id}`;
+
         await adminSupabase.from("customer_notifications").insert({
           customer_id: ticket.user_id,
           title: `Reply on Support Ticket [${ticket.ticket_number}]`,
           message: `Our administrative support team has responded to your ticket: "${message.slice(0, 100)}..."`,
           event_type: "support_reply",
-          link_url: `/customer/support`,
+          link_url: targetLink,
         });
       } catch (notifErr) {
         console.warn("[Customer Notification Warning]", notifErr);
@@ -708,12 +719,23 @@ export async function adminUpdateTicketStatusAction(payload: {
       }
 
       try {
+        const { data: recipientProfile } = await adminSupabase
+          .from("profiles")
+          .select("role")
+          .eq("id", updatedTicket.user_id)
+          .maybeSingle();
+
+        const targetLink =
+          recipientProfile?.role === "astrologer"
+            ? `/astrologer/support?ticket=${updatedTicket.id}`
+            : `/customer/support?ticket=${updatedTicket.id}`;
+
         await adminSupabase.from("customer_notifications").insert({
           customer_id: updatedTicket.user_id,
           title: `Support Ticket [${updatedTicket.ticket_number}] Resolved`,
           message: `Your ticket "${updatedTicket.subject}" has been marked as resolved by our support team.`,
           event_type: "support_resolved",
-          link_url: `/customer/support`,
+          link_url: targetLink,
         });
       } catch (notifErr) {
         console.warn("[Resolution Notification Warning]", notifErr);

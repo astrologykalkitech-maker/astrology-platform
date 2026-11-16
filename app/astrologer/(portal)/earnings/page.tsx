@@ -1,30 +1,37 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowLeft, Wallet, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Wallet, ShieldCheck, Scale } from "lucide-react";
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerEarningsAction } from "@/app/actions/astrologer-portal";
+import { getConsultantCommissionStatement } from "@/lib/financial/commission-engine";
+import { AstrologerCommissionBalanceClient } from "@/components/astrologer/AstrologerCommissionBalanceClient";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Earnings & Consultation Breakdown | JyotishSetu",
-  description: "View verified consultation fees and performance breakdown.",
+  title: "Earnings & Commission Float | JyotishSetu",
+  description: "View verified consultation fees, 10% platform commission ledger, and settle dues.",
 };
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function AstrologerEarningsPage() {
-  const [, res] = await Promise.all([
+  const [, res, commissionRes] = await Promise.all([
     requireAstrologerPage(),
     getAstrologerEarningsAction(),
+    getConsultantCommissionStatement(),
   ]);
-  const summary =
-    res.success && res.data
-      ? res.data
-      : { totalConsultations: 0, completedConsultations: 0, totalEarningsValue: 0, pendingEarningsValue: 0, records: [] };
+  const summary = res.success ? res.data : null;
+
+  const commissionData =
+    commissionRes.success && commissionRes.data
+      ? commissionRes.data.summary
+        ? { ...commissionRes.data, summary: commissionRes.data.summary }
+        : null
+      : null;
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
@@ -47,10 +54,12 @@ export default async function AstrologerEarningsPage() {
       <div className="flex items-center gap-2 p-3.5 rounded-xl border border-gold/20 bg-parchment/50 text-xs text-ink/80">
         <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>
-          Earnings are accrued after 10% platform commission and verified via Instamojo. Payout settlements are processed directly to your bank account via NEFT/RTGS.
+          Direct customer payments are manually verified against bank/UPI records. Commission is accrued only after payment verification and booking completion.
         </span>
       </div>
 
+      {summary ? (
+        <>
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className={`${CARD} p-4`}>
@@ -62,7 +71,7 @@ export default async function AstrologerEarningsPage() {
           <p className="text-xl font-bold text-emerald-600 mt-1">{summary.completedConsultations}</p>
         </div>
         <div className={`${CARD} p-4`}>
-          <span className="text-xs text-muted">Settled Value</span>
+          <span className="text-xs text-muted">Verified Gross Earnings</span>
           <p className="text-xl font-bold text-midnight mt-1">₹{summary.totalEarningsValue}</p>
         </div>
         <div className={`${CARD} p-4`}>
@@ -118,10 +127,46 @@ export default async function AstrologerEarningsPage() {
                   >
                     {rec.status}
                   </span>
+                  <span className="block mt-1 text-[10px] text-muted">
+                    Payment: {rec.payment_status}
+                  </span>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+        </>
+      ) : (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          Could not load earnings: {res.error || "Earnings data is unavailable."}
+        </div>
+      )}
+
+      {/* Platform 10% Commission Float & Dues Ledger */}
+      {commissionData ? (
+      <div className="pt-6 border-t border-gold/20">
+        <div className="flex items-center gap-2 mb-4">
+          <Scale className="h-5 w-5 text-gold-deep" />
+          <div>
+            <h2 className="font-display text-lg font-bold text-midnight">
+              Marketplace Commission & Float Management
+            </h2>
+            <p className="text-xs text-muted">
+              Configured JyotishSetu platform commission ledger, negative balance tracking, and verified dues settlement.
+            </p>
+          </div>
+        </div>
+        <AstrologerCommissionBalanceClient
+          summary={commissionData.summary}
+          ledger={commissionData.ledger}
+          directPayments={commissionData.directPayments}
+          settlements={commissionData.settlements}
+        />
+      </div>
+      ) : (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          Could not load commission wallet: {commissionRes.error || "Commission summary is unavailable."}
         </div>
       )}
     </div>

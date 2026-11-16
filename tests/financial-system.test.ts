@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test, describe } from "node:test";
+import crypto from "node:crypto";
 import {
   rupeesToPaise,
   paiseToRupees,
@@ -9,7 +10,7 @@ import {
   generateReceiptNumber,
   generateSettlementNumber,
 } from "../lib/financial/pricing";
-import { verifyInstamojoMac } from "../lib/financial/instamojo";
+import { verifyInstamojoMac, verifyRequiredInstamojoMac } from "../lib/financial/instamojo";
 import { CreatePlanSchema } from "../lib/financial/types";
 
 describe("Financial Precision & Pricing (Integer Arithmetic)", () => {
@@ -67,7 +68,6 @@ describe("Instamojo Gateway & MAC Signature Verification", () => {
     };
 
     // Calculate expected MAC
-    const crypto = require("crypto");
     // Keys sorted: amount, buyer_name, payment_id, status
     const message = "499.00|Aarav Sharma|MOJO12345678|Credit";
     const expectedMac = crypto.createHmac("sha1", salt).update(message).digest("hex");
@@ -81,6 +81,9 @@ describe("Instamojo Gateway & MAC Signature Verification", () => {
       salt
     );
     assert.equal(isTampered, false);
+    assert.equal(verifyRequiredInstamojoMac(payload, ""), false);
+    assert.equal(verifyRequiredInstamojoMac(payload, undefined), false);
+    assert.equal(verifyRequiredInstamojoMac(payload, expectedMac, salt), true);
   });
 });
 

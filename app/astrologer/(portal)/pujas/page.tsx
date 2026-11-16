@@ -46,7 +46,10 @@ export default async function AstrologerPujasPage() {
       </div>
 
       {/* Main Client Console */}
-      <AstrologerPujasClient initialBookings={initialBookings} />
+      <AstrologerPujasClient
+        initialBookings={initialBookings}
+        profileHint={profile?.id || profile?.display_name || undefined}
+      />
     </div>
   );
 }
