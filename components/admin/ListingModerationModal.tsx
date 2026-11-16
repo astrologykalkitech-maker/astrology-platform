@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, CheckCircle2, XCircle, AlertCircle, ShieldAlert, Sparkles, MapPin, Briefcase, IndianRupee } from "lucide-react";
-import { updateListingModerationStatus } from "@/app/actions/admin-listings";
+import { X, CheckCircle2, XCircle, AlertCircle, ShieldAlert, Sparkles, MapPin, Briefcase, IndianRupee, Trash2 } from "lucide-react";
+import { updateListingModerationStatus, deleteAstrologerAccountBySuperAdmin } from "@/app/actions/admin-listings";
 import type { ApprovalStatus, AstrologerProfile } from "@/lib/types/database.types";
 
 interface ListingModerationModalProps {
@@ -28,6 +28,12 @@ export function ListingModerationModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Direct Account Deletion State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     if (listing) {
       setSelectedStatus(
@@ -38,8 +44,33 @@ export function ListingModerationModal({
       setReviewNotes(listing.review_notes ?? "");
       setReason("");
       setError(null);
+      setShowDeleteConfirm(false);
+      setDeleteReason("");
+      setDeleteError(null);
     }
   }, [listing, isOpen]);
+
+  const handleDeleteAccount = async () => {
+    if (!listing) return;
+    if (!deleteReason.trim()) {
+      setDeleteError("Please provide an authoritative justification reason for deletion.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    const res = await deleteAstrologerAccountBySuperAdmin(listing.id, deleteReason.trim());
+    if (res.success) {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      onSuccess();
+      onClose();
+    } else {
+      setDeleteError(res.error || "Failed to delete astrologer account.");
+      setIsDeleting(false);
+    }
+  };
 
   if (!isOpen || !listing) return null;
 
@@ -204,24 +235,112 @@ export function ListingModerationModal({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gold/20">
+          <div className="flex items-center justify-between pt-3 border-t border-gold/20">
             <button
               type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="rounded-xl border border-gold/30 bg-white px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/15"
+              onClick={() => {
+                setShowDeleteConfirm(true);
+                setDeleteReason("");
+                setDeleteError(null);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer"
             >
-              Cancel
+              <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+              <span>Delete Astrologer</span>
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-xl bg-midnight px-4 py-2 text-xs font-semibold text-champagne hover:bg-plum disabled:opacity-50 shadow-xs"
-            >
-              {loading ? "Recording..." : "Confirm & Propagate"}
-            </button>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="rounded-xl border border-gold/30 bg-white px-4 py-2 text-xs font-semibold text-midnight hover:bg-gold/15 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-xl bg-midnight px-4 py-2 text-xs font-semibold text-champagne hover:bg-plum disabled:opacity-50 shadow-xs cursor-pointer"
+              >
+                {loading ? "Recording..." : "Confirm & Propagate"}
+              </button>
+            </div>
           </div>
         </form>
+
+        {/* Delete Astrologer Confirmation Overlay */}
+        {showDeleteConfirm && (
+          <div className="absolute inset-0 z-50 rounded-2xl bg-white p-6 flex flex-col justify-between space-y-4 shadow-xl border border-rose-300 animate-in fade-in duration-150">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+                <div className="flex items-center gap-2 text-rose-700">
+                  <Trash2 className="h-5 w-5" />
+                  <h3 className="font-display text-base font-bold text-midnight">
+                    Permanently Delete Astrologer
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="rounded-lg p-1 text-muted hover:bg-parchment hover:text-midnight transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs text-ink/80">
+                <p>
+                  Are you sure you want to permanently delete the astrologer account for{" "}
+                  <strong className="text-midnight">{listing.display_name}</strong>?
+                </p>
+                <p className="text-muted">
+                  This action immediately revokes login access, deactivates their public profile, unassigns active leads back to the pool, and cancels pending consultations.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-midnight uppercase tracking-wider">
+                  Authoritative Deletion Reason <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="e.g. Terms violation, practitioner departure, or requested removal..."
+                  rows={3}
+                  className="w-full rounded-xl border border-gold/30 p-2.5 text-xs text-midnight placeholder:text-muted/60 focus:border-rose-500 focus:outline-none"
+                />
+              </div>
+
+              {deleteError && (
+                <div className="rounded-xl border border-rose-300 bg-rose-50 p-2.5 text-xs text-rose-800 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gold/15">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="rounded-xl border border-gold/30 bg-white px-3.5 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/15 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={isDeleting || !deleteReason.trim()}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>{isDeleting ? "Deleting..." : "Permanently Delete Account"}</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

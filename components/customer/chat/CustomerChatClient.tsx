@@ -48,6 +48,7 @@ import {
   playChatNotificationChime,
   unlockChatAudio,
 } from "@/lib/chat/audio-notification";
+import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 import { rememberIncomingMessage } from "@/lib/chat/notification-rules";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
@@ -214,8 +215,10 @@ export function CustomerChatClient({
       const isCurrentChat = newMsg.conversation_id === activeId;
       const isVisible = typeof document !== "undefined" && document.visibilityState === "visible";
 
-      if (newMsg.sender_role === "astrologer" && isCurrentChat) {
-        playChatNotificationChime(isMuted);
+      if (newMsg.sender_role === "astrologer") {
+        if (!isMuted) {
+          void soundNotificationService.playMessageSound(newMsg.id);
+        }
       }
 
       if (isCurrentChat) {
@@ -693,6 +696,7 @@ export function CustomerChatClient({
           );
         } else {
           const persistedMsg = res.data;
+          void soundNotificationService.playMessageSentSound(persistedMsg.id);
           setMessages((prev) =>
             prev.map((m) =>
               m.client_message_id === clientMsgId || m.id === optimisticMsg.id

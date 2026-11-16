@@ -6,6 +6,7 @@ import type { PlanetaryPosition, AscendantInfo, PlanetName, RashiName } from "@/
 interface SouthIndianChartProps {
   ascendant: AscendantInfo;
   planets: Record<PlanetName, PlanetaryPosition>;
+  chartTitle?: string;
   className?: string;
 }
 
@@ -32,7 +33,7 @@ const PLANET_SHORT_CODES: Record<PlanetName, string> = {
  * - The Lagna (Ascendant) is indicated with "ASC" or a diagonal slash in that sign box.
  * - Central area (2x2) is open for chart info.
  */
-export function SouthIndianChart({ ascendant, planets, className = "" }: SouthIndianChartProps) {
+export function SouthIndianChart({ ascendant, planets, chartTitle = "South Indian Kundli", className = "" }: SouthIndianChartProps) {
   const gradientId = useId();
 
   // Grid coordinates (col 0-3, row 0-3) for each of the 12 fixed Signs:
@@ -76,7 +77,7 @@ export function SouthIndianChart({ ascendant, planets, className = "" }: SouthIn
       <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-gold/20 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-gold animate-pulse" />
-          <span className="font-semibold text-champagne font-display tracking-wider">South Indian Kundli</span>
+          <span className="font-semibold text-champagne font-display tracking-wider">{chartTitle}</span>
         </div>
         <div className="text-[11px] text-ivory/70">
           Ascendant: <span className="text-gold font-semibold">{ascendant.rashi}</span> ({ascendant.formattedDegrees})
@@ -132,7 +133,7 @@ export function SouthIndianChart({ ascendant, planets, className = "" }: SouthIn
           fontWeight="700"
           className="font-display tracking-wider"
         >
-          RASI CHART
+          {chartTitle.toUpperCase()}
         </text>
         <text
           x={300}
@@ -204,9 +205,15 @@ export function SouthIndianChart({ ascendant, planets, className = "" }: SouthIn
               )}
 
               {/* Occupying Planets */}
-              <g transform={`translate(${x + boxSize / 2}, ${y + boxSize / 2 + 5})`}>
+              <g transform={`translate(${x + boxSize / 2}, ${y + boxSize / 2 + 10})`}>
                 {occupyingPlanets.map((p, idx) => {
-                  const offset = (idx - (occupyingPlanets.length - 1) / 2) * 16;
+                  const numPlanets = occupyingPlanets.length;
+                  // If 1-3 planets, single column; if 4+, 2 columns to prevent overflow
+                  const isMultiCol = numPlanets > 3;
+                  const colIdx = isMultiCol ? (idx % 2 === 0 ? -28 : 28) : 0;
+                  const rowIdx = isMultiCol
+                    ? (Math.floor(idx / 2) - Math.floor((numPlanets - 1) / 4)) * 17
+                    : (idx - (numPlanets - 1) / 2) * 16;
                   const shortName = PLANET_SHORT_CODES[p.name] || p.name.slice(0, 2);
                   const isRetro = p.isRetrograde ? "(R)" : "";
                   const isCombust = p.isCombust ? "*" : "";
@@ -214,12 +221,12 @@ export function SouthIndianChart({ ascendant, planets, className = "" }: SouthIn
                   return (
                     <text
                       key={p.name}
-                      x="0"
-                      y={offset}
+                      x={colIdx}
+                      y={rowIdx}
                       textAnchor="middle"
                       dominantBaseline="central"
                       fill={p.isRetrograde ? "#ff9f43" : p.name === "Sun" || p.name === "Jupiter" ? "#ffd32a" : "#ffffff"}
-                      fontSize="12"
+                      fontSize={numPlanets > 4 ? "11" : "12"}
                       fontWeight="600"
                       className="cursor-default"
                     >

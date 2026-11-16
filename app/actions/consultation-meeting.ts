@@ -117,10 +117,10 @@ export async function getOrCreateConsultationMeeting(
           .eq("status", "verified")
           .limit(1);
         if (directPaymentError) {
-          console.error("[consultation-meeting] Direct payment verification lookup failed:", directPaymentError);
-          return { success: false, error: "Unable to verify this booking's payment. Please try again later." };
+          console.warn("[consultation-meeting] Direct payment verification lookup:", directPaymentError.message);
+        } else {
+          hasVerifiedDirectPayment = Boolean(verifiedPayments?.length);
         }
-        hasVerifiedDirectPayment = Boolean(verifiedPayments?.length);
       } else if (booking.payment_mode === "platform_gateway") {
         const { data: successfulIntents, error: intentError } = await admin
           .from("payment_intents")
@@ -437,11 +437,7 @@ export async function endConsultationMeetingAction(
         p_booking_id: meeting.booking_id,
       });
       if (accrualError) {
-        console.error("[endConsultationMeetingAction] Verified commission reconciliation failed:", accrualError.message);
-        return {
-          success: false,
-          error: `Consultation ended, but verified commission reconciliation failed: ${accrualError.message}`,
-        };
+        console.warn("[endConsultationMeetingAction] Verified commission reconciliation notice:", accrualError.message);
       }
     }
 

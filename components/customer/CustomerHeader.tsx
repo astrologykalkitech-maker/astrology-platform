@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Bell } from "lucide-react";
@@ -9,6 +9,7 @@ import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButton";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { LanguageSelector } from "@/components/common/LanguageSelector";
+import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 
 type CustomerHeaderProps = {
   customerName: string;
@@ -43,6 +44,7 @@ export function CustomerHeader({
   const pathname = usePathname();
   const pageTitle = pageTitleFor(pathname);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const previousCountRef = useRef<number | null>(null);
 
   // Fetch unread count and refresh when navigating or upon notification actions
   useEffect(() => {
@@ -58,6 +60,10 @@ export function CustomerHeader({
         if (res.ok) {
           const data = (await res.json()) as { count?: number };
           if (mounted && typeof data.count === "number") {
+            if (previousCountRef.current !== null && data.count > previousCountRef.current) {
+              void soundNotificationService.playNotificationSound();
+            }
+            previousCountRef.current = data.count;
             setUnreadCount(data.count);
           }
         }

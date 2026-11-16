@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
+import { GlobalSoundProvider } from "@/contexts/GlobalSoundProvider";
+import { EnableSoundPrompt } from "@/components/sound/EnableSoundPrompt";
 
 // Naye Royal Theme ke Fonts
 const inter = Inter({
@@ -40,7 +42,12 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       className={`${inter.variable} ${cinzel.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <GlobalSoundProvider>
+          {children}
+          <EnableSoundPrompt />
+        </GlobalSoundProvider>
+      </body>
     </html>
   );
 }

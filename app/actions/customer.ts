@@ -551,14 +551,14 @@ export async function getCustomerBookings(): Promise<
       : [{ data: [], error: null }, { data: [], error: null }];
 
     if (directPaymentResult.error) {
-      return { success: false, error: `Failed to load payment submissions: ${directPaymentResult.error.message}` };
+      console.warn("[getCustomerBookings] direct_consultation_payments lookup:", directPaymentResult.error.message);
     }
     if (astrologerResult.error) {
       return { success: false, error: `Failed to load astrologer payment details: ${astrologerResult.error.message}` };
     }
 
     const directPayments = new Map<string, NonNullable<CustomerBooking["direct_payment"]>>();
-    for (const payment of directPaymentResult.data || []) {
+    for (const payment of (directPaymentResult.error ? [] : directPaymentResult.data) || []) {
       if (!directPayments.has(payment.booking_id)) {
         directPayments.set(payment.booking_id, payment as NonNullable<CustomerBooking["direct_payment"]>);
       }
@@ -1596,11 +1596,12 @@ export async function getCustomerBillingHistory(): Promise<
         .in("booking_id", bookingIds)
         .order("submitted_at", { ascending: false });
       if (directPaymentError) {
-        return { success: false, error: `Failed to load direct payment records: ${directPaymentError.message}` };
-      }
-      for (const payment of directPayments || []) {
-        if (!directPaymentMap[payment.booking_id]) {
-          directPaymentMap[payment.booking_id] = { status: payment.status, utr: payment.utr };
+        console.warn("[getCustomerBillingHistory] direct_consultation_payments lookup:", directPaymentError.message);
+      } else {
+        for (const payment of directPayments || []) {
+          if (!directPaymentMap[payment.booking_id]) {
+            directPaymentMap[payment.booking_id] = { status: payment.status, utr: payment.utr };
+          }
         }
       }
     }

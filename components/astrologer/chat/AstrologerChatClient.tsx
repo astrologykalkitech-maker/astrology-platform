@@ -57,6 +57,7 @@ import {
   getIncomingChatSound,
   rememberIncomingMessage,
 } from "@/lib/chat/notification-rules";
+import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatMessageItem } from "@/components/chat/ChatMessageItem";
 import { NewMessagesPill } from "@/components/chat/NewMessagesPill";
@@ -238,7 +239,11 @@ export function AstrologerChatClient({
       );
 
       if (notificationSound === "chime") {
-        playChatNotificationChime(isMuted);
+        if (!isMuted) {
+          void soundNotificationService.playMessageSound(newMsg.id);
+        } else {
+          playChatNotificationChime(isMuted);
+        }
       }
 
       if (isCurrentChat) {
@@ -795,6 +800,7 @@ export function AstrologerChatClient({
           );
         } else {
           const persistedMsg = res.data;
+          void soundNotificationService.playMessageSentSound(persistedMsg.id);
           setMessages((prev) =>
             prev.map((m) =>
               m.client_message_id === clientMsgId || m.id === optimisticMsg.id

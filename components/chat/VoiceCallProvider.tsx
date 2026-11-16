@@ -31,6 +31,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { VoiceCall } from "@/lib/types/database.types";
 import type { AccountPresenceRole } from "@/lib/chat/presence";
 import { getVoiceCallDurationSeconds } from "@/lib/chat/voice-call";
+import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 
 type VoiceCallContextValue = {
   activeCall: VoiceCall | null;
@@ -292,8 +293,12 @@ export function VoiceCallProvider({
   }, []);
 
   const refreshCall = useCallback(async () => {
-    const result = await getActiveVoiceCallAction();
-    if (result.success) applyCall(result.call);
+    try {
+      const result = await getActiveVoiceCallAction();
+      if (result?.success) applyCall(result.call);
+    } catch {
+      // Ignore background refresh aborts during route transitions or unmounts
+    }
   }, [applyCall]);
 
   useEffect(() => {
@@ -318,12 +323,36 @@ export function VoiceCallProvider({
         if (status === "SUBSCRIBED") void refreshCall();
       });
 
-    const poll = window.setInterval(() => void refreshCall(), 5000);
+    // We rely primarily on Supabase Realtime channel postgres_changes.
+    // Gentle 30s background fallback only when tab is visible.
+    const poll = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void refreshCall();
+      }
+    }, 30000);
     return () => {
       window.clearInterval(poll);
       void supabase.removeChannel(channel);
     };
   }, [applyCall, refreshCall, role, userId]);
+
+  useEffect(() => {
+    if (activeCall?.status === "ringing") {
+      if (activeCall.callee_id === userId) {
+        // Incoming ringtone for the recipient
+        void soundNotificationService.playIncomingVoiceCallSound(activeCall.id);
+      } else if (activeCall.caller_id === userId) {
+        // Outgoing dial/ringback tone for the caller
+        void soundNotificationService.playOutgoingVoiceCallSound(activeCall.id);
+      }
+    } else {
+      soundNotificationService.stopRingtone();
+    }
+
+    return () => {
+      soundNotificationService.stopRingtone();
+    };
+  }, [activeCall?.status, activeCall?.id, activeCall?.callee_id, activeCall?.caller_id, userId]);
 
   useEffect(() => {
     if (!activeCall || activeCall.status !== "ringing") return;

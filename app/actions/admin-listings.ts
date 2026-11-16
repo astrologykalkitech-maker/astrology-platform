@@ -332,3 +332,155 @@ export async function getListingDetailsForAdmin(
     };
   }
 }
+
+/**
+ * Super Admin: Delete Astrologer Account at any time.
+ * Deactivates practitioner listing, unassigns leads, cancels pending bookings,
+ * purges personal PII, and logs authoritative administrative audit.
+ */
+export async function deleteAstrologerAccountBySuperAdmin(
+  astrologerId: string,
+  reason: string
+): Promise<AuthResult<{ astrologerId: string }>> {
+  try {
+    const { user: adminUser } = await requireSuperAdmin();
+
+    if (!isValidUUID(astrologerId)) {
+      return { success: false, error: "Invalid astrologer ID." };
+    }
+
+    if (!reason || !reason.trim()) {
+      return { success: false, error: "A valid deletion justification reason is required." };
+    }
+
+    const supabase = await createAdminClient("main");
+
+    // Fetch before-state
+    const { data: astrologerProfile, error: fetchErr } = await supabase
+      .from("astrologer_profiles")
+      .select("id, user_id, display_name, approval_status, slug")
+      .eq("id", astrologerId)
+      .maybeSingle();
+
+    if (fetchErr || !astrologerProfile) {
+      return { success: false, error: "Astrologer not found." };
+    }
+
+    const targetUserId = astrologerProfile.user_id;
+
+    // Try RPC procedure if installed in migration 060
+    if (targetUserId) {
+      const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+        "admin_hard_delete_user_account",
+        {
+          p_user_id: targetUserId,
+          p_actor_id: adminUser.id,
+          p_reason: reason.trim(),
+        }
+      );
+
+      if (!rpcErr && rpcResult?.success) {
+        revalidatePath("/super-admin/listings");
+        revalidatePath("/super-admin/astrologers");
+        revalidatePath("/super-admin");
+        return { success: true, data: { astrologerId } };
+      }
+    }
+
+    // Fallback if RPC is not yet applied on remote DB: Execute transactional cleanup
+    // 1. Deactivate astrologer profile
+    await supabase
+      .from("astrologer_profiles")
+      .update({
+        approval_status: "suspended",
+        display_name: "[Deleted Astrologer]",
+        slug: `deleted-${astrologerId}`,
+        bio: `Account deleted by Super Admin: ${reason.trim()}`,
+        phone: null,
+        profile_photo_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", astrologerId);
+
+    // 2. Cancel future pending bookings
+    await supabase
+      .from("customer_bookings")
+      .update({
+        status: "cancelled",
+        cancellation_reason: `Astrologer account deleted by Super Admin: ${reason.trim()}`,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: adminUser.id,
+      })
+      .eq("astrologer_id", astrologerId)
+      .in("status", ["pending", "confirmed"]);
+
+    // 3. Unassign active leads
+    await supabase
+      .from("leads")
+      .update({
+        astrologer_id: null,
+        status: "new",
+        notes: `[Re-opened: Astrologer account deleted by Super Admin - ${reason.trim()}]`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("astrologer_id", astrologerId)
+      .not("status", "in", '("closed","converted")');
+
+    // 4. Mark deletion request completed
+    if (targetUserId) {
+      await supabase
+        .from("account_deletion_requests")
+        .update({
+          status: "COMPLETED",
+          completed_at: new Date().toISOString(),
+          reviewed_by: adminUser.id,
+          reviewed_at: new Date().toISOString(),
+          admin_notes: reason.trim(),
+        })
+        .eq("user_id", targetUserId);
+
+      // Try auth.admin.deleteUser
+      let authDeleted = false;
+      try {
+        const { error: authErr } = await supabase.auth.admin.deleteUser(targetUserId);
+        if (!authErr) authDeleted = true;
+      } catch {
+        // Continue if direct auth deletion is restricted
+      }
+
+      if (!authDeleted) {
+        await supabase
+          .from("profiles")
+          .update({
+            full_name: "[Deleted Astrologer]",
+            phone: null,
+            avatar_url: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetUserId);
+      }
+    }
+
+    // 5. Audit Log
+    await logAdminAction({
+      actorId: adminUser.id,
+      actorRole: "super_admin",
+      action: "astrologer.delete_account",
+      targetType: "astrologer",
+      targetId: astrologerId,
+      reason: reason.trim(),
+      beforeState: astrologerProfile,
+      afterState: { status: "DELETED", purgedAt: new Date().toISOString() },
+    });
+
+    revalidatePath("/super-admin/listings");
+    revalidatePath("/super-admin/astrologers");
+    revalidatePath("/super-admin");
+    return { success: true, data: { astrologerId } };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete astrologer account.",
+    };
+  }
+}

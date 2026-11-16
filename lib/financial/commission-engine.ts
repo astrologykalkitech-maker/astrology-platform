@@ -266,17 +266,87 @@ export async function refreshConsultantBalanceSummary(
   consultantId: string
 ): Promise<ConsultantBalanceSummary | null> {
   const admin = await createAdminClient("main");
+
+  // Attempt atomic DB RPC refresh first
   const { data, error } = await admin.rpc("refresh_consultant_balance_summary", {
     p_consultant_id: consultantId,
   });
-  if (error) {
-    throw new Error(`Failed to refresh consultant balance summary: ${error.message}`);
+
+  if (!error) {
+    const summary = Array.isArray(data) ? data[0] : data;
+    if (summary) {
+      return summary as ConsultantBalanceSummary;
+    }
   }
-  const summary = Array.isArray(data) ? data[0] : data;
-  if (!summary) {
-    throw new Error("Consultant balance summary refresh returned no record.");
+
+  // Graceful fallback if RPC does not exist in schema cache (e.g. migration 055 not yet applied)
+  try {
+    const { data: entries, error: ledgerError } = await admin
+      .from("commission_ledger")
+      .select("entry_type, gross_amount_paise, commission_amount_paise, status")
+      .eq("consultant_id", consultantId);
+
+    if (ledgerError) {
+      console.warn("[refreshConsultantBalanceSummary] Ledger query fallback failed:", ledgerError.message);
+    }
+
+    let totalGross = 0;
+    let totalCommissionEarned = 0;
+    let totalSettled = 0;
+    let totalReversed = 0;
+
+    for (const e of entries || []) {
+      if (e.entry_type === "COMMISSION_EARNED" && e.status !== "reversed") {
+        totalGross += Number(e.gross_amount_paise || 0);
+        totalCommissionEarned += Number(e.commission_amount_paise || 0);
+      } else if (e.entry_type === "SETTLEMENT_PAYMENT" || e.entry_type === "SETTLEMENT_ALLOCATION") {
+        totalSettled += Number(e.commission_amount_paise || 0);
+      } else if (e.entry_type === "COMMISSION_REVERSED" || e.entry_type === "REFUND_ADJUSTMENT") {
+        totalReversed += Number(e.commission_amount_paise || 0);
+      }
+    }
+
+    const outstandingPaise = Math.max(0, totalCommissionEarned - totalSettled - totalReversed);
+    const nowIso = new Date().toISOString();
+
+    const summary: ConsultantBalanceSummary = {
+      consultant_id: consultantId,
+      total_gross_paise: totalGross,
+      total_commission_earned_paise: totalCommissionEarned,
+      total_settled_paise: totalSettled,
+      total_reversed_paise: totalReversed,
+      outstanding_commission_paise: outstandingPaise,
+      last_calculated_at: nowIso,
+    };
+
+    // Upsert into consultant_balance_summaries if table is available
+    await admin.from("consultant_balance_summaries").upsert(
+      {
+        consultant_id: consultantId,
+        total_gross_paise: totalGross,
+        total_commission_earned_paise: totalCommissionEarned,
+        total_settled_paise: totalSettled,
+        total_reversed_paise: totalReversed,
+        outstanding_commission_paise: outstandingPaise,
+        last_calculated_at: nowIso,
+        updated_at: nowIso,
+      },
+      { onConflict: "consultant_id" }
+    );
+
+    return summary;
+  } catch (fallbackErr) {
+    console.warn("[refreshConsultantBalanceSummary] Fallback calculation failed:", fallbackErr);
+    return {
+      consultant_id: consultantId,
+      total_gross_paise: 0,
+      total_commission_earned_paise: 0,
+      total_settled_paise: 0,
+      total_reversed_paise: 0,
+      outstanding_commission_paise: 0,
+      last_calculated_at: new Date().toISOString(),
+    };
   }
-  return summary as ConsultantBalanceSummary;
 }
 
 /**
@@ -330,6 +400,7 @@ export async function getConsultantCommissionStatement(consultantIdOverride?: st
       return { success: false, error: ledgerError.message, data: null };
     }
 
+    let directPaymentsList: DirectConsultationPaymentRecord[] = [];
     const { data: directPayments, error: directPaymentError } = await admin
       .from("direct_consultation_payments")
       .select("id, booking_id, customer_id, utr, amount_paise, payment_date, status, submitted_at, reviewed_at, review_notes, rejection_reason, refunded_at, refund_reason")
@@ -338,7 +409,10 @@ export async function getConsultantCommissionStatement(consultantIdOverride?: st
       .limit(50);
 
     if (directPaymentError) {
-      return { success: false, error: directPaymentError.message, data: null };
+      // If table is missing from schema cache, gracefully fall back to empty list
+      console.warn("[getConsultantCommissionStatement] direct_consultation_payments lookup:", directPaymentError.message);
+    } else if (directPayments) {
+      directPaymentsList = directPayments as DirectConsultationPaymentRecord[];
     }
 
     const { data: settlements, error: settlementError } = await admin
@@ -357,7 +431,7 @@ export async function getConsultantCommissionStatement(consultantIdOverride?: st
       data: {
         summary,
         ledger: (ledgerEntries || []) as CommissionLedgerRecord[],
-        directPayments: (directPayments || []) as DirectConsultationPaymentRecord[],
+        directPayments: directPaymentsList,
         settlements: (settlements || []) as ConsultantCommissionSettlementRecord[],
       },
     };

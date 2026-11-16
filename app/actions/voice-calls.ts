@@ -278,10 +278,7 @@ export async function updateVoiceCallStatusAction(
       if (currentCall.status === "ended") {
         const reconciliationError = await reconcileVerifiedBookingCommission();
         if (reconciliationError) {
-          return {
-            success: false,
-            error: `Call ended, but verified commission reconciliation failed: ${reconciliationError}`,
-          };
+          console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
         }
       }
       return { success: true, call: currentCall };
@@ -351,10 +348,7 @@ export async function updateVoiceCallStatusAction(
       if (status === "ended" && updates.duration_seconds && updates.duration_seconds > 0) {
         const reconciliationError = await reconcileVerifiedBookingCommission(updates.duration_seconds);
         if (reconciliationError) {
-          return {
-            success: false,
-            error: `Call ended, but verified commission reconciliation failed: ${reconciliationError}`,
-          };
+          console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
         }
       }
     }

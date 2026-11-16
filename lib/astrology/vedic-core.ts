@@ -185,7 +185,38 @@ export function getPlanetaryDignity(
   if (DEBILITATION[planet]?.rashi === rashi) return "Debilitated";
   if (RASHI_LORDS[rashi] === planet) return "Own Sign";
 
-  return "Friendly";
+  const lord = RASHI_LORDS[rashi];
+  if (!lord || lord === planet) return "Own Sign";
+
+  // Classical Parashari natural relationships (Mitra / Sama / Shatru)
+  const NATURAL_FRIENDS: Record<PlanetName, PlanetName[]> = {
+    Sun: ["Moon", "Mars", "Jupiter"],
+    Moon: ["Sun", "Mercury"],
+    Mars: ["Sun", "Moon", "Jupiter"],
+    Mercury: ["Sun", "Venus"],
+    Jupiter: ["Sun", "Moon", "Mars"],
+    Venus: ["Mercury", "Saturn"],
+    Saturn: ["Mercury", "Venus"],
+    Rahu: ["Mercury", "Venus", "Saturn"],
+    Ketu: ["Mars", "Venus", "Saturn"],
+  };
+
+  const NATURAL_ENEMIES: Record<PlanetName, PlanetName[]> = {
+    Sun: ["Venus", "Saturn", "Rahu", "Ketu"],
+    Moon: ["Rahu", "Ketu"],
+    Mars: ["Mercury", "Rahu"],
+    Mercury: ["Moon"],
+    Jupiter: ["Mercury", "Venus"],
+    Venus: ["Sun", "Moon", "Rahu"],
+    Saturn: ["Sun", "Moon", "Mars", "Rahu", "Ketu"],
+    Rahu: ["Sun", "Moon", "Mars", "Jupiter"],
+    Ketu: ["Sun", "Moon"],
+  };
+
+  if (NATURAL_FRIENDS[planet]?.includes(lord)) return "Friendly";
+  if (NATURAL_ENEMIES[planet]?.includes(lord)) return "Inimical";
+
+  return "Neutral";
 }
 
 /**

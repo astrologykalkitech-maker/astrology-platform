@@ -15,6 +15,9 @@ export default async function CustomerLoginPage({
   const { reason, error, redirectTo } = searchParams ? await searchParams : {};
 
   // Already signed in: redirect to destination or customer portal entry.
+  // Note: If an astrologer visits customer login, allow them to see the login screen
+  // (with option to switch/sign in with a customer account) rather than forcefully
+  // locking them out and bouncing them to the astrologer dashboard.
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
     redirect(sanitizeRedirectPath(redirectTo, "/customer/astrologers"));
@@ -24,9 +27,6 @@ export default async function CustomerLoginPage({
   }
   if (profile?.role === "consultant_admin") {
     redirect("/admin");
-  }
-  if (profile?.role === "astrologer") {
-    redirect("/astrologer/dashboard");
   }
 
   return (
