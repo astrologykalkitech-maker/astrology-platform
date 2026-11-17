@@ -19,9 +19,9 @@ export default async function CustomerAstrologyToolsPage() {
     <div className="space-y-5 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <Link
-          href="/customer/dashboard"
+          href="/customer/astrologers"
           className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gold/30 bg-white text-gold-deep hover:bg-parchment transition-colors"
-          aria-label="Back to dashboard"
+          aria-label="Back to astrologers"
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
