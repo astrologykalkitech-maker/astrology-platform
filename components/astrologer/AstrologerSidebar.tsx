@@ -50,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/astrologer/privacy", label: "Privacy & Data", i18nKey: "privacy", icon: ShieldCheck },
   { href: "/astrologer/reviews", label: "Client Reviews", i18nKey: "reviews", icon: Star },
   { href: "/astrologer/earnings", label: "Earnings", i18nKey: "earnings", icon: Wallet },
+  { href: "/astrologer/communications", label: "Admin Notices", i18nKey: "communications", icon: ShieldCheck },
   { href: "/astrologer/notifications", label: "Notifications", i18nKey: "notifications", icon: Bell },
   { href: "/astrologer/support", label: "Support", i18nKey: "support", icon: LifeBuoy },
   { href: "/astrologer/protection-rituals", label: "Protection Rituals", i18nKey: "protectionRituals", icon: ShieldCheck },

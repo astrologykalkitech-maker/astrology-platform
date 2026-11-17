@@ -20,6 +20,7 @@ export default async function SuperAdminNotificationsPage() {
   return (
     <SuperAdminNotificationDispatchClient
       stats={metricsRes.stats}
+      recentDeliveries={metricsRes.stats?.recentDeliveries || []}
       recentFailures={metricsRes.stats?.recentFailures || []}
       astrologers={astrosRes.success ? astrosRes.data : []}
     />

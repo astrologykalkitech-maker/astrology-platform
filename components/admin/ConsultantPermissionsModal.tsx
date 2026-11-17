@@ -6,6 +6,7 @@ import { updateConsultantPermissions } from "@/app/actions/admin-consultants";
 import { ADMIN_PERMISSIONS } from "@/lib/auth/permissions";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 import type { ConsultantWithPermissions } from "@/app/actions/admin-consultants";
+import { ModalBackdrop } from "@/components/admin/ModalBackdrop";
 
 interface ConsultantPermissionsModalProps {
   consultant: ConsultantWithPermissions | null;
@@ -63,8 +64,14 @@ export function ConsultantPermissionsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gold/40 bg-white shadow-2xl backdrop-blur-xl">
+    <ModalBackdrop
+      isOpen={isOpen}
+      onClose={onClose}
+      backdropBgClass="bg-midnight/80"
+      backdropBlurClass="backdrop-blur-xs"
+      ariaLabel="Manage Consultant Permissions"
+    >
+      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gold/40 bg-white shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-gold/15 p-6">
           <div>
             <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">
@@ -157,6 +164,6 @@ export function ConsultantPermissionsModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

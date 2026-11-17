@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
+  Bell,
   CalendarClock,
   Check,
   ChevronRight,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { getMyAssignedLeads } from "@/app/actions/astrologer-leads";
 import { getAstrologerBookingsAction } from "@/app/actions/astrologer-portal";
+import { getAstrologerAdminCommunicationsAction } from "@/app/actions/astrologer-admin-chat";
 import { HeroArt } from "@/components/astrologer/art/HeroArt";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
@@ -65,14 +67,17 @@ export default async function DashboardPage() {
     );
   }
 
-  const [counts, recent, bookingsRes] = await Promise.all([
+  const [counts, recent, bookingsRes, adminMsgsRes] = await Promise.all([
     getLeadCounts(profile.id),
     getMyAssignedLeads({ status: "all", limit: 4 }),
     getAstrologerBookingsAction(),
+    getAstrologerAdminCommunicationsAction(),
   ]);
   const completion = getProfileCompletion(profile);
   const leads = recent.success ? recent.data.leads : [];
   const bookings = bookingsRes.success ? bookingsRes.data : [];
+  const adminMessages = adminMsgsRes.success && adminMsgsRes.data ? adminMsgsRes.data.messages : [];
+  const unreadAdminCount = adminMessages.filter((m) => !m.isRead).length;
   const confirmedUpcomingBookings = bookings.filter(
     (b) => b.status === "confirmed" && new Date(b.scheduled_at).getTime() >= Date.now() - 3600000
   );
@@ -154,16 +159,31 @@ export default async function DashboardPage() {
           <CardTitle id="qa-title">Quick Actions</CardTitle>
           <nav aria-label="Quick actions" className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
             {[
+              {
+                href: "/astrologer/communications",
+                title: "Super Admin Notices",
+                note: unreadAdminCount > 0 ? `${unreadAdminCount} new administrative notice(s)` : "Official messages & updates",
+                icon: ShieldCheck,
+                tone: "from-amber-100 to-amber-200 text-amber-800",
+                badge: unreadAdminCount > 0 ? `${unreadAdminCount} new` : undefined,
+              },
               { href: "/astrologer/bookings", title: "Bookings", note: confirmedUpcomingBookings.length > 0 ? `${confirmedUpcomingBookings.length} confirmed upcoming` : "Scheduled sessions", icon: CalendarClock, tone: "from-emerald-100 to-emerald-200 text-emerald-700" },
               { href: "/astrologer/leads", title: "My Leads", note: "View all enquiries", icon: ClipboardList, tone: "from-sky-100 to-sky-200 text-sky-700" },
               { href: "/astrologer/reviews", title: "Client Reviews", note: "Ratings & feedback", icon: Star, tone: "from-amber-100 to-amber-200 text-amber-700" },
               { href: "/astrologer/earnings", title: "Earnings", note: "Consultation fees", icon: Wallet, tone: "from-teal-100 to-teal-200 text-teal-700" },
               { href: "/astrologer/profile/edit", title: "Edit Profile", note: "Update your details", icon: PencilLine, tone: "from-rose-100 to-rose-200 text-maroon" },
-            ].map(({ href, title, note, icon: Icon, tone }) => (
+            ].map(({ href, title, note, icon: Icon, tone, badge }) => (
               <Link key={href} href={href} className="group flex items-center gap-3 rounded-xl border border-line bg-gradient-to-r from-ivory to-white p-3 transition-all hover:-translate-y-0.5 hover:border-gold/60 hover:shadow-md">
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br shadow-inner ${tone}`}><Icon className="h-5 w-5" aria-hidden="true" /></span>
                 <span className="min-w-0 flex-1 leading-tight">
-                  <span className="block text-sm font-semibold text-midnight">{title}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="block text-sm font-semibold text-midnight">{title}</span>
+                    {badge && (
+                      <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs animate-pulse">
+                        {badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="block text-xs text-muted">{note}</span>
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-gold-deep transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -173,6 +193,76 @@ export default async function DashboardPage() {
         </section>
 
         <div className="space-y-4 sm:space-y-5 xl:order-1">
+          {/* Super Admin Communications Desk Banner / Latest Notice */}
+          {adminMessages.length > 0 && (
+            <section
+              aria-labelledby="admin-comms-title"
+              className={`${CARD} bg-gradient-to-br from-amber-50/50 via-white to-white`}
+            >
+              <div className="flex items-center justify-between border-b border-line px-5 py-3.5 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500 text-white">
+                    <ShieldCheck className="h-4 w-4" />
+                  </span>
+                  <CardTitle id="admin-comms-title">Super Admin Official Notices</CardTitle>
+                  {unreadAdminCount > 0 ? (
+                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs animate-pulse">
+                      {unreadAdminCount} unread
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                      {adminMessages.length} notice(s)
+                    </span>
+                  )}
+                </div>
+                <Link
+                  href="/astrologer/communications"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-gold-deep hover:underline"
+                >
+                  Open Communications Desk <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+
+              <div className="p-4 sm:p-5">
+                {(() => {
+                  const latest = adminMessages[0];
+                  return (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-200/60 bg-amber-50/30 p-3.5 transition hover:bg-amber-50/60">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          {!latest.isRead && (
+                            <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                          )}
+                          <span className="font-semibold text-midnight text-sm truncate">
+                            {latest.title || "Platform Notice"}
+                          </span>
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                            Super Admin
+                          </span>
+                        </div>
+                        <p className="text-xs text-ink/80 line-clamp-2 max-w-xl">
+                          {latest.message}
+                        </p>
+                        <p className="text-[10px] text-muted font-mono">
+                          {formatDateTime(latest.createdAt)}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        <Link
+                          href="/astrologer/communications"
+                          className={buttonStyles({ variant: "outline", size: "sm" })}
+                        >
+                          View & Reply
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </section>
+          )}
+
           {confirmedUpcomingBookings.length > 0 && (
             <section aria-labelledby="upcoming-bookings-title" className={`${CARD} bg-gradient-to-br from-emerald-50/40 via-white to-white`}>
               <div className="flex items-center justify-between border-b border-line px-5 py-3.5 sm:px-6">

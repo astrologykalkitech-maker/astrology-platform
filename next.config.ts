@@ -85,6 +85,15 @@ const nextConfig: NextConfig = {
     "127.0.0.1",
     "localhost",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/customer/dashboard",
+        destination: "/customer/astrologers",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

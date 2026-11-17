@@ -5,10 +5,10 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_%26_RLS-3ECF8E?logo=supabase)](https://supabase.com/)
 [![LiveKit](https://img.shields.io/badge/LiveKit-In--House_WebRTC-black?logo=livekit)](https://livekit.io/)
-[![Tests](https://img.shields.io/badge/Tests-425%2F425_Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
-[![Build](https://img.shields.io/badge/Build-43_Routes_Production_Ready-success)]()
+[![Tests](https://img.shields.io/badge/Tests-Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
+[![Build](https://img.shields.io/badge/Build-Production_Ready-success)]()
 
-**JyotishSetu** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, and complete end-to-end booking lifecycles.
+**JyotishSetu** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, multi-channel notification infrastructure, and complete end-to-end booking lifecycles.
 
 ---
 
@@ -35,7 +35,7 @@ JyotishSetu operates across a high-availability dual-database split architecture
       - Supabase Auth & Profiles                          - Leads & Enquiries Pipeline
       - Conversations & Direct Messages                   - Dynamic Lead Assignment
       - Bookings & Video Consultations                    - System Settings & Audit Logs
-      - Vedic Astrology Calculations                      - Platform Analytics & Telemetry
+      - Vedic Astrology Calculations                      - Multi-Channel Telemetry & Audit
 ```
 
 ---
@@ -43,7 +43,7 @@ JyotishSetu operates across a high-availability dual-database split architecture
 ## 🌟 Core Features & Workspaces
 
 ### 1. Customer Portal (`/customer/*`)
-* **Customer Portal Entry (`/customer`)**: Opens the astrologer directory for signed-in customers.
+* **Customer Portal Entry (`/customer`)**: Automatically redirects to the astrologer directory (`/customer/astrologers`). Legacy visits to `/customer/dashboard` are seamlessly redirected without 404 errors.
 * **Unified Direct Consultation Chat (`/customer/chat`)**:
   * Real-time peer-to-peer WebSocket messaging (< 50ms delivery).
   * In-app one-to-one voice calls with online-only calling, incoming call controls, mute, speaker, and persisted call status.
@@ -59,35 +59,47 @@ JyotishSetu operates across a high-availability dual-database split architecture
   * **Daily Vedic Horoscope (`/customer/horoscope`)**: Personalized celestial forecast across 12 zodiac signs.
 * **Astrologer Exploration & Direct Booking (`/customer/astrologers`, `/customer/astrologers/[slug]`)**: Verified listings, specializations, language filters, experience ratings, and authenticated direct booking creation.
 * **Consultations & In-House Video Calls (`/consultation/[id]`, `/customer/consultation/[id]`)**: Full WebRTC video conference with in-meeting live chat, camera/mic toggle, screen sharing, and synchronized termination.
-* **Profile & Notification Hub (`/customer/profile`, `/customer/notifications`, `/customer/billing`)**: Birth data management, billing history, and real-time alerts.
+* **Profile & Notification Hub (`/customer/profile`, `/customer/notification`, `/customer/billing`)**: Birth data management, billing history, and real-time alerts.
 
 ---
 
 ### 2. Astrologer Portal (`/astrologer/*`)
-* **Celestial Astrologer Dashboard (`/astrologer`)**: Comprehensive overview of upcoming appointments, earnings, customer reviews, and live lead activity.
+* **Celestial Astrologer Dashboard (`/astrologer`, `/astrologer/dashboard`)**:
+  * **Super Admin Official Notices**: Prominent banner and quick action surfacing incoming administrative directives, platform announcements, and compliance alerts directly on the dashboard.
+  * Upcoming appointments, confirmed sessions, and real-time lead activity.
+  * Profile completion ring and listing status verification.
+* **Super Admin Official Communications Desk (`/astrologer/communications`)**:
+  * Authenticated, dedicated two-way dialogue channel between verified astrologers and Super Admin operations.
+  * Supports direct replies back to platform governance.
+  * Accessible from the dashboard, sidebar ("Admin Notices"), and notification drawer.
 * **Seeker Consultation Chat (`/astrologer/chat`)**:
   * **Dual-Tab Directory**: Instant toggling between **All Seekers** (registered customer directory with 1-click chat initiation) and **Active Chats** (ongoing conversations with real-time counters).
   * Zero-lag isolated typing and active-view unread badge clamping (eliminating stale badge counters).
   * Integrated file uploads, quote previews, message editing, deletion ("delete for me" / "delete for everyone"), and pin management.
-* **Practice & Profile Management (`/astrologer/profile`, `/astrologer/edit-profile`, `/astrologer/availability`)**:
+* **Practice & Profile Management (`/astrologer/profile`, `/astrologer/profile/edit`, `/astrologer/availability`)**:
   * Profile photo upload with magic byte inspection.
   * Consultation pricing, bio, Vedic specializations, and languages.
   * Availability schedule configuration across days of the week.
 * **Lead Pipeline & CRM (`/astrologer/leads`, `/astrologer/crm`)**: Direct incoming seeker enquiries, qualification status, and seeker contact history.
 * **Booking Hub (`/astrologer/bookings`, `/astrologer/bookings/new`)**: Manage scheduled, active, and completed consultation appointments with direct launch into video consultation rooms.
 * **Earnings & Review Analytics (`/astrologer/earnings`, `/astrologer/reviews`)**: Financial breakdown, completed payout history, and verified seeker feedback.
-* **Notifications & Priority Support (`/astrologer/notifications`, `/astrologer/support`)**: Platform alerts and ticketing with support representatives.
 
 ---
 
 ### 3. Super Admin Workspace (`/super-admin/*`)
 * **Executive Platform Telemetry (`/super-admin`, `/super-admin/analytics`)**: Real-time KPI formulas, active booking counts, gross platform volume, customer acquisition rates, and real-time live chat traffic counters.
+* **Robust Modal & Overlay Architecture**:
+  * Global `ModalBackdrop` portal implementation ensuring zero CSS stacking context traps or background blur persistence.
+  * Escape-key handling, scrollbar compensation, and automatic lifecycle cleanup on route transitions.
+* **Enterprise Multi-Channel Notifications & Telemetry (`/super-admin/notifications-system`)**:
+  * Broadcast announcements and targeted direct alerts across 5 delivery channels (`in_app`, `web_push`, `email`, `sms`, `whatsapp`).
+  * Live delivery telemetry audit logs with status badges (`delivered`, `sent`, `failed`), channel identifiers, message previews, and human-readable recipient resolution.
+  * Filter toggling between **All Recent Deliveries** and **Delivery Failures**.
 * **Listing Moderation Engine (`/super-admin/listings`, `/super-admin/listings/ranking`, `/super-admin/astrologers`)**:
   * 7-stage astrologer listing lifecycle (`draft`, `pending_approval`, `approved`, `rejected`, `suspended`).
   * Mandatory justification modals for listing rejection and suspension.
   * Algorithmic priority score ranking and featured placements.
 * **Review Moderation Hub (`/super-admin/reviews`)**: Centralized dashboard to audit, approve, reject, or flag seeker reviews with immutable logging.
-* **Customer Directory & Telemetry (`/super-admin/customers`)**: Complete registered seeker repository, consultation history, and profile readiness metrics.
 * **Atomic Lead Distribution Engine (`/super-admin/leads`, `/super-admin/leads/distribution`)**:
   * Anti-duplication SHA-256 hash indexing with a 60-second window.
   * Atomic lead assignment, reassignment, and unassignment to approved astrologers.
@@ -166,10 +178,14 @@ The messaging platform uses a **Triple-Layer Synchronization Architecture** ensu
 astrology-website/
 ├── app/                                 # Next.js App Router (43 Dynamic & Static Routes)
 │   ├── actions/                         # Type-Safe Server Actions
+│   │   ├── admin-analytics.ts           # Super Admin telemetry & aggregation formulas
+│   │   ├── admin-leads.ts               # Central Lead Pipeline queries & atomic assignment
 │   │   ├── admin-reviews.ts             # Super Admin review moderation & audit
 │   │   ├── admin-users.ts               # Consultant management & RBAC assignments
+│   │   ├── astrologer-admin-chat.ts     # Two-way Super Admin to Astrologer direct communications
 │   │   ├── astrologer-booking.ts        # Astrologer booking actions & state transitions
 │   │   ├── astrologer-leads.ts          # Direct lead response & status updating
+│   │   ├── astrologer-portal.ts         # Astrologer appointments, earnings & profile data
 │   │   ├── astrologer-profile.ts        # Bio, pricing, languages & photo mutations
 │   │   ├── astrologer-reviews.ts        # Astrologer review queries & public responses
 │   │   ├── astrologer-signup.ts         # Multi-step astrologer onboarding & vetting
@@ -178,6 +194,7 @@ astrology-website/
 │   │   ├── customer-reviews.ts          # Verified consultation review submissions
 │   │   ├── direct-chat.ts               # Chat engine: messages, attachments, reactions, pins
 │   │   ├── enquiries.ts                 # Central lead intake & deduplicated capture
+│   │   ├── enterprise-notifications.ts  # Multi-channel notification dispatch & delivery telemetry
 │   │   ├── notifications.ts             # Real-time alert polling & read status updates
 │   │   ├── super-admin-analytics.ts     # Aggregated KPI formulas & gross volume metrics
 │   │   ├── super-admin-audit.ts         # Immutable audit logging & filter queries
@@ -214,17 +231,17 @@ astrology-website/
 │   │       ├── bookings/                # Appointment calendar, past & upcoming sessions
 │   │       │   └── new/                 # Direct booking initiation form
 │   │       ├── chat/                    # Real-time consultation chat with seeker directory
-│   │       ├── crm/                     # Seeker CRM, history & consultation notes
-│   │       ├── customers/[id]/          # Detailed seeker consultation history
-│   │       ├── dashboard/               # Celestial overview & performance metrics
-│   │       ├── earnings/                # Completed consultation payouts & earnings
-│   │       ├── edit-profile/            # Profile photo, pricing & bio customization
-│   │       ├── leads/                   # Direct lead pipeline & qualification
-│   │       │   └── [id]/                # Lead details & consultation conversion
+│   │       ├── communications/          # Super Admin Official Communications Desk
+│   │       ├── crm/                     # Seeker CRM, customer notes & relationship history
+│   │       ├── dashboard/               # Astrologer dashboard, admin notices & stats
+│   │       ├── earnings/                # Fee summary, consultation logs & payout tracker
+│   │       ├── leads/                   # Direct enquiry pipeline & customer query responder
 │   │       ├── notifications/           # System notices & booking alerts
+│   │       ├── privacy/                 # Data privacy & account management
 │   │       ├── profile/                 # Public profile preview & verification status
 │   │       │   └── edit/                # Quick profile editor
 │   │       ├── reviews/                 # Verified customer feedback & responses
+│   │       ├── subscription/            # Astrologer platform plan & tier management
 │   │       ├── support/                 # Support ticket creation & assistance
 │   │       ├── layout.tsx               # Vedic portal layout & astrologer navigation
 │   │       ├── loading.tsx              # Skeleton route loading component
@@ -246,7 +263,6 @@ astrology-website/
 │   │       ├── bookings/                # Consultation appointment tracker
 │   │       ├── chat/                    # Direct astrologer consultation chat
 │   │       ├── consultation/[id]/       # Seeker-facing video conference view
-│   │       ├── dashboard/               # Customer dashboard, alerts & quick launchers
 │   │       ├── enquiries/               # General platform enquiries
 │   │       │   ├── new/                 # Submit new enquiry
 │   │       │   └── [id]/                # Enquiry status & astrologer responses
@@ -256,13 +272,12 @@ astrology-website/
 │   │       ├── milan/                   # Compatibility alias & quick matcher
 │   │       ├── notification/            # Individual notification view
 │   │       ├── notifications/           # Real-time alert notifications inbox
-│   │       ├── offers/                  # Promotional consultation credits & discounts
 │   │       ├── panchang/                # Five limbs of Vedic time & daily Muhurats
 │   │       ├── profile/                 # Seeker birth details, coordinates & account
 │   │       ├── support/                 # Seeker support ticketing & issue reporting
+│   │       ├── tools/                   # Vedic calculator launcher hub
 │   │       ├── layout.tsx               # Customer navigation layout & Vedic topbar
 │   │       └── page.tsx                 # Default customer portal dashboard
-│   ├── dev/auth-test/                   # Development authentication diagnostic harness
 │   ├── super-admin/                     # Owner Super Admin Workspace
 │   │   ├── analytics/                   # Deep platform metrics, conversion & financials
 │   │   ├── astrologers/                 # Complete astrologer directory moderation
@@ -274,8 +289,10 @@ astrology-website/
 │   │   │   └── distribution/            # Algorithmic & manual lead routing engine
 │   │   ├── listings/                    # 7-stage listing review, approval & suspension
 │   │   │   └── ranking/                 # Priority scoring & featured promotion manager
+│   │   ├── notifications-system/        # Enterprise multi-channel notification engine & telemetry
 │   │   ├── reviews/                     # Platform review moderation & dispute handling
 │   │   ├── settings/                    # Platform switches, lead rules & configuration
+│   │   ├── subscriptions/               # Platform subscription tier management
 │   │   ├── support/                     # Escalated support ticket moderation
 │   │   ├── layout.tsx                   # Super admin navigation & security controls
 │   │   └── page.tsx                     # Executive KPI dashboard & live chat telemetry
@@ -286,7 +303,13 @@ astrology-website/
 │   ├── admin/                           # Administrative UI Primitives
 │   │   ├── AdminHeader.tsx              # Top navigation bar with user profile & signout
 │   │   ├── AdminSidebar.tsx             # Collapsible navigation menu for admin workspaces
-│   │   └── MetricCard.tsx               # Analytics KPI display cards with variance
+│   │   ├── CommandCenterActionBanner.tsx# Super Admin operations action banner
+│   │   ├── ConsultantPermissionsModal.tsx # Consultant RBAC privilege editor
+│   │   ├── LeadAssignmentModal.tsx      # Atomic lead assignment & astrologer picker modal
+│   │   ├── ListingModerationModal.tsx   # Astrologer listing review & justification modal
+│   │   ├── ModalBackdrop.tsx            # Global portal backdrop with focus & scroll lock
+│   │   ├── RankingModal.tsx             # Priority score & featured tier modifier
+│   │   └── SuperAdminNotificationDispatchClient.tsx # Multi-channel dispatch & telemetry logs
 │   ├── astrologer/                      # Astrologer Portal Components
 │   │   ├── art/                         # Vedic cultural graphics, SVGs & ornaments
 │   │   ├── auth/                        # Astrologer login, signup & onboarding forms
@@ -297,6 +320,7 @@ astrology-website/
 │   │   ├── leads/                       # Lead pipeline cards, conversion modals & filters
 │   │   ├── profile/                     # Profile photo uploader, bio & fee forms
 │   │   ├── ui/                          # Button, Input, Modal, Badge & Toast primitives
+│   │   ├── AstrologerHeader.tsx         # Astrologer portal header with alerts & avatar
 │   │   └── AstrologerSidebar.tsx        # Astrologer dashboard navigation bar
 │   ├── auth/                            # Shared Authentication Modals & Guards
 │   ├── chat/                            # High-Performance Chat Subcomponents
@@ -304,10 +328,10 @@ astrology-website/
 │   │   ├── ChatMessageItem.tsx          # Memoized message bubble with reactions & status
 │   │   └── NewMessagesPill.tsx          # Floating indicator when scrolled up
 │   ├── common/                          # Universal UI Elements
+│   │   ├── ComponentErrorBoundary.tsx   # React component-level error boundary
 │   │   ├── EmptyState.tsx               # Fallback displays for empty lists & search
-│   │   ├── ErrorBoundary.tsx            # React runtime error boundary
-│   │   ├── LoadingSpinner.tsx           # Vedic celestial spinner
-│   │   └── Modal.tsx                    # Accessible dialog modal primitive
+│   │   ├── LanguageSelector.tsx         # Multilingual selector with auto-sync
+│   │   └── LoadingSpinner.tsx           # Vedic celestial spinner
 │   ├── consultation/                    # In-House Video Conferencing UI
 │   │   ├── ConferenceRoom.tsx           # Full WebRTC video conference view
 │   │   ├── MediaControls.tsx            # Camera, microphone & screen share toggles
@@ -317,136 +341,74 @@ astrology-website/
 │   │   ├── chat/                        # CustomerChatClient with real-time sync
 │   │   ├── CustomerHeader.tsx           # Customer top navigation bar
 │   │   └── CustomerSidebar.tsx          # Customer portal sidebar navigation
-│   ├── livekit/                         # LiveKit Connection Providers & Audio Tracks
-│   ├── profile/                         # Shared Profile Picture Modal & Avatar Previews
 │   └── public/                          # Public Marketing Presentation
-│       ├── AstrologerCard.tsx           # Searchable public astrologer preview card
-│       ├── HeroSection.tsx              # Landing page hero banner & CTA
-│       ├── PublicFooter.tsx             # Standard platform footer & legal links
-│       └── PublicNavbar.tsx             # Public topbar with portal navigation & auth
+│       └── AstrologerCard.tsx           # Searchable public astrologer preview card
 │
-├── lib/                                 # Domain Logic & Core Infrastructure
-│   ├── admin/                           # Administrative Domain Services
-│   │   └── audit.ts                     # Immutable audit log dispatchers
-│   ├── ai/                              # Universal AI Vedic Companion
-│   │   ├── companion.ts                 # Multi-turn conversation orchestrator
-│   │   ├── live-tools.ts                # Real-time tool definitions & matching engine
-│   │   ├── prompts.ts                   # Vedic persona, ethical boundaries & system rules
-│   │   └── intent-detector.ts           # Career, compatibility, and Muhurat intent extraction
-│   ├── astrologer/                      # Astrologer Business Logic
-│   │   ├── formatters.ts                # Currency, experience & language formatters
-│   │   ├── guard.ts                     # Astrologer server-side route guards
-│   │   ├── queries.ts                   # Astrologer database fetching procedures
-│   │   └── scoring.ts                   # Priority ranking formula & profile completeness
-│   ├── astrology/                       # Astronomical & Vedic Calculation Engine
-│   │   ├── ayanamsa.ts                  # Lahiri Ayanamsa calculation
-│   │   ├── ephemeris.ts                 # Planetary positions & Rahu/Ketu opposition
-│   │   ├── kundli.ts                    # Rashi, Nakshatra, Bhavas & Navamsha (D9)
-│   │   ├── milan.ts                     # Ashtakoota 36 Guna scoring & Dosha detection
-│   │   ├── panchang.ts                  # Tithi, Vaara, Nakshatra, Yoga, Karana
-│   │   └── divisional-charts.ts         # D10 Dashamsa professional analysis
+├── lib/                                 # Core Business Logic & Shared Utilities
+│   ├── ai/                              # Universal AI Companion & Tool Integrations
+│   ├── astrology/                       # Vedic Astronomical Engine (Ephemeris, Kundli, Milan)
 │   ├── auth/                            # Authentication & Access Control
 │   │   ├── admin-guard.ts               # Super Admin & Consultant permission enforcers
 │   │   ├── rbac.ts                      # Role-permission definitions & hierarchy
 │   │   └── session.ts                   # Next.js cookie session management & proxy
-│   ├── availability/                    # Consultation Slot Math & Availability Logic
 │   ├── chat/                            # High-Performance Chat Utilities
 │   │   ├── audio-notification.ts        # Synthesized Web Audio chime & mute state
 │   │   └── meta.ts                      # Idempotency, attachment & reply payload codecs
 │   ├── consultation/                    # WebRTC LiveKit Server Helpers
 │   │   └── token.ts                     # Secure JWT token generator for consultation rooms
-│   ├── location/                        # Geocoding & Coordinates Lookup
+│   ├── i18n/                            # 10 Regional Indian Languages Localization
 │   ├── security/                        # Application Security Helpers
 │   │   ├── rate-limit.ts                # In-memory and distributed request throttle
 │   │   └── safe-redirect.ts             # Open-redirect defense for auth callbacks
+│   ├── sound/                           # Web Audio API Sound Notification Service
 │   ├── supabase/                        # Database Connection Clients
 │   │   ├── admin.ts                     # Fail-closed Service Role admin client (DB1 & DB2)
 │   │   ├── client.ts                    # Browser-side Supabase client with WebSockets
 │   │   ├── proxy.ts                     # Next.js middleware session refresh handler
 │   │   └── server.ts                    # Server Component & Server Action scoped client
-│   ├── types/                           # Unified TypeScript Schemas
-│   │   ├── database.ts                  # Supabase database table definitions
-│   │   └── domain.ts                    # Business entities (Bookings, Leads, Reviews)
-│   └── validations/                     # Zod Payload Schemas
-│       ├── auth.ts                      # Login, signup & password reset schemas
-│       ├── booking.ts                   # Consultation appointment request schemas
-│       ├── chat.ts                      # Direct message & attachment validation
-│       └── lead.ts                      # Enquiry submission & assignment schemas
+│   └── types/                           # Unified TypeScript Schemas
+│       ├── auth.types.ts                # Authenticated session & permission interfaces
+│       └── database.types.ts            # Supabase database table definitions
 │
 ├── public/                              # Static Production Assets
 │   ├── images/                          # Vedic illustrations, backgrounds & celestial art
-│   ├── favicon.ico                      # Platform icon
-│   └── robots.txt                       # Search engine crawler policies
+│   ├── sounds/                          # Audio notification chimes
+│   └── favicon.ico                      # Platform icon
 │
 ├── supabase/                            # Database DDL & Version Control
-│   ├── CONSOLIDATED_SETUP.sql           # Unified base schema (Migrations 001–019)
-│   └── migrations/                      # Sequential PostgreSQL Migrations (001 to 029)
-│       ├── 001_initial_schema.sql       # User profiles, auth roles & base tables
-│       ├── 005_admin_permissions.sql    # RBAC permissions & audit tables
-│       ├── 007_lead_deduplication.sql   # SHA-256 60s anti-duplication hash index
-│       ├── 008_atomic_assignment.sql    # Atomic stored procedure for lead routing
-│       ├── 012_realtime_discovery.sql   # Astrologer presence & visibility triggers
-│       ├── 013_customer_bookings.sql    # Booking schedules & status state machine
-│       ├── 014_direct_messaging.sql     # Initial direct chat tables & read receipts
-│       ├── 015_customer_reviews.sql     # Verified consultation review system
-│       ├── 017_realtime_publications.sql# Real-time WAL publication setup
-│       ├── 024_video_conferencing.sql   # In-house LiveKit consultation records
-│       └── 029_chat_complete.sql        # Full chat suite: edits, reactions, pins, abuse
+│   ├── CONSOLIDATED_SETUP.sql           # Unified base schema (Migrations 001–062)
+│   └── migrations/                      # Sequential PostgreSQL Migrations
 │
-├── tests/                               # Comprehensive Automated Test Suites (425 Tests)
-│   ├── complete-chat-system.test.ts     # Live chat peer delivery, clamping & reactions
-│   ├── live-chat-seeker-directory.test.ts# Astrologer seeker discovery & directory
-│   ├── route-auth-activation.test.ts    # 43 application routes, 404 & redirect tests
-│   ├── dashboard-feature-integration.test.ts # Cross-dashboard synchronization tests
-│   ├── universal-customer-ai.test.ts    # AI Vedic companion multi-turn scenarios
-│   ├── vedic-astrology.test.ts          # Ephemeris, Kundli, Milan & Panchang math
-│   ├── super-admin-analytics.test.ts    # KPI formula aggregation & telemetry tests
-│   ├── super-admin-guards.test.ts       # RBAC permission hierarchy & owner safety
-│   ├── platform-security.test.ts        # IDOR, SQL injection & CSRF defense tests
-│   └── booking-lifecycle.test.ts        # Scheduling, reminder & termination tests
-│
-├── FINAL_ENGINEERING_REPORTS/           # Comprehensive Architecture & Audit Reports
-│   ├── 01_ASTROLOGER_DASHBOARD.md       # Astrologer portal stabilization report
-│   ├── 02_CUSTOMER_DASHBOARD.md         # Customer portal audit & integration report
-│   ├── 03_SUPER_ADMIN_DASHBOARD.md      # Super admin telemetry & governance audit
-│   ├── 04_LIVE_CHAT_REBUILD.md          # Triple-layer real-time messaging audit
-│   └── 20_COMPLETE_CHAT_SYSTEM_REBUILD.md # Complete chat performance benchmarks
-│
-├── .env.example                         # Environment variable template
-├── middleware.ts                        # Next.js edge route proxy & session refresher
-├── next.config.ts                       # Next.js 16 configuration with webpack & optimization
-├── package.json                         # Dependencies, scripts & build configuration
-├── postcss.config.mjs                   # Tailwind CSS PostCSS plugin config
-├── tailwind.config.ts                   # Vedic color palette & typography configuration
-└── tsconfig.json                        # Strict TypeScript compiler options
+└── tests/                               # Comprehensive Automated Test Suites (600+ Tests)
+    ├── admin-analytics-live-repair.test.ts # Telemetry aggregation & count verification
+    ├── complete-chat-system.test.ts     # Live chat peer delivery, clamping & reactions
+    ├── live-chat-seeker-directory.test.ts# Astrologer seeker discovery & directory
+    ├── route-auth-activation.test.ts    # Application routes, 404 & redirect tests
+    ├── sound-notification-service.test.ts # Audio notification service & ringtone tests
+    ├── universal-customer-ai.test.ts    # AI Vedic companion multi-turn scenarios
+    └── ultimate-platform-readiness.test.ts # Multi-channel dispatch & telemetry tests
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started & Local Development
 
 ### 1. Prerequisites
-* **Node.js**: `v20.x` or `v22.x` (tested on Node v24.4.1 / v22.14.0)
-* **npm**: `v10.x` or higher
-* **Supabase Project**: Dual-database setup (or single instance configured for DB1/DB2)
-* **LiveKit Server**: Self-hosted or LiveKit Cloud credentials (for video consultations)
+* **Node.js**: `v20.x` or `v22.x` (LTS recommended)
+* **Package Manager**: `pnpm` (or `npm`)
+* **Supabase Projects**: Two active Supabase instances (or local Supabase containers) for DB1 and DB2.
 
 ### 2. Installation
 ```bash
-npm install
+git clone https://github.com/astrologykalkitech-maker/astrologer-platform.git
+cd astrologer-platform
+pnpm install
 ```
 
-### 3. Environment Variables Configuration
-Copy `.env.example` to `.env.local` and provide your credentials:
-```bash
-cp .env.example .env.local
-```
+### 3. Environment Configuration
+Create a `.env.local` file in the root directory:
 
-Required environment variables:
 ```env
-# Base Configuration
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-
 # DB1: Main Application Database (Supabase)
 NEXT_PUBLIC_SUPABASE_URL=https://your-main-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-main-anon-key
@@ -464,19 +426,17 @@ LIVEKIT_API_SECRET=your-livekit-api-secret
 NEXT_PUBLIC_LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
 ```
 
-### 4. Database Setup
-Apply `supabase/migrations/030_direct_voice_calls.sql` and `supabase/migrations/031_direct_message_realtime_access.sql` to the DB1/main Supabase project. Migration 031 grants authenticated participants the RLS-protected read access required for instant chat message updates. The browser also needs microphone permission, and the LiveKit URL and server credentials above must be configured.
-
-### 5. Running the Development Server
+### 4. Running the Development Server
 ```bash
-npm run dev
+pnpm dev
+# or npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-### 6. Running in Production Mode
+### 5. Running in Production Mode
 ```bash
-npm run build
-npm start
+pnpm build
+pnpm start
 ```
 
 ---
@@ -486,14 +446,11 @@ npm start
 JyotishSetu maintains a comprehensive test suite covering security policies, role authorization, RLS enforcement, Vedic calculations, and real-time chat integrity:
 
 ```bash
-# Run all 425 automated unit and regression tests
-npm test -- --run
+# Run all automated tests
+npm test
 
 # Run TypeScript static analysis
-npm run typecheck
-
-# Run production build validation
-npm run build
+npx tsc --noEmit
 ```
 
 ### Test Suite Coverage Breakdown
@@ -505,15 +462,11 @@ npm run build
 ✔ Google OAuth Session Retention & Safe Redirects
 ✔ Central Lead Capture & 60-Second Anti-Duplication Hashing
 ✔ Atomic Lead Assignment, Reassignment & Batch Reporting
-✔ Super Admin Telemetry, Listing Moderation & Immutable Audit Logging
+✔ Super Admin Telemetry, Multi-Channel Delivery Logs & Listing Moderation
+✔ Modal Backdrop Portaling & Zero CSS Stacking Traps
 ✔ Real-Time Chat Synchronization, Presence, Voice-Call Lifecycle & Zero Unread Clamping
 ✔ In-House Video Conferencing Termination & Booking Persistence
 ✔ Universal AI Companion Multi-Turn Ethical Boundaries & Tool Invocations
-
-ℹ tests 425
-ℹ suites 0
-ℹ pass 425
-ℹ fail 0
 ```
 
 ---

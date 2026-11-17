@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, CheckCircle2, XCircle, AlertCircle, ShieldAlert, Sparkles, MapPin, Briefcase, IndianRupee, Trash2 } from "lucide-react";
 import { updateListingModerationStatus, deleteAstrologerAccountBySuperAdmin } from "@/app/actions/admin-listings";
 import type { ApprovalStatus, AstrologerProfile } from "@/lib/types/database.types";
+import { ModalBackdrop } from "@/components/admin/ModalBackdrop";
 
 interface ListingModerationModalProps {
   listing: AstrologerProfile | null;
@@ -99,9 +100,17 @@ export function ListingModerationModal({
 
   const requiresReason = ["rejected", "suspended", "changes_requested"].includes(selectedStatus);
 
+  if (!isOpen || !listing) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="relative w-full max-w-xl rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl text-ink space-y-4 my-8">
+    <ModalBackdrop
+      isOpen={isOpen}
+      onClose={onClose}
+      backdropBgClass="bg-midnight/80"
+      backdropBlurClass="backdrop-blur-xs"
+      ariaLabel="Listing Moderation Modal"
+    >
+      <div className="relative w-full max-w-xl rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl text-ink space-y-4 my-auto">
         <div className="flex items-center justify-between border-b border-gold/20 pb-4">
           <div>
             <h3 className="font-display text-lg font-bold text-midnight flex items-center gap-2">
@@ -342,6 +351,6 @@ export function ListingModerationModal({
           </div>
         )}
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

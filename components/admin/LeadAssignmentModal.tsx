@@ -5,6 +5,7 @@ import { X, UserCheck, AlertCircle, UserMinus, Sparkles } from "lucide-react";
 import { assignLead } from "@/app/actions/admin-leads";
 import type { AstrologerProfile } from "@/lib/types/database.types";
 import type { AdminLeadItem } from "@/app/actions/admin-leads";
+import { ModalBackdrop } from "@/components/admin/ModalBackdrop";
 
 interface LeadAssignmentModalProps {
   lead: AdminLeadItem | null;
@@ -71,8 +72,14 @@ export function LeadAssignmentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-xs p-4">
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl text-ink space-y-4">
+    <ModalBackdrop
+      isOpen={isOpen}
+      onClose={onClose}
+      backdropBgClass="bg-midnight/80"
+      backdropBlurClass="backdrop-blur-xs"
+      ariaLabel="Assign Lead to Astrologer"
+    >
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl text-ink space-y-4 my-auto animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-gold/20 pb-3">
           <div>
             <h3 className="font-display text-base font-bold text-midnight flex items-center gap-2">
@@ -180,6 +187,6 @@ export function LeadAssignmentModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

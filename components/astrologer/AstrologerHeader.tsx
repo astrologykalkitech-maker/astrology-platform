@@ -24,6 +24,7 @@ function pageTitleFor(pathname: string) {
   if (pathname.startsWith("/astrologer/bookings")) return "Consultation Bookings";
   if (pathname.startsWith("/astrologer/reviews")) return "Client Reviews";
   if (pathname.startsWith("/astrologer/earnings")) return "Earnings Summary";
+  if (pathname.startsWith("/astrologer/communications")) return "Super Admin Communications";
   if (pathname.startsWith("/astrologer/notifications")) return "Notifications";
   if (pathname.startsWith("/astrologer/support")) return "Support & Helpdesk";
   if (pathname.startsWith("/astrologer/profile/edit")) return "Edit Profile";

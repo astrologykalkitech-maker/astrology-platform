@@ -278,32 +278,101 @@ export async function dispatchMultiChannelNotification({
   }
 }
 
+export interface NotificationDeliveryItem {
+  id: string;
+  recipient_id: string;
+  recipient_name?: string;
+  event_type: string;
+  channel: NotificationChannel;
+  title: string | null;
+  body: string;
+  status: NotificationDeliveryStatus;
+  failure_reason?: string | null;
+  delivered_at?: string | null;
+  created_at: string;
+}
+
+export interface NotificationDeliveryStats {
+  total: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  recentDeliveries: NotificationDeliveryItem[];
+  recentFailures: NotificationDeliveryItem[];
+}
+
 /**
  * Super Admin metrics for multi-channel notification engine.
  */
-export async function getNotificationDeliveryMetrics() {
+export async function getNotificationDeliveryMetrics(): Promise<{
+  success: boolean;
+  stats: NotificationDeliveryStats | null;
+  error?: string;
+}> {
   try {
     const admin = await createAdminClient("main");
 
-    const [allRes, failedRes] = await Promise.all([
+    // Fetch total summary, recent overall deliveries, and recent failed deliveries
+    const [allRes, recentDeliveriesRes, failedRes] = await Promise.all([
       admin
         .from("notification_deliveries")
-        .select("channel, status, count")
-        .limit(1000),
+        .select("id, status")
+        .limit(2000),
       admin
         .from("notification_deliveries")
-        .select("*")
+        .select("id, recipient_id, event_type, channel, title, body, status, failure_reason, delivered_at, created_at")
+        .order("created_at", { ascending: false })
+        .limit(25),
+      admin
+        .from("notification_deliveries")
+        .select("id, recipient_id, event_type, channel, title, body, status, failure_reason, delivered_at, created_at")
         .eq("status", "failed")
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(25),
     ]);
 
-    const stats = {
-      total: allRes.data?.length || 0,
-      sent: allRes.data?.filter((d) => d.status === "sent" || d.status === "delivered").length || 0,
-      delivered: allRes.data?.filter((d) => d.status === "delivered").length || 0,
-      failed: allRes.data?.filter((d) => d.status === "failed").length || 0,
-      recentFailures: failedRes.data || [],
+    // Hydrate recipient names from profiles for human-readable audit telemetry
+    const recipientIds = [
+      ...new Set([
+        ...(recentDeliveriesRes.data || []).map((d) => d.recipient_id),
+        ...(failedRes.data || []).map((d) => d.recipient_id),
+      ]),
+    ].filter(Boolean);
+
+    const nameMap = new Map<string, string>();
+    if (recipientIds.length > 0) {
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", recipientIds);
+
+      profiles?.forEach((p) => {
+        if (p.full_name) nameMap.set(p.id, p.full_name);
+      });
+    }
+
+    const mapItem = (d: any): NotificationDeliveryItem => ({
+      id: d.id,
+      recipient_id: d.recipient_id,
+      recipient_name: nameMap.get(d.recipient_id) || `Astrologer (${d.recipient_id.slice(0, 8)}...)`,
+      event_type: d.event_type,
+      channel: d.channel,
+      title: d.title,
+      body: d.body,
+      status: d.status,
+      failure_reason: d.failure_reason,
+      delivered_at: d.delivered_at,
+      created_at: d.created_at,
+    });
+
+    const deliveries = (allRes.data || []) as Array<{ id: string; status: string }>;
+    const stats: NotificationDeliveryStats = {
+      total: deliveries.length,
+      sent: deliveries.filter((d) => d.status === "sent" || d.status === "delivered").length,
+      delivered: deliveries.filter((d) => d.status === "delivered").length,
+      failed: deliveries.filter((d) => d.status === "failed").length,
+      recentDeliveries: (recentDeliveriesRes.data || []).map(mapItem),
+      recentFailures: (failedRes.data || []).map(mapItem),
     };
 
     return { success: true, stats };

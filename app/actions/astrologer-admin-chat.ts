@@ -150,7 +150,7 @@ export async function sendAstrologerReplyToAdminAction(
       await admin
         .from("support_tickets")
         .update({
-          status: "in_progress",
+          status: "open",
           updated_at: new Date().toISOString(),
         })
         .eq("id", ticket.id);
@@ -172,12 +172,14 @@ export async function sendAstrologerReplyToAdminAction(
       .insert({
         user_id: user.id,
         user_role: "astrologer",
+        user_name: profile.full_name || "Vedic Astrologer",
+        user_email: user.email || null,
         ticket_number: ticketNumber,
         subject: notif ? `Re: ${notif.title}` : "Reply to Super Admin Broadcast",
         category: "general",
         priority: "high",
-        status: "in_progress",
-        source: "admin_broadcast_reply",
+        status: "open",
+        escalation_reason: notif ? `Direct reply to announcement [${notif.title}]` : "Direct reply to Super Admin notice",
       })
       .select("id")
       .single();

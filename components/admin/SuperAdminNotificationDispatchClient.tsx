@@ -22,17 +22,21 @@ import {
   dispatchBulkMultiChannelNotification,
   type NotificationChannel,
   type AstrologerRecipientItem,
+  type NotificationDeliveryItem,
 } from "@/app/actions/enterprise-notifications";
 
 export function SuperAdminNotificationDispatchClient({
   stats,
+  recentDeliveries = [],
   recentFailures = [],
   astrologers = [],
 }: {
   stats: any;
-  recentFailures: any[];
+  recentDeliveries?: NotificationDeliveryItem[];
+  recentFailures?: NotificationDeliveryItem[];
   astrologers?: AstrologerRecipientItem[];
 }) {
+  const [activeTelemetryTab, setActiveTelemetryTab] = useState<"all" | "failures">("all");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [targetMode, setTargetMode] = useState<"specific" | "all_eligible">("specific");
@@ -481,30 +485,127 @@ export function SuperAdminNotificationDispatchClient({
 
       {/* Telemetry Section: Recent Delivery Logs */}
       <div className="rounded-2xl border border-gold/25 bg-white p-6 shadow-xs space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-midnight">
-          Recent Delivery Telemetry & Telemetry Logs
-        </h2>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-midnight">
+              Recent Delivery Telemetry & Telemetry Logs
+            </h2>
+            <p className="text-[11px] text-muted">
+              Live multi-channel delivery receipts, status updates, and exception audits across astrologer notifications.
+            </p>
+          </div>
 
-        {recentFailures.length === 0 ? (
-          <p className="text-xs text-muted">No recent failed deliveries recorded in telemetry audit log.</p>
+          {/* Toggle between All Logs and Failed Only */}
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveTelemetryTab("all")}
+              className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                activeTelemetryTab === "all"
+                  ? "bg-white text-midnight shadow-xs"
+                  : "text-muted hover:text-midnight"
+              }`}
+            >
+              All Recent Deliveries ({recentDeliveries.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTelemetryTab("failures")}
+              className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                activeTelemetryTab === "failures"
+                  ? "bg-white text-midnight shadow-xs"
+                  : "text-muted hover:text-midnight"
+              }`}
+            >
+              Delivery Failures ({recentFailures.length})
+            </button>
+          </div>
+        </div>
+
+        {activeTelemetryTab === "failures" ? (
+          recentFailures.length === 0 ? (
+            <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 text-xs text-emerald-800 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span>No recent failed deliveries recorded in telemetry audit log. All dispatches have executed cleanly.</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentFailures.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-red-50/50 border border-red-100 text-xs"
+                >
+                  <div>
+                    <span className="font-bold text-red-800 capitalize">
+                      {f.channel} — {f.event_type}
+                    </span>
+                    <p className="text-[10px] text-muted">
+                      Recipient: <span className="font-medium text-slate-700">{f.recipient_name || f.recipient_id}</span>
+                      {f.title && <span className="ml-2 font-mono text-slate-500">[{f.title}]</span>}
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-red-600 font-mono">
+                    {f.failure_reason || "Connection Timeout"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )
+        ) : recentDeliveries.length === 0 ? (
+          <p className="text-xs text-muted">No recent notification delivery telemetry recorded yet.</p>
         ) : (
           <div className="space-y-2">
-            {recentFailures.map((f: any) => (
-              <div
-                key={f.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-red-50/50 border border-red-100 text-xs"
-              >
-                <div>
-                  <span className="font-bold text-red-800 capitalize">
-                    {f.channel} — {f.event_type}
-                  </span>
-                  <p className="text-[10px] text-muted">Recipient: {f.recipient_id}</p>
+            {recentDeliveries.map((d) => {
+              const isDelivered = d.status === "delivered";
+              const isSent = d.status === "sent";
+              const isFailed = d.status === "failed";
+              return (
+                <div
+                  key={d.id}
+                  className={`flex items-center justify-between p-3 rounded-xl border text-xs transition ${
+                    isFailed
+                      ? "bg-red-50/50 border-red-100"
+                      : isDelivered
+                      ? "bg-emerald-50/40 border-emerald-100/80"
+                      : "bg-slate-50/60 border-slate-200/80"
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          isFailed
+                            ? "bg-red-100 text-red-800"
+                            : isDelivered
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {d.status}
+                      </span>
+                      <span className="font-bold text-midnight capitalize">
+                        {d.channel}
+                      </span>
+                      <span className="text-[11px] text-muted">• {d.event_type}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      To: <span className="font-semibold text-midnight">{d.recipient_name || d.recipient_id}</span>
+                      {d.title && <span className="ml-2 text-slate-500 font-medium">"{d.title}"</span>}
+                    </p>
+                    {d.body && (
+                      <p className="text-[10px] text-muted truncate max-w-xl">
+                        {d.body}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-right text-[10px] text-muted space-y-0.5 shrink-0 ml-3">
+                    <div>{new Date(d.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+                    <div className="text-slate-400">{new Date(d.created_at).toLocaleDateString()}</div>
+                  </div>
                 </div>
-                <span className="text-[10px] text-red-600 font-mono">
-                  {f.failure_reason || "Connection Timeout"}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

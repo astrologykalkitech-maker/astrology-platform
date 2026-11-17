@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Award, AlertCircle } from "lucide-react";
 import { updateListingRankingAndFeatured } from "@/app/actions/admin-listings";
 import type { AstrologerProfile } from "@/lib/types/database.types";
+import { ModalBackdrop } from "@/components/admin/ModalBackdrop";
 
 interface RankingModalProps {
   listing: AstrologerProfile | null;
@@ -64,8 +65,14 @@ export function RankingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/80 backdrop-blur-md p-4 rise-in">
-      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl backdrop-blur-xl">
+    <ModalBackdrop
+      isOpen={isOpen}
+      onClose={onClose}
+      backdropBgClass="bg-midnight/80"
+      backdropBlurClass="backdrop-blur-xs"
+      ariaLabel="Ranking & Placement"
+    >
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-gold/15 pb-4">
           <div>
             <h3 className="font-serif text-lg font-bold text-midnight flex items-center gap-2">
@@ -177,6 +184,6 @@ export function RankingModal({
           </div>
         </form>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
