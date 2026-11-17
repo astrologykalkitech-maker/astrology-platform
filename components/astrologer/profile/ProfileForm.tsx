@@ -16,6 +16,7 @@ import { formatExperience, formatFee, formatLocation } from "@/lib/astrologer/fo
 import type { AstrologerProfile } from "@/lib/types/database.types";
 
 const STEPS = ["Basic Info", "Specializations", "Consultation", "Review"] as const;
+const SHORT_STEPS = ["Basic", "Specs", "Rates", "Review"] as const;
 const LAST = STEPS.length - 1;
 const toNumber = (v: string) => (v.trim() === "" ? null : Number(v));
 
@@ -26,7 +27,7 @@ function Stepper({ step }: { step: number }) {
         const done = i < step;
         const current = i === step;
         return (
-          <li key={label} aria-current={current ? "step" : undefined} className="relative flex flex-1 flex-col items-center gap-1.5 text-center">
+          <li key={label} aria-current={current ? "step" : undefined} className="relative flex flex-1 flex-col items-center gap-1.5 text-center px-1">
             {i > 0 && (
               <span aria-hidden="true" className={`absolute right-1/2 top-4 h-0.5 w-full -translate-y-1/2 ${i <= step ? "bg-gold" : "bg-line"}`} />
             )}
@@ -38,7 +39,10 @@ function Stepper({ step }: { step: number }) {
               {done ? <Check className="h-4 w-4 text-gold" aria-hidden="true" /> : i + 1}
               <span className="sr-only">{done ? " (completed)" : current ? " (current)" : ""}</span>
             </span>
-            <span className={`text-[11px] font-medium sm:text-xs ${current ? "text-midnight" : "text-muted"}`}>{label}</span>
+            <span className={`text-[10px] font-medium leading-tight sm:text-xs max-w-[68px] sm:max-w-none truncate sm:whitespace-normal ${current ? "text-midnight font-semibold" : "text-muted"}`}>
+              <span className="sm:hidden">{SHORT_STEPS[i]}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </span>
           </li>
         );
       })}
@@ -55,7 +59,21 @@ function ReviewItem({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) {
+export interface ProfileFormProps {
+  profile: AstrologerProfile | null;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  customSubmitAction?: (payload: any) => Promise<{ success: boolean; error?: string }>;
+  cancelLabel?: string;
+}
+
+export function ProfileForm({
+  profile,
+  onSuccess,
+  onCancel,
+  customSubmitAction,
+  cancelLabel = "Cancel",
+}: ProfileFormProps) {
   const router = useRouter();
   const isEdit = Boolean(profile);
   const topRef = useRef<HTMLDivElement>(null);
@@ -139,15 +157,24 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
       languages,
     };
 
-    const result = isEdit ? await updateAstrologerProfile(payload) : await createAstrologerProfile(payload);
+    const result = customSubmitAction
+      ? await customSubmitAction(payload)
+      : isEdit
+      ? await updateAstrologerProfile(payload)
+      : await createAstrologerProfile(payload);
     setSaving(false);
 
     if (!result.success) {
-      setFormError(result.error);
+      setFormError(result.error ?? "Failed to save profile.");
       return;
     }
-    router.push("/astrologer/profile");
-    router.refresh();
+
+    if (onSuccess) {
+      onSuccess();
+    } else {
+      router.push("/astrologer/dashboard");
+      router.refresh();
+    }
   }
 
   function onSubmit(ev: FormEvent) {
@@ -342,7 +369,15 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
                 <ReviewItem label="Name">{displayName.trim() || "Not set"}</ReviewItem>
                 <ReviewItem label="Experience">{formatExperience(toNumber(experience))}</ReviewItem>
                 <ReviewItem label="Location">{formatLocation(city.trim() || null, state.trim() || null)}</ReviewItem>
-                <ReviewItem label="Consultation fee">{formatFee(toNumber(fee))}</ReviewItem>
+                <ReviewItem label="Consultation Pricing">
+                  <div className="space-y-1">
+                    {fee && <div>Base fee: {formatFee(toNumber(fee))}</div>}
+                    <div>Voice Call: {voiceEnabled ? `₹${voicePrice}/min` : "Disabled"}</div>
+                    <div>Chat Session: {chatEnabled ? `₹${chatPrice}/min` : "Disabled"}</div>
+                    <div>Video Call: {videoEnabled ? `₹${videoPrice}/min` : "Disabled"}</div>
+                    {!fee && !voiceEnabled && !chatEnabled && !videoEnabled && "Not set"}
+                  </div>
+                </ReviewItem>
                 <ReviewItem label="Specializations"><Tags items={specializations} /></ReviewItem>
                 <ReviewItem label="Languages"><Tags items={languages} /></ReviewItem>
                 <div className="sm:col-span-2"><ReviewItem label="About me"><span className="whitespace-pre-line">{bio.trim() || "Not set"}</span></ReviewItem></div>
@@ -355,6 +390,10 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
           {step > 0 ? (
             <Button variant="outline" onClick={() => goTo(step - 1)} disabled={saving}>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+            </Button>
+          ) : onCancel ? (
+            <Button variant="ghost" type="button" onClick={onCancel} disabled={saving}>
+              {cancelLabel}
             </Button>
           ) : (
             <Button variant="ghost" onClick={() => router.push(isEdit ? "/astrologer/profile" : "/astrologer/dashboard")}>Cancel</Button>

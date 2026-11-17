@@ -13,19 +13,19 @@ import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
 import { LanguageProvider } from "@/lib/i18n/LanguageContext";
 
 interface CustomerShellProps {
-  customerName: string;
-  userInitial: string;
+  customerName?: string;
+  userInitial?: string;
   photoUrl?: string | null;
-  userId: string;
+  userId?: string;
   isLoggedIn?: boolean;
   children: ReactNode;
 }
 
 export function CustomerShell({
-  customerName,
-  userInitial,
-  photoUrl,
-  userId,
+  customerName = "Guest Seeker",
+  userInitial = "G",
+  photoUrl = null,
+  userId = "",
   isLoggedIn = true,
   children,
 }: CustomerShellProps) {
@@ -43,12 +43,8 @@ export function CustomerShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [menuOpen]);
 
-  return (
-    <LanguageProvider>
-      <VoiceCallProvider role="customer" userId={userId}>
-      <SessionLifecycleGuard userId={userId} role="customer" loginPath="/customer/login" />
-    <AccountPresenceProvider role="customer" userId={userId}>
-      <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
+  const content = (
+    <div className="h-screen flex flex-col portal-bg text-ink overflow-hidden">
       <a
         href="#customer-main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-midnight"
@@ -105,9 +101,21 @@ export function CustomerShell({
           </div>
         </main>
       </div>
-      </div>
-    </AccountPresenceProvider>
-    </VoiceCallProvider>
+    </div>
+  );
+
+  if (!isLoggedIn || !userId) {
+    return <LanguageProvider>{content}</LanguageProvider>;
+  }
+
+  return (
+    <LanguageProvider>
+      <VoiceCallProvider role="customer" userId={userId}>
+        <SessionLifecycleGuard userId={userId} role="customer" loginPath="/customer/login" />
+        <AccountPresenceProvider role="customer" userId={userId}>
+          {content}
+        </AccountPresenceProvider>
+      </VoiceCallProvider>
     </LanguageProvider>
   );
 }

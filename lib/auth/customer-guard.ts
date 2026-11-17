@@ -16,6 +16,35 @@ export interface CustomerAuthContext {
   target: "main" | "admin";
 }
 
+export interface OptionalCustomerAuthContext {
+  user: User | null;
+  profile: Profile | null;
+  target: "main" | "admin";
+}
+
+/**
+ * Server-side guard for optional customer page access (allows guests to browse).
+ * If user is logged in, checks and returns their profile.
+ * If user is unauthenticated, returns { user: null, profile: null, target: 'main' } without redirecting.
+ */
+export const getOptionalCustomerPage = cache(async (): Promise<OptionalCustomerAuthContext> => {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { user: null, profile: null, target: "main" };
+  }
+
+  const profile = await getCurrentProfile();
+  if (!profile) {
+    return { user: null, profile: null, target: "main" };
+  }
+
+  return {
+    user,
+    profile,
+    target: "main",
+  };
+});
+
 /**
  * Server-side guard for customer mutations and API logic.
  * Throws AuthRequiredError if not logged in, or ForbiddenRoleError if role !== 'customer'.

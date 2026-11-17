@@ -168,10 +168,12 @@ export function AuthShell({
   mode,
   role = "astrologer",
   children,
+  showLegacyTabs = false,
 }: {
   mode: Mode;
   role?: AuthRole;
   children: ReactNode;
+  showLegacyTabs?: boolean;
 }) {
   const content = CONTENT[role][mode];
 
@@ -227,9 +229,13 @@ export function AuthShell({
 
           <div className="rise-in relative overflow-hidden rounded-2xl bg-ivory p-5 text-ink shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)] ring-1 ring-gold/40 sm:p-6">
             <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-gold to-transparent" />
-            <RoleSwitch role={role} mode={mode === "signup" ? "signup" : "login"} />
-            {(mode === "login" || mode === "signup") && <ModeTabs role={role} mode={mode} />}
-            <div className="mt-4">{children}</div>
+            {showLegacyTabs && (
+              <>
+                <RoleSwitch role={role} mode={mode === "signup" ? "signup" : "login"} />
+                {(mode === "login" || mode === "signup") && <ModeTabs role={role} mode={mode} />}
+              </>
+            )}
+            <div className={showLegacyTabs ? "mt-4" : ""}>{children}</div>
           </div>
         </section>
       </div>

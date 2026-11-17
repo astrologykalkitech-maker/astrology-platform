@@ -36,6 +36,136 @@ export interface CustomerEnquiryItem {
   astrologer_name?: string | null;
 }
 
+export interface CustomerDashboardSummary {
+  profile: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    emailVerified: boolean;
+  };
+  stats: {
+    totalEnquiries: number;
+    pendingEnquiries: number;
+    assignedEnquiries: number;
+    completedEnquiries: number;
+    totalBookings: number;
+    upcomingBookings: number;
+  };
+  recentEnquiries: CustomerEnquiryItem[];
+}
+
+/**
+ * Loads the dashboard summary strictly for the authenticated customer.
+ * Enforces server-side customer role and queries solely user-scoped records.
+ */
+export async function getCustomerDashboardData(): Promise<
+  AuthResult<CustomerDashboardSummary>
+> {
+  try {
+    const { user, profile, target } = await requireCustomerContext();
+    const supabase = await createClient(target);
+
+    // Concurrently query authenticated customer's leads and bookings in parallel
+    const [leadsResult, bookingsResult] = await Promise.all([
+      supabase
+        .from("leads")
+        .select("id, subject, message, status, created_at, astrologer_id")
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("customer_bookings")
+        .select("id, status, scheduled_at")
+        .eq("customer_id", user.id),
+    ]);
+
+    const { data: leads, error } = leadsResult;
+
+    if (error) {
+      return {
+        success: false,
+        error: `Failed to load enquiries: ${error.message}`,
+      };
+    }
+
+    const rawLeads = leads || [];
+    const astrologerIds = Array.from(
+      new Set(rawLeads.map((l) => l.astrologer_id).filter(Boolean) as string[])
+    );
+
+    let astroNameMap: Record<string, string> = {};
+    if (astrologerIds.length > 0) {
+      const { data: astrologers } = await supabase
+        .from("astrologer_profiles")
+        .select("id, display_name")
+        .in("id", astrologerIds);
+
+      if (astrologers && astrologers.length > 0) {
+        astroNameMap = Object.fromEntries(
+          astrologers.map((a) => [a.id, a.display_name])
+        );
+      }
+    }
+
+    const items: CustomerEnquiryItem[] = rawLeads.map((lead) => ({
+      id: lead.id,
+      subject: lead.subject,
+      message: lead.message,
+      status: lead.status as LeadStatus,
+      created_at: lead.created_at,
+      astrologer_id: lead.astrologer_id,
+      astrologer_name: lead.astrologer_id ? (astroNameMap[lead.astrologer_id] ?? null) : null,
+    }));
+
+    const totalEnquiries = items.length;
+    const pendingEnquiries = items.filter((l) => l.status === "new").length;
+    const assignedEnquiries = items.filter(
+      (l) => l.status === "assigned" || l.status === "contacted"
+    ).length;
+    const completedEnquiries = items.filter(
+      (l) => l.status === "closed" || l.status === "converted"
+    ).length;
+
+    let totalBookings = 0;
+    let upcomingBookings = 0;
+    const bookings = bookingsResult.data;
+
+    if (bookings && bookings.length > 0) {
+      totalBookings = bookings.length;
+      upcomingBookings = bookings.filter(
+        (b) => b.status === "confirmed" || b.status === "pending"
+      ).length;
+    }
+
+    const isEmailVerified = Boolean(user.email_confirmed_at);
+
+    return {
+      success: true,
+      data: {
+        profile: {
+          id: user.id,
+          fullName: profile.full_name || "Customer",
+          email: user.email || null,
+          emailVerified: isEmailVerified,
+        },
+        stats: {
+          totalEnquiries,
+          pendingEnquiries,
+          assignedEnquiries,
+          completedEnquiries,
+          totalBookings,
+          upcomingBookings,
+        },
+        recentEnquiries: items.slice(0, 5),
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load customer dashboard data.",
+    };
+  }
+}
+
 /**
  * Loads all enquiries for the authenticated customer.
  */

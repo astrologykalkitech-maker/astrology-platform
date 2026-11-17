@@ -19,6 +19,7 @@ import { PublicNavbar } from "@/components/public/PublicNavbar";
 import { PublicFooter } from "@/components/public/PublicFooter";
 import { AstrologerShowcase } from "@/components/public/AstrologerShowcase";
 import { createPublicServerClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/auth/session";
 import {
   AUTHORITATIVE_SAFE_PUBLIC_FIELDS,
   PUBLIC_VISIBLE_APPROVAL_STATUS,
@@ -41,27 +42,30 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const astrologers = await (async () => {
-    try {
-      const supabase = createPublicServerClient("main");
-      const { data } = await supabase
-        .from("astrologer_profiles")
-        .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS)
-        .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
-        .order("created_at", { ascending: false })
-        .limit(6);
+  const [profile, astrologers] = await Promise.all([
+    getCurrentProfile(),
+    (async () => {
+      try {
+        const supabase = createPublicServerClient("main");
+        const { data } = await supabase
+          .from("astrologer_profiles")
+          .select(AUTHORITATIVE_SAFE_PUBLIC_FIELDS)
+          .eq("approval_status", PUBLIC_VISIBLE_APPROVAL_STATUS)
+          .order("created_at", { ascending: false })
+          .limit(6);
 
-      return (data as unknown as PublicAstrologerProfile[]) || [];
-    } catch (error) {
-      console.error("[Home Page Astrologer Fetch]", error);
-      return [];
-    }
-  })();
+        return (data as unknown as PublicAstrologerProfile[]) || [];
+      } catch (error) {
+        console.error("[Home Page Astrologer Fetch]", error);
+        return [];
+      }
+    })(),
+  ]);
 
   return (
     <div className="min-h-screen bg-[#faf7f0] text-[#1b122c] flex flex-col font-sans selection:bg-[#e2c173]/30 selection:text-[#180f28]">
       {/* 1. Header Navigation */}
-      <PublicNavbar />
+      <PublicNavbar currentRole={profile?.role ?? null} isLoggedIn={Boolean(profile)} />
 
       <main id="main-content" className="flex-1">
         {/* ============================================================== */}
@@ -133,7 +137,7 @@ export default async function HomePage() {
                 {/* CTAs matching image: [ (users) Explore Astrologers -> ]  [ (play) How It Works ] */}
                 <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                   <Link
-                    href="/#astrologers"
+                    href="#astrologers"
                     className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] px-6 py-3.5 text-xs sm:text-sm font-bold text-[#140c26] shadow-lg shadow-[#000]/30 hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
                   >
                     <Users2 className="h-4 w-4 text-[#140c26]" />
@@ -224,7 +228,7 @@ export default async function HomePage() {
             <div className="mt-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
               {/* Card 1: Love & Relationships */}
               <Link
-                href="/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dlove"
+                href="/auth"
                 className="group relative flex items-center gap-3.5 rounded-2xl border border-[#ede1cc] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-lg hover:border-[#dfba63] transition-all duration-300"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fdf2f2] text-[#d65f5f]">
@@ -245,7 +249,7 @@ export default async function HomePage() {
 
               {/* Card 2: Career & Finance */}
               <Link
-                href="/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dcareer"
+                href="/auth"
                 className="group relative flex items-center gap-3.5 rounded-2xl border border-[#ede1cc] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-lg hover:border-[#dfba63] transition-all duration-300"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fff8eb] text-[#d99f2b]">
@@ -266,7 +270,7 @@ export default async function HomePage() {
 
               {/* Card 3: Kundli & Birth Chart */}
               <Link
-                href="/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dkundli"
+                href="/auth"
                 className="group relative flex items-center gap-3.5 rounded-2xl border border-[#ede1cc] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-lg hover:border-[#dfba63] transition-all duration-300"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#faf4e6] text-[#b4882e]">
@@ -291,7 +295,7 @@ export default async function HomePage() {
 
               {/* Card 4: Family & Wellbeing */}
               <Link
-                href="/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dfamily"
+                href="/auth"
                 className="group relative flex items-center gap-3.5 rounded-2xl border border-[#ede1cc] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-lg hover:border-[#dfba63] transition-all duration-300"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f4faee] text-[#4f8a37]">
@@ -335,7 +339,7 @@ export default async function HomePage() {
               </div>
 
               <Link
-                href="/customer/login?redirectTo=%2Fcustomer%2Fastrologers"
+                href="/auth"
                 className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-[#e2d2b8] bg-white px-4 py-2 text-xs font-semibold text-[#6f4b16] hover:border-[#c5963a] hover:bg-[#fffdfa] shadow-2xs transition-colors"
               >
                 <span>View All Astrologers</span>
@@ -606,7 +610,7 @@ export default async function HomePage() {
             </p>
             <div className="pt-2">
               <Link
-                href="/customer/signup"
+                href="/auth"
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] px-6 py-2.5 text-xs font-bold text-[#140c26] shadow-sm hover:brightness-105 transition-all"
               >
                 <span>Join Karmic Ascension Today</span>

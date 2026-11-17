@@ -19,7 +19,7 @@ test("Chatbot Greeting: 'hi' returns friendly welcoming greeting without Google 
   assert.equal(res.success, true);
   assert.ok(!res.message.includes("Google OAuth"));
   assert.ok(!res.message.includes("reason=role"));
-  assert.ok(res.message.includes("Welcome to JyotishSetu"));
+  assert.ok(res.message.includes("Welcome to Karmic Ascension"));
   assert.ok(res.message.toLowerCase().includes("how can i help you today"));
 });
 
@@ -35,7 +35,7 @@ test("Chatbot Greeting: 'Hi!' with punctuation and capitalization returns greeti
 
   assert.equal(res.success, true);
   assert.ok(!res.message.includes("Google OAuth"));
-  assert.ok(res.message.includes("Welcome to JyotishSetu"));
+  assert.ok(res.message.includes("Welcome to Karmic Ascension"));
 });
 
 test("Chatbot Greeting: 'hello' returns warm concise greeting", async () => {
@@ -50,7 +50,7 @@ test("Chatbot Greeting: 'hello' returns warm concise greeting", async () => {
 
   assert.equal(res.success, true);
   assert.ok(!res.message.includes("Google OAuth"));
-  assert.ok(res.message.includes("Welcome to JyotishSetu"));
+  assert.ok(res.message.includes("Welcome to Karmic Ascension"));
 });
 
 test("Chatbot Greeting: 'hey there' returns friendly greeting", async () => {
@@ -65,7 +65,7 @@ test("Chatbot Greeting: 'hey there' returns friendly greeting", async () => {
 
   assert.equal(res.success, true);
   assert.ok(!res.message.includes("Google OAuth"));
-  assert.ok(res.message.includes("Welcome to JyotishSetu"));
+  assert.ok(res.message.includes("Welcome to Karmic Ascension"));
 });
 
 test("Chatbot Greeting: 'namaste' returns traditional respectful greeting", async () => {
@@ -199,5 +199,5 @@ test("Chatbot Isolation: New conversation greeting after support discussion does
   assert.equal(res.success, true);
   assert.ok(!res.message.includes("Google OAuth"));
   assert.ok(!res.message.includes("reason=role"));
-  assert.ok(res.message.includes("Welcome to JyotishSetu"));
+  assert.ok(res.message.includes("Welcome to Karmic Ascension"));
 });

@@ -343,6 +343,9 @@ export async function GET(request: NextRequest) {
       destination = "/astrologer/login?reason=suspended";
     } else if (astroProfile?.approval_status === "rejected") {
       destination = "/astrologer/login?reason=rejected";
+    } else if (!astroProfile) {
+      // New or uncompleted astrologer profile -> redirect directly to profile wizard
+      destination = "/astrologer/profile/edit";
     } else {
       destination = "/astrologer/dashboard";
     }

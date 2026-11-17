@@ -137,11 +137,7 @@ export function AstrologerShowcase({ astrologers, isLoggedIn = false }: Astrolog
             </div>
 
             <Link
-              href={
-                isLoggedIn
-                  ? `/customer/astrologers/${item.slug}`
-                  : `/customer/login?redirectTo=${encodeURIComponent(`/customer/astrologers/${item.slug}`)}`
-              }
+              href="/auth"
               className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#8b631d] hover:text-[#191128] transition-colors group/link shrink-0 ml-auto"
             >
               <span>View Profile</span>

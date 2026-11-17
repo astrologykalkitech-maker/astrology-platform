@@ -1,23 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/astrologer/auth/AuthShell";
-import { LoginForm } from "@/components/astrologer/auth/LoginForm";
+import { UnifiedAuthFlow } from "@/components/auth/UnifiedAuthFlow";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
-export const metadata: Metadata = { title: "Customer Login" };
+export const metadata: Metadata = { title: "Customer Account Access" };
 
 export default async function CustomerLoginPage({
   searchParams,
 }: {
   searchParams?: Promise<{ reason?: string; error?: string; redirectTo?: string }>;
 }) {
-  const { reason, error, redirectTo } = searchParams ? await searchParams : {};
+  const { redirectTo } = searchParams ? await searchParams : {};
 
-  // Already signed in: redirect to destination or customer portal entry.
-  // Note: If an astrologer visits customer login, allow them to see the login screen
-  // (with option to switch/sign in with a customer account) rather than forcefully
-  // locking them out and bouncing them to the astrologer dashboard.
+  // Already signed in with appropriate role
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
     redirect(sanitizeRedirectPath(redirectTo, "/customer/astrologers"));
@@ -31,12 +28,10 @@ export default async function CustomerLoginPage({
 
   return (
     <AuthShell mode="login" role="customer">
-      <LoginForm
-        role="customer"
-        reason={reason}
-        error={error}
+      <UnifiedAuthFlow
+        initialRole="customer"
+        initialStep="AUTHENTICATION"
         redirectTo={redirectTo ? sanitizeRedirectPath(redirectTo, "") || undefined : undefined}
-        showRoleNotice={reason === "role" || reason === "role_unauthorized"}
       />
     </AuthShell>
   );

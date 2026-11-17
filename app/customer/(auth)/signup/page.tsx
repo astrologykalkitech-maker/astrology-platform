@@ -1,26 +1,20 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthShell } from "@/components/astrologer/auth/AuthShell";
-import { SignupForm } from "@/components/astrologer/auth/SignupForm";
+import { UnifiedAuthFlow } from "@/components/auth/UnifiedAuthFlow";
 import { getCurrentProfile } from "@/lib/auth/session";
 
-export const metadata: Metadata = { title: "Customer Sign Up" };
+export const metadata: Metadata = { title: "Customer Account Access" };
 
-export default async function CustomerSignupPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ error?: string; reason?: string }>;
-}) {
+export default async function CustomerSignupPage() {
   const profile = await getCurrentProfile();
   if (profile?.role === "customer") {
-    redirect("/");
+    redirect("/customer/astrologers");
   }
-
-  const { error, reason } = searchParams ? await searchParams : {};
 
   return (
     <AuthShell mode="signup" role="customer">
-      <SignupForm role="customer" error={error} reason={reason} />
+      <UnifiedAuthFlow initialRole="customer" initialStep="AUTHENTICATION" />
     </AuthShell>
   );
 }

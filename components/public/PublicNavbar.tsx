@@ -84,15 +84,9 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
       ? "/admin"
       : currentRole === "astrologer"
       ? "/astrologer/dashboard"
-      : "/customer/astrologers";
+      : "/customer/dashboard";
 
-  const talkToAstrologerUrl = isLoggedIn
-    ? currentRole === "customer"
-      ? "/customer/astrologers"
-      : currentRole === "astrologer"
-      ? "/astrologer/dashboard"
-      : "/super-admin"
-    : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers";
+  const talkToAstrologerUrl = "/customer/astrologers";
 
   return (
     <header
@@ -125,7 +119,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
             Home
           </Link>
           <Link
-            href={talkToAstrologerUrl}
+            href="/auth"
             className="hover:text-champagne transition-colors focus-visible:outline-2 focus-visible:outline-gold rounded-md px-1"
           >
             Talk to Astrologer
@@ -155,7 +149,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
               >
                 <div className="rounded-2xl border border-gold/40 bg-[#160d2e]/98 p-2.5 shadow-2xl backdrop-blur-md text-left">
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=love" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dlove"}
+                    href="/auth"
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -164,7 +158,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                     <span className="text-[11px] text-white/70">Find clarity in love, marriage and relationships</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=career" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dcareer"}
+                    href="/auth"
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -173,7 +167,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                     <span className="text-[11px] text-white/70">Get guidance for career growth & financial stability</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=kundli" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dkundli"}
+                    href="/auth"
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -182,7 +176,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                     <span className="text-[11px] text-white/70">Decode your life path with detailed Kundli analysis</span>
                   </Link>
                   <Link
-                    href={isLoggedIn ? "/customer/astrologers?service=family" : "/customer/login?redirectTo=%2Fcustomer%2Fastrologers%3Fservice%3Dfamily"}
+                    href="/auth"
                     role="menuitem"
                     onClick={() => setServicesOpen(false)}
                     className="flex flex-col rounded-xl p-2.5 hover:bg-white/10 transition-colors group cursor-pointer"
@@ -209,7 +203,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
           </Link>
         </nav>
 
-        {/* Desktop Action Buttons: Exactly as in reference: [user icon Log in]  [Get Started ->] */}
+        {/* Desktop Action Buttons */}
         <div className="hidden md:flex items-center gap-3">
           {isLoggedIn ? (
             <Link
@@ -220,29 +214,21 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
               <Sparkles className="h-3.5 w-3.5" />
             </Link>
           ) : (
-            <>
-              <Link
-                href="/customer/login"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-xs font-medium text-white hover:bg-white/10 hover:border-gold/40 transition-colors focus-visible:outline-2 focus-visible:outline-gold"
-              >
-                <User className="h-3.5 w-3.5 text-white/80" />
-                <span>Log in</span>
-              </Link>
-              <Link
-                href="/customer/signup"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
-              >
-                <span>Get Started</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </>
+            <Link
+              href="/auth"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] px-4 py-2 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all focus-visible:outline-2 focus-visible:outline-gold"
+            >
+              <User className="h-3.5 w-3.5 text-[#140c26]" />
+              <span>Get Started</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           )}
         </div>
 
-        {/* Mobile Action Buttons: Exactly matching reference image 2: [Get Started ->]  [Hamburger Button] */}
+        {/* Mobile Action Buttons */}
         <div className="flex md:hidden items-center gap-2.5">
           <Link
-            href="/customer/signup"
+            href="/auth"
             className="inline-flex items-center gap-1 rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] px-3.5 py-1.5 text-xs font-bold text-midnight shadow-md hover:brightness-105 transition-all"
           >
             <span>Get Started</span>
@@ -272,7 +258,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
               Home
             </Link>
             <Link
-              href={talkToAstrologerUrl}
+              href="/auth"
               onClick={() => setMobileMenuOpen(false)}
               className="rounded-xl px-3 py-2 hover:bg-white/5 transition-colors"
             >
@@ -310,29 +296,13 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
                   Go to Dashboard
                 </Link>
               ) : (
-                <>
-                  <Link
-                    href="/customer/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full text-center rounded-xl border border-white/20 bg-white/5 py-2 text-xs font-semibold text-white"
-                  >
-                    Log In
-                  </Link>
-                  <Link
-                    href="/customer/signup"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full text-center rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] py-2.5 text-xs font-bold text-midnight shadow-md"
-                  >
-                    Get Started
-                  </Link>
-                  <Link
-                    href="/astrologer/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="w-full text-center rounded-xl border border-gold/30 py-2 text-xs font-semibold text-champagne"
-                  >
-                    Astrologer Portal
-                  </Link>
-                </>
+                <Link
+                  href="/auth"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center rounded-xl bg-linear-to-r from-[#e3c16f] to-[#cf9e3e] py-2.5 text-xs font-bold text-midnight shadow-md"
+                >
+                  Get Started
+                </Link>
               )}
             </div>
           </nav>

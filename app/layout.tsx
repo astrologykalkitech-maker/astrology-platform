@@ -3,6 +3,7 @@ import { Inter, Cinzel } from "next/font/google";
 import "./globals.css";
 import { GlobalSoundProvider } from "@/contexts/GlobalSoundProvider";
 import { EnableSoundPrompt } from "@/components/sound/EnableSoundPrompt";
+import { GuestBrowsingManager } from "@/components/auth/GuestBrowsingManager";
 
 // Naye Royal Theme ke Fonts
 const inter = Inter({
@@ -46,6 +47,7 @@ export default function RootLayout({
         <GlobalSoundProvider>
           {children}
           <EnableSoundPrompt />
+          <GuestBrowsingManager />
         </GlobalSoundProvider>
       </body>
     </html>

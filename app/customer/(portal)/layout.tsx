@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { requireCustomerPage } from "@/lib/auth/customer-guard";
+import { getOptionalCustomerPage } from "@/lib/auth/customer-guard";
 import { CustomerShell } from "@/components/customer/CustomerShell";
 
 export const metadata = {
@@ -12,19 +12,20 @@ export default async function CustomerLayout({
 }: {
   children: ReactNode;
 }) {
-  const { profile, user } = await requireCustomerPage();
+  const { profile, user } = await getOptionalCustomerPage();
 
-  const customerName = profile.full_name || "Customer";
-  const userInitial = (customerName[0] || "C").toUpperCase();
-  const photoUrl = profile.avatar_url ?? null;
+  const customerName = profile?.full_name || "Guest Seeker";
+  const userInitial = (customerName[0] || "G").toUpperCase();
+  const photoUrl = profile?.avatar_url ?? null;
+  const isLoggedIn = Boolean(user && profile);
 
   return (
     <CustomerShell
       customerName={customerName}
       userInitial={userInitial}
       photoUrl={photoUrl}
-      userId={user.id}
-      isLoggedIn={true}
+      userId={user?.id || ""}
+      isLoggedIn={isLoggedIn}
     >
       {children}
     </CustomerShell>

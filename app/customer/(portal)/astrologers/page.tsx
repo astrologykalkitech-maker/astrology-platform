@@ -5,7 +5,7 @@ import {
   MessageSquarePlus,
 } from "lucide-react";
 import { getPublicApprovedAstrologers } from "@/lib/astrologer/queries";
-import { requireCustomerPage } from "@/lib/auth/customer-guard";
+import { getOptionalCustomerPage } from "@/lib/auth/customer-guard";
 import { getCustomerFavoriteAstrologers } from "@/app/actions/favorites";
 import { getCustomerFollowedAstrologers } from "@/app/actions/follows";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
@@ -18,8 +18,8 @@ const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function FindAstrologersPage() {
-  const [, astrologers, favRes, followRes] = await Promise.all([
-    requireCustomerPage(),
+  const [authCtx, astrologers, favRes, followRes] = await Promise.all([
+    getOptionalCustomerPage(),
     getPublicApprovedAstrologers({ limit: 100 }),
     getCustomerFavoriteAstrologers(),
     getCustomerFollowedAstrologers(),

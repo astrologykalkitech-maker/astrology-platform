@@ -70,23 +70,13 @@ export function PublicFooter() {
             <p className="text-xs font-bold uppercase tracking-widest text-champagne">Portals & Access</p>
             <ul className="space-y-2 text-xs sm:text-sm text-ivory/75">
               <li>
-                <Link href="/customer/login" className="hover:text-champagne transition-colors">
-                  Seeker / Customer Login
+                <Link href="/auth?role=customer" className="hover:text-champagne transition-colors">
+                  Customer Account
                 </Link>
               </li>
               <li>
-                <Link href="/customer/signup" className="hover:text-champagne transition-colors">
-                  Create Customer Account
-                </Link>
-              </li>
-              <li>
-                <Link href="/astrologer/login" className="hover:text-champagne transition-colors">
-                  Astrologer Portal Sign In
-                </Link>
-              </li>
-              <li>
-                <Link href="/astrologer/signup" className="hover:text-champagne transition-colors">
-                  Register as an Astrologer
+                <Link href="/auth?role=astrologer" className="hover:text-champagne transition-colors">
+                  Astrologer Portal
                 </Link>
               </li>
               <li>
