@@ -6,7 +6,7 @@ import { AdminReviewsClient } from "./AdminReviewsClient";
 import { ErrorState } from "@/components/astrologer/ui/feedback";
 
 export const metadata: Metadata = {
-  title: "Review Moderation & Feedback | Super Admin | JyotishSetu",
+  title: "Review Moderation & Feedback | Super Admin | Karmic Ascension",
   description: "Monitor, publish, hide, and moderate customer consultation reviews.",
 };
 

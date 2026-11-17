@@ -7,7 +7,7 @@ import { SuperAdminPujasClient } from "@/components/admin/SuperAdminPujasClient"
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Puja Catalogue Management | JyotishSetu Super Admin",
+  title: "Puja Catalogue Management | Karmic Ascension Super Admin",
   description: "Create, configure, and maintain authentic Vedic Pujas and rituals.",
 };
 

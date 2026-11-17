@@ -4,7 +4,7 @@ import {
   DEFAULT_SOUND_PREFERENCES,
 } from "./types";
 
-const SOUND_PREFS_STORAGE_KEY = "jyotishsetu:sound_preferences";
+const SOUND_PREFS_STORAGE_KEY = "karmicascension:sound_preferences";
 
 const SOUND_ASSET_MAP: Record<SoundEventType, string> = {
   message: "/sounds/message.wav",

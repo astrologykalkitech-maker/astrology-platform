@@ -7,7 +7,7 @@ import { RemediesClient } from "@/components/customer/RemediesClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Vedic Remedies & Protection Rituals | JyotishSetu",
+  title: "Vedic Remedies & Protection Rituals | Karmic Ascension",
   description: "Personalized Vedic Gemstones, Rudraksha, Mantras, and Charity prescribed according to your authentic Janam Kundli.",
 };
 

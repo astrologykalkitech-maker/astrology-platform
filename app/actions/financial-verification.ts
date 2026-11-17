@@ -233,7 +233,7 @@ export async function reviewJyotishPayPaymentAction(payload: {
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unable to review JyotishSetu Pay payment.",
+      error: error instanceof Error ? error.message : "Unable to review Karmic Ascension Pay payment.",
     };
   }
 }

@@ -6,8 +6,8 @@ export function getJyotishPayConfig(): JyotishGatewayConfig {
   
   return {
     mode,
-    merchantVpa: (process.env.JYOTISH_PAY_VPA || process.env.NEXT_PUBLIC_JYOTISH_PAY_VPA || "jyotishsetu@upi").trim(),
-    merchantName: (process.env.JYOTISH_PAY_MERCHANT_NAME || "JyotishSetu Astrology Services").trim(),
+    merchantVpa: (process.env.JYOTISH_PAY_VPA || process.env.NEXT_PUBLIC_JYOTISH_PAY_VPA || "karmicascension@upi").trim(),
+    merchantName: (process.env.JYOTISH_PAY_MERCHANT_NAME || "Karmic Ascension Astrology Services").trim(),
     merchantCode: (process.env.JYOTISH_PAY_MCC || "8299").trim(), // 8299/8999 for Merchant, 0000 for Personal
     appBaseUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
     webhookSecret: (process.env.JYOTISH_PAY_WEBHOOK_SECRET || "").trim(),

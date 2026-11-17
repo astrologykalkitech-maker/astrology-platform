@@ -10,7 +10,7 @@ import { SoundSettings } from "@/components/sound/SoundSettings";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Astrologer Activity & Notifications | JyotishSetu",
+  title: "Astrologer Activity & Notifications | Karmic Ascension",
   description: "View important consultation requests, lead assignments, and system notifications.",
 };
 

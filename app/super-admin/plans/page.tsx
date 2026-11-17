@@ -7,7 +7,7 @@ import { SuperAdminPlanBuilderClient } from "@/components/admin/SuperAdminPlanBu
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Subscription Plan Builder | JyotishSetu Super Admin",
+  title: "Subscription Plan Builder | Karmic Ascension Super Admin",
   description: "Configure dynamic membership tiers, lead quotas, commission fees, and features for astrologers.",
 };
 

@@ -49,7 +49,7 @@ export default function AstrologerNotificationsClient({
   useEffect(() => {
     const unread = notifications.filter((n) => !n.is_read).length;
     window.dispatchEvent(
-      new CustomEvent("jyotishsetu:notifications-updated", {
+      new CustomEvent("karmicascension:notifications-updated", {
         detail: { count: unread },
       })
     );

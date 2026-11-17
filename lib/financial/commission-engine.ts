@@ -78,7 +78,7 @@ export interface ConsultantBalanceSummary {
   total_commission_earned_paise: number;
   total_settled_paise: number;
   total_reversed_paise: number;
-  outstanding_commission_paise: number; // Negative balance / liability owed to JyotishSetu
+  outstanding_commission_paise: number; // Negative balance / liability owed to Karmic Ascension
   last_settlement_at?: string | null;
   last_calculated_at: string;
 }

@@ -9,7 +9,7 @@ import AstrologerAdminCommunicationsClient from "./AstrologerAdminCommunications
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Super Admin Direct Communications | JyotishSetu",
+  title: "Super Admin Direct Communications | Karmic Ascension",
   description: "Direct official channel between Super Admin operations and verified Vedic astrologers.",
 };
 

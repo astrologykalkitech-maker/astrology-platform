@@ -175,8 +175,8 @@ export function CustomerPujaBookingClient({
 
       // Dispatch global synchronization events across open portals
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("jyotishsetu:booking-created"));
-        window.dispatchEvent(new CustomEvent("jyotishsetu:puja-booking-created"));
+        window.dispatchEvent(new CustomEvent("karmicascension:booking-created"));
+        window.dispatchEvent(new CustomEvent("karmicascension:puja-booking-created"));
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Could not complete puja booking.";

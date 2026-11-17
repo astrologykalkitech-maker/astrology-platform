@@ -292,7 +292,7 @@ export default async function AstrologerProfilePage({
               <div className="flex items-start gap-2.5 text-xs text-muted">
                 <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span>
-                  <strong className="text-midnight font-medium">Verified Credentials:</strong> Identity, years of experience, and credentials vetted by JyotishSetu.
+                  <strong className="text-midnight font-medium">Verified Credentials:</strong> Identity, years of experience, and credentials vetted by Karmic Ascension.
                 </span>
               </div>
             </div>

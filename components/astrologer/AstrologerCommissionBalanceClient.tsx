@@ -137,7 +137,7 @@ export function AstrologerCommissionBalanceClient({
           </div>
           <p className="mt-1 text-[11px] text-muted">
             {isNegativeBalance
-              ? "Platform commission liability owed to JyotishSetu"
+              ? "Platform commission liability owed to Karmic Ascension"
               : "All marketplace commissions are fully settled"}
           </p>
           {isNegativeBalance && (
@@ -256,7 +256,7 @@ export function AstrologerCommissionBalanceClient({
                 {formatPaiseToInr(settlementData.amountPaise)}
               </div>
               <p className="text-[11px] text-muted">
-                Pay JyotishSetu using any UPI app. UTR submission is not verification.
+                Pay Karmic Ascension using any UPI app. UTR submission is not verification.
               </p>
             </div>
 

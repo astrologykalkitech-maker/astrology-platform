@@ -7,7 +7,7 @@ import { SuperAdminSubscriptionAuditsClient } from "@/components/admin/SuperAdmi
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Subscription Audit Logs | JyotishSetu Super Admin",
+  title: "Subscription Audit Logs | Karmic Ascension Super Admin",
   description: "Complete immutable audit trail of astrologer plan transitions, cancellations, and extensions.",
 };
 

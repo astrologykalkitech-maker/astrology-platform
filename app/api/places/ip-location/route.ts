@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     // 3. Query multiple ultra-fast geo-IP providers in parallel (Promise.any race)
     const fetchWithTimeout = async (url: string, ms = 5000) => {
       const res = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; JyotishSetu/1.0)" },
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; Karmic Ascension/1.0)" },
         signal: AbortSignal.timeout(ms),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

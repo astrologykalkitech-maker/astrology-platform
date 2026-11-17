@@ -9,7 +9,7 @@ import { KundliMilanResultView } from "@/components/kundli-milan/KundliMilanResu
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Kundli Matching & Ashtakoota Milan | JyotishSetu",
+  title: "Kundli Matching & Ashtakoota Milan | Karmic Ascension",
   description: "Authentic 36-guna Vedic compatibility matching for marriage and relationships based on actual birth charts.",
 };
 

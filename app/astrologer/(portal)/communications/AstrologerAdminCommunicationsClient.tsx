@@ -154,7 +154,7 @@ export default function AstrologerAdminCommunicationsClient({
                     SA
                   </div>
                   <div>
-                    <span className="text-xs font-bold text-midnight">JyotishSetu Operations & Super Admin</span>
+                    <span className="text-xs font-bold text-midnight">Karmic Ascension Operations & Super Admin</span>
                     <span className="text-[10px] text-muted block">Platform Governance</span>
                   </div>
                 </div>

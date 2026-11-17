@@ -7,7 +7,7 @@ import { SuperAdminLanguagesClient } from "@/components/admin/SuperAdminLanguage
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Language Preference Administration | JyotishSetu Super Admin",
+  title: "Language Preference Administration | Karmic Ascension Super Admin",
   description: "Monitor and manage user language preferences and multi-lingual adoption.",
 };
 

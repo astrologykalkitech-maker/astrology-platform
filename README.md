@@ -1,4 +1,4 @@
-# JyotishSetu — Enterprise Vedic Astrology & Consultation Platform
+# Karmic Ascension — Enterprise Vedic Astrology & Consultation Platform
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.4.2_App_Router-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -8,16 +8,16 @@
 [![Tests](https://img.shields.io/badge/Tests-Passing_(100%25)-brightgreen)](file:///d:/Company%20Projects/Astrology%20website/tests)
 [![Build](https://img.shields.io/badge/Build-Production_Ready-success)]()
 
-**JyotishSetu** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, multi-channel notification infrastructure, and complete end-to-end booking lifecycles.
+**Karmic Ascension** is an enterprise-grade, multi-tenant Vedic astrology consultation platform built with **Next.js 16 (App Router)**, **TypeScript**, **Tailwind CSS**, **Supabase (PostgreSQL with RLS)**, and **LiveKit WebRTC**. It seamlessly connects seekers with verified Vedic astrologers for real-time live consultations, instant direct messaging, automated Vedic horoscopes, multi-channel notification infrastructure, and complete end-to-end booking lifecycles.
 
 ---
 
 ## 🏛️ Platform Architecture Overview
 
-JyotishSetu operates across a high-availability dual-database split architecture (**DB1 + DB2**) ensuring zero cross-tenant leakage, rigorous security boundaries, and high-performance real-time synchronization:
+Karmic Ascension operates across a high-availability dual-database split architecture (**DB1 + DB2**) ensuring zero cross-tenant leakage, rigorous security boundaries, and high-performance real-time synchronization:
 
 ```
-                                  [ JyotishSetu Gateway ]
+                                  [ Karmic Ascension Gateway ]
                                   (Next.js App Router 16)
                                              |
             +--------------------+-----------+-----------+--------------------+
@@ -129,7 +129,7 @@ The messaging platform uses a **Triple-Layer Synchronization Architecture** ensu
 [Customer Chat Client] <-------------------+-------------------> [Astrologer Chat Client]
         |                                  |                               |
         | Layer 1: WebSocket Broadcast     | Unified Shared Channel        | Layer 1: WebSocket Broadcast
-        | (< 50ms Delivery)                | "jyotishsetu-live-            | (< 50ms Delivery)
+        | (< 50ms Delivery)                | "karmicascension-live-            | (< 50ms Delivery)
         |                                  |  consultation-chat"           |
         v                                  v                               v
 [Optimistic Rendering] --------> [Server Action API] <-------- [Optimistic Rendering]
@@ -145,7 +145,7 @@ The messaging platform uses a **Triple-Layer Synchronization Architecture** ensu
         (Logical Replication)                           (3s/4s Reconnect Catch-Up)
 ```
 
-1. **Layer 1: Peer-to-Peer WebSocket Broadcast (< 50ms)**: Instant delivery of messages, reactions, edits, deletions, typing state, and `conversation_read` receipts over the unified channel `jyotishsetu-live-consultation-chat`.
+1. **Layer 1: Peer-to-Peer WebSocket Broadcast (< 50ms)**: Instant delivery of messages, reactions, edits, deletions, typing state, and `conversation_read` receipts over the unified channel `karmicascension-live-consultation-chat`.
 2. **Layer 2: PostgreSQL Logical Replication (WAL)**: `REPLICA IDENTITY FULL` on `direct_messages` and `conversations` with direct inclusion in `supabase_realtime` publication.
 3. **Layer 3: Micro-Delta Polling & Visibility Synchronization**: 3-second delta querying with `document.visibilityState` listener to instantly catch up on missed packets after tab switching or offline periods.
 4. **Performance & Message Counter Optimization**:
@@ -443,7 +443,7 @@ pnpm start
 
 ## 🧪 Testing & Quality Verification
 
-JyotishSetu maintains a comprehensive test suite covering security policies, role authorization, RLS enforcement, Vedic calculations, and real-time chat integrity:
+Karmic Ascension maintains a comprehensive test suite covering security policies, role authorization, RLS enforcement, Vedic calculations, and real-time chat integrity:
 
 ```bash
 # Run all automated tests
@@ -483,4 +483,4 @@ npx tsc --noEmit
 
 ## 📄 License & Attribution
 
-Copyright © 2026 JyotishSetu. All rights reserved. Built for secure, authentic, and real-time Vedic astrology consultations.
+Copyright © 2026 Karmic Ascension. All rights reserved. Built for secure, authentic, and real-time Vedic astrology consultations.

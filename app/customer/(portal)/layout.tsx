@@ -3,7 +3,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { CustomerShell } from "@/components/customer/CustomerShell";
 
 export const metadata = {
-  title: "Customer Portal | JyotishSetu",
+  title: "Customer Portal | Karmic Ascension",
   description: "Customer portal for divine Vedic astrology consultations, verified astrologers, and enquiries.",
 };
 

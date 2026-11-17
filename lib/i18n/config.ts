@@ -1,5 +1,5 @@
 /**
- * Supported Locales configuration for JyotishSetu
+ * Supported Locales configuration for Karmic Ascension
  * Mandatory 10 Indian & International Languages
  */
 export const SUPPORTED_LOCALES = [

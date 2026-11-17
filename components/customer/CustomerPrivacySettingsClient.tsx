@@ -105,7 +105,7 @@ export function CustomerPrivacySettingsClient() {
           "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.exportPackage, null, 2));
         const downloadAnchor = document.createElement("a");
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `JyotishSetu_Customer_Data_Export_${Date.now()}.json`);
+        downloadAnchor.setAttribute("download", `Karmic Ascension_Customer_Data_Export_${Date.now()}.json`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
@@ -147,7 +147,7 @@ export function CustomerPrivacySettingsClient() {
 
   const handleCancelDeletion = async () => {
     if (!activeDeletion?.id) return;
-    const confirm = window.confirm("Do you want to cancel your account deletion request and keep your JyotishSetu account active?");
+    const confirm = window.confirm("Do you want to cancel your account deletion request and keep your Karmic Ascension account active?");
     if (!confirm) return;
 
     setIsCancelling(true);

@@ -10,7 +10,7 @@ import { SuperAdminBroadcastsClient } from "@/components/admin/SuperAdminBroadca
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Live Broadcast Monitoring | JyotishSetu Super Admin",
+  title: "Live Broadcast Monitoring | Karmic Ascension Super Admin",
   description: "Monitor real-time LiveKit audio/video sessions and administrative room controls.",
 };
 

@@ -254,7 +254,7 @@ export function AstrologerPrivacyClient() {
             <Lock className="h-4 w-4 text-gold-deep" /> Processing Consents & Data Governance
           </h2>
           <p className="text-xs text-muted mt-0.5">
-            Configure how your astrologer practitioner data and profile metadata are processed across JyotishSetu.
+            Configure how your astrologer practitioner data and profile metadata are processed across Karmic Ascension.
           </p>
         </div>
 

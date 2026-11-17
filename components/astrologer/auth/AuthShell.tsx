@@ -184,7 +184,7 @@ export function AuthShell({
           <Link
             href="/"
             className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-gold transition-opacity hover:opacity-90"
-            aria-label="JyotishSetu Home"
+            aria-label="Karmic Ascension Home"
           >
             <Logo />
           </Link>
@@ -219,7 +219,7 @@ export function AuthShell({
             <Link
               href="/"
               className="inline-flex rounded-lg focus-visible:outline-2 focus-visible:outline-gold transition-opacity hover:opacity-90"
-              aria-label="JyotishSetu Home"
+              aria-label="Karmic Ascension Home"
             >
               <Logo />
             </Link>

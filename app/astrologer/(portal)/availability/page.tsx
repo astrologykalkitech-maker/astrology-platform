@@ -6,7 +6,7 @@ import { AstrologerAvailabilityClient } from "@/components/astrologer/availabili
 import { ErrorState } from "@/components/astrologer/ui/feedback";
 
 export const metadata: Metadata = {
-  title: "Availability & Working Hours | JyotishSetu Astrologer Portal",
+  title: "Availability & Working Hours | Karmic Ascension Astrologer Portal",
   description: "Configure weekly working schedules, breaks, and holiday time off.",
 };
 

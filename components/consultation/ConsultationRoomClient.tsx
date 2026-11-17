@@ -211,7 +211,7 @@ export function ConsultationRoomClient({
   const downloadTranscript = useCallback(() => {
     if (transcriptLines.length === 0) return;
     const content =
-      `JyotishSetu Consultation Session Transcript\n` +
+      `Karmic Ascension Consultation Session Transcript\n` +
       `Date: ${new Date().toLocaleDateString()}\n` +
       `Participants: ${isHost ? "Astrologer (Host)" : partnerName} & ${isHost ? partnerName : "Seeker"}\n` +
       `============================================================\n\n` +
@@ -599,7 +599,7 @@ export function ConsultationRoomClient({
       }
 
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("jyotishsetu:booking-updated"));
+        window.dispatchEvent(new CustomEvent("karmicascension:booking-updated"));
       }
 
       const exitPath = isHost ? "/astrologer/bookings" : "/customer/bookings";
@@ -1232,7 +1232,7 @@ export function ConsultationRoomClient({
         </div>
 
         <div className="text-center text-[11px] text-parchment/50">
-          JyotishSetu In-House Video Conferencing • All consultation notes remain confidential
+          Karmic Ascension In-House Video Conferencing • All consultation notes remain confidential
         </div>
       </div>
     );

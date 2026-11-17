@@ -9,8 +9,8 @@ import { AstrologerBroadcastHostClient } from "@/components/astrologer/Astrologe
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Host Live Broadcast | JyotishSetu Astrologer Portal",
-  description: "Start a real-time live streaming session for seekers on the JyotishSetu platform.",
+  title: "Host Live Broadcast | Karmic Ascension Astrologer Portal",
+  description: "Start a real-time live streaming session for seekers on the Karmic Ascension platform.",
 };
 
 export default async function AstrologerBroadcastPage() {

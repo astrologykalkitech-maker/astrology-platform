@@ -27,7 +27,7 @@ export default function GlobalError({
     // attempt a single automatic graceful reload to fetch the latest deployment assets,
     // using sessionStorage timestamp to prevent any infinite reload loops.
     if (isStaleAction && typeof window !== "undefined") {
-      const STALE_RELOAD_KEY = "jyotishsetu_last_stale_reload";
+      const STALE_RELOAD_KEY = "karmicascension_last_stale_reload";
       const lastReload = Number(sessionStorage.getItem(STALE_RELOAD_KEY) || 0);
       const now = Date.now();
       // If we haven't reloaded within the last 15 seconds, perform a clean reload

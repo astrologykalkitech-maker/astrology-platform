@@ -132,7 +132,7 @@ export default function SuperAdminCustomersPage() {
             Customer & Seeker Directory
           </h1>
           <p className="text-xs text-muted">
-            Total {totalCount} registered spiritual seekers on JyotishSetu.
+            Total {totalCount} registered spiritual seekers on Karmic Ascension.
           </p>
         </div>
         <button

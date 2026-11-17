@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const config = getJyotishPayConfig();
 
     if (!config.webhookSecret) {
-      console.error("[JyotishSetu Pay] Webhook rejected: JYOTISH_PAY_WEBHOOK_SECRET is not configured.");
+      console.error("[Karmic Ascension Pay] Webhook rejected: JYOTISH_PAY_WEBHOOK_SECRET is not configured.");
       return NextResponse.json(
         { success: false, error: "Payment webhook verification is not configured." },
         { status: 503 }
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     }
     const { data: session, error: sessionError } = await sessionQuery.maybeSingle();
     if (sessionError) {
-      console.error("[JyotishSetu Pay] Webhook session lookup failed:", sessionError);
+      console.error("[Karmic Ascension Pay] Webhook session lookup failed:", sessionError);
       return NextResponse.json(
         { success: false, error: "Could not resolve the payment session." },
         { status: 500 }
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
       .select("*")
       .maybeSingle();
     if (claimError) {
-      console.error("[JyotishSetu Pay] Webhook payment claim failed:", claimError);
+      console.error("[Karmic Ascension Pay] Webhook payment claim failed:", claimError);
       return NextResponse.json(
         { success: false, error: "Could not safely claim this payment for processing." },
         { status: 500 }
@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
       .select("id")
       .maybeSingle();
     if (sessionUpdateError || !sessionUpdate) {
-      console.error("[JyotishSetu Pay] Webhook QR session update failed:", sessionUpdateError);
+      console.error("[Karmic Ascension Pay] Webhook QR session update failed:", sessionUpdateError);
       return NextResponse.json(
         { success: false, error: "Payment was received but QR status could not be finalized." },
         { status: 500 }
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
       .select("id")
       .maybeSingle();
     if (intentUpdateError || !intentUpdate) {
-      console.error("[JyotishSetu Pay] Webhook intent update failed:", intentUpdateError);
+      console.error("[Karmic Ascension Pay] Webhook intent update failed:", intentUpdateError);
       return NextResponse.json(
         { success: false, error: "Payment was received but the intent could not be finalized." },
         { status: 500 }
@@ -284,7 +284,7 @@ export async function POST(req: NextRequest) {
       status: "completed",
     });
   } catch (error) {
-    console.error("[JyotishSetu Pay] Webhook error:", error);
+    console.error("[Karmic Ascension Pay] Webhook error:", error);
     return NextResponse.json(
       { success: false, error: "Webhook processing failed." },
       { status: 500 }

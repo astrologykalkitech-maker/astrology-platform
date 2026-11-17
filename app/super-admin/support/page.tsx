@@ -6,7 +6,7 @@ import AdminSupportDeskClient from "./AdminSupportDeskClient";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Support Desk & Escalations | Super Admin | JyotishSetu",
+  title: "Support Desk & Escalations | Super Admin | Karmic Ascension",
   description: "Centralized support management, Gemini AI escalation queue, customer care, and consultant inquiries.",
 };
 

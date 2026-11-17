@@ -1,6 +1,6 @@
 /**
  * Dedicated Client-Side Numerology Vector PDF Generator
- * Generates an authoritative PDF report matching the JyotishSetu visual brand.
+ * Generates an authoritative PDF report matching the Karmic Ascension visual brand.
  */
 
 import { jsPDF } from "jspdf";
@@ -200,11 +200,11 @@ export function generateNumerologyPdf(report: ComprehensiveNumerologyReport): vo
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 160);
   doc.text(
-    "JyotishSetu Authentic Vedic & Chaldean Calculation Engine • Private & Confidential",
+    "Karmic Ascension Authentic Vedic & Chaldean Calculation Engine • Private & Confidential",
     14,
     290
   );
 
-  doc.save(`JyotishSetu_Numerology_${report.input.fullName.replace(/\s+/g, "_")}.pdf`);
+  doc.save(`Karmic Ascension_Numerology_${report.input.fullName.replace(/\s+/g, "_")}.pdf`);
 }
 

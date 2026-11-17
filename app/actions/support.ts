@@ -199,7 +199,7 @@ export async function createSupportTicketAction(payload: {
             ticket_id: ticket.id,
             sender_id: item.role === "user" ? user.id : null,
             sender_role: item.role === "user" ? role : "ai",
-            sender_name: item.role === "user" ? name : "JyotishSetu AI Assistant",
+            sender_name: item.role === "user" ? name : "Karmic Ascension AI Assistant",
             message: item.content,
             is_internal: false,
           });

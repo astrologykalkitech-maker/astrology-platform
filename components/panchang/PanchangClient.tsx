@@ -53,7 +53,7 @@ export function PanchangClient({
   // Restore client-side local storage preference if available on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("jyotishsetu_panchang_pref");
+      const saved = localStorage.getItem("karmicascension_panchang_pref");
       if (saved) {
         const parsed: PanchangLocation = JSON.parse(saved);
         if (
@@ -121,7 +121,7 @@ export function PanchangClient({
     setLocationInput(suggestion.formatted || `${cityName}${stateName ? `, ${stateName}` : ""}`);
 
     try {
-      localStorage.setItem("jyotishsetu_panchang_pref", JSON.stringify(newLoc));
+      localStorage.setItem("karmicascension_panchang_pref", JSON.stringify(newLoc));
     } catch {
       // Ignore
     }
@@ -167,7 +167,7 @@ export function PanchangClient({
     setIsSavingPref(true);
     setSaveSuccess(false);
     try {
-      localStorage.setItem("jyotishsetu_panchang_pref", JSON.stringify(currentLocation));
+      localStorage.setItem("karmicascension_panchang_pref", JSON.stringify(currentLocation));
       const res = await saveCustomerPanchangPreferenceAction({
         city: currentLocation.city,
         state: currentLocation.state,

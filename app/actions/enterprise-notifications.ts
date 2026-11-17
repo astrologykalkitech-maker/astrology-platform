@@ -73,7 +73,7 @@ export async function getEligibleAstrologerRecipients(): Promise<{
         id: a.id,
         userId: a.user_id,
         name,
-        email: `${slug}@jyotishsetu.test`,
+        email: `${slug}@karmicascension.test`,
         profilePhotoUrl: a.profile_photo_url,
         approvalStatus: a.approval_status || "pending",
         experienceYears: a.experience_years,

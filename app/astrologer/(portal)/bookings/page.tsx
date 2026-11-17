@@ -10,7 +10,7 @@ import AstrologerBookingsClient from "@/components/astrologer/bookings/Astrologe
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "My Consultation Bookings | JyotishSetu",
+  title: "My Consultation Bookings | Karmic Ascension",
   description: "Manage upcoming and historical Vedic consultation sessions with customers.",
 };
 

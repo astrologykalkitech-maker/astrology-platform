@@ -7,7 +7,7 @@ import { PlanetaryTransitsClient } from "@/components/customer/PlanetaryTransits
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Planetary Transits & Vedic Gochara | JyotishSetu",
+  title: "Planetary Transits & Vedic Gochara | Karmic Ascension",
   description: "Live planetary transits for all 9 Grahas, Sade Sati status, House effects, and transit timelines grounded in Chitrapaksha Lahiri Ayanamsa.",
 };
 

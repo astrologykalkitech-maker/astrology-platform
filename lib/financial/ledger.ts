@@ -217,7 +217,7 @@ export async function recordSubscriptionPaymentInLedger(params: {
 }
 
 /**
- * General financial transaction recorder for JyotishSetu Pay orchestration.
+ * General financial transaction recorder for Karmic Ascension Pay orchestration.
  */
 export async function recordFinancialTransaction(params: {
   entityType: "consultation" | "subscription";

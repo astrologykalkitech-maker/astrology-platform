@@ -31,7 +31,7 @@ const report01 = `# JYOTISHSETU — MASTER TECHNICAL AUDIT REPORT
 
 ### 1. Executive Summary & Production Readiness Verdict
 
-The **JyotishSetu** codebase is a mature, highly sophisticated Vedic Astrology Consultation & Lead Distribution Platform built on Next.js 16 (Canary App Router with React 19.2 and Turbopack). The application implements three unified role-specific dashboards:
+The **Karmic Ascension** codebase is a mature, highly sophisticated Vedic Astrology Consultation & Lead Distribution Platform built on Next.js 16 (Canary App Router with React 19.2 and Turbopack). The application implements three unified role-specific dashboards:
 1. **Customer Portal** (\`/customer/*\`): Multi-specialty astrologer discovery, real-time consultation booking, Muhurat-locked WebRTC in-house video consultations, full Vedic horoscope (Kundli, Panchang, Ashtakoota Milan) calculations, lead enquiries, billing, and AI customer support.
 2. **Astrologer Portal** (\`/astrologer/*\`): Practitioner onboarding, weekly schedule & slot configuration, direct/platform lead CRM, appointment desk, in-house LiveKit video host console (with mute, dismiss, live transcription, and post-session AI summary), direct messaging, customer notes, earnings analytics, and review management.
 3. **Super Admin Dashboard** (\`/super-admin/*\`): High-level operational telemetry, listings approval desk, central lead triage and assignment, consultation oversight, administrative staff RBAC delegation, and immutable security audit logs.
@@ -67,7 +67,7 @@ The **JyotishSetu** codebase is a mature, highly sophisticated Vedic Astrology C
 ### 3. Repository Architecture & File Inventory Summary
 
 \`\`\`
-JyotishSetu Repository Architecture
+Karmic Ascension Repository Architecture
 ├── app/
 │   ├── actions/                  # 20 Server Actions (Admin, Astrologer, Customer, Bookings, Leads)
 │   ├── api/                      # 13 REST API endpoints (LiveKit token, Webhooks, Geocode, Kundli)
@@ -95,7 +95,7 @@ JyotishSetu Repository Architecture
 
 ### 4. Dual-Database Topology & Data Isolation Strategy
 
-JyotishSetu utilizes an architectural split between **Customer/Business Operations** and **Internal Administration**:
+Karmic Ascension utilizes an architectural split between **Customer/Business Operations** and **Internal Administration**:
 
 \`\`\`
                  ┌────────────────────────────────────────────────────────┐

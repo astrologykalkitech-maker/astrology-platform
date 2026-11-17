@@ -32,7 +32,7 @@ export function getWebRtcIceServers(): IceServerConfig[] {
     if (turnSecret) {
       // Ephemeral time-limited credentials (standard coturn REST API)
       const expiry = Math.floor(Date.now() / 1000) + 24 * 3600; // 24 hours
-      const username = `${expiry}:jyotishsetu`;
+      const username = `${expiry}:karmicascension`;
       const hmac = crypto.createHmac("sha1", turnSecret);
       hmac.update(username);
       const credential = hmac.digest("base64");

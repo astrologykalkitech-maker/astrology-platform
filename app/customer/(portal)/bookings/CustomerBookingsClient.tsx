@@ -90,12 +90,12 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
     const handleLocalSync = () => {
       router.refresh();
     };
-    window.addEventListener("jyotishsetu:booking-created", handleLocalSync);
-    window.addEventListener("jyotishsetu:booking-updated", handleLocalSync);
+    window.addEventListener("karmicascension:booking-created", handleLocalSync);
+    window.addEventListener("karmicascension:booking-updated", handleLocalSync);
 
     return () => {
-      window.removeEventListener("jyotishsetu:booking-created", handleLocalSync);
-      window.removeEventListener("jyotishsetu:booking-updated", handleLocalSync);
+      window.removeEventListener("karmicascension:booking-created", handleLocalSync);
+      window.removeEventListener("karmicascension:booking-updated", handleLocalSync);
       if (channel) {
         createClient().removeChannel(channel);
       }
@@ -128,7 +128,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
     setBookings((prev) =>
       prev.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b))
     );
-    window.dispatchEvent(new CustomEvent("jyotishsetu:booking-updated"));
+    window.dispatchEvent(new CustomEvent("karmicascension:booking-updated"));
 
     const res = await cancelCustomerBookingAction(id, "Cancelled by user via customer portal");
     setCancellingId(null);

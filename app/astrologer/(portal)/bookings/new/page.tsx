@@ -4,7 +4,7 @@ import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import BookingForm from "./BookingForm";
 
 export const metadata = {
-  title: "Create Booking | JyotishSetu",
+  title: "Create Booking | Karmic Ascension",
   description: "Schedule a new consultation booking for a customer.",
 };
 

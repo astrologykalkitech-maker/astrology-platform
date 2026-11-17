@@ -94,7 +94,7 @@ function CustomerSidebarComponent({ open, isLoggedIn = true, onNavigate, onClose
     >
       <Image
         src="/images/jyotishsetu/sidebar-palace-art.webp"
-        alt="JyotishSetu Palace Art"
+        alt="Karmic Ascension Palace Art"
         fill
         priority
         sizes="288px"
@@ -113,7 +113,7 @@ function CustomerSidebarComponent({ open, isLoggedIn = true, onNavigate, onClose
             </div>
             <div>
               <p className="font-display text-sm font-bold tracking-wide text-champagne">
-                JyotishSetu
+                Karmic Ascension
               </p>
               <p className="text-[10px] text-ivory/60">Seeker Portal</p>
             </div>

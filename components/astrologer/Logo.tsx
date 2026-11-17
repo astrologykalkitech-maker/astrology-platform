@@ -35,7 +35,7 @@ export function Logo({ tone = "light", showTagline = true, tagline = "Bridging W
       <Emblem light={isLight} />
       <span className="flex flex-col leading-tight">
         <span className={`font-display text-xl font-semibold tracking-wide ${isLight ? "text-champagne" : "text-midnight"}`}>
-          JyotishSetu
+          Karmic Ascension
         </span>
         {showTagline && (
           <span className={`text-[10px] tracking-wide max-[360px]:hidden ${isLight ? "text-ivory/65" : "text-muted"}`}>

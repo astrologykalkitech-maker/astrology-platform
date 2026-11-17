@@ -56,7 +56,7 @@ export default function AstrologerSupportInteractiveClient() {
     {
       role: "assistant",
       content:
-        "Namaste Pandit ji! I am your JyotishSetu Consultant Support Assistant. I can assist you with profile moderation status, lead pipeline workflows, consultation room operations, and fee settings. If you need administrative assistance from our Super Admin desk, you can request human escalation at any time.",
+        "Namaste Pandit ji! I am your Karmic Ascension Consultant Support Assistant. I can assist you with profile moderation status, lead pipeline workflows, consultation room operations, and fee settings. If you need administrative assistance from our Super Admin desk, you can request human escalation at any time.",
     },
   ]);
 
@@ -404,7 +404,7 @@ export default function AstrologerSupportInteractiveClient() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-deep animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </span>
-                  <span>JyotishSetu is thinking...</span>
+                  <span>Karmic Ascension is thinking...</span>
                 </div>
               )}
             </div>

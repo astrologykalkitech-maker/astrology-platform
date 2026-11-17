@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (bookingError) {
-        console.error("[JyotishSetu Pay] Booking lookup failed:", bookingError);
+        console.error("[Karmic Ascension Pay] Booking lookup failed:", bookingError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the booking." },
           { status: 500 }
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         .eq("status", "succeeded")
         .limit(1);
       if (successfulIntentError) {
-        console.error("[JyotishSetu Pay] Existing payment lookup failed:", successfulIntentError);
+        console.error("[Karmic Ascension Pay] Existing payment lookup failed:", successfulIntentError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the booking payment status." },
           { status: 500 }
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         .in("status", ["pending", "verified"])
         .limit(1);
       if (directPaymentError) {
-        console.error("[JyotishSetu Pay] Direct payment lookup failed:", directPaymentError);
+        console.error("[Karmic Ascension Pay] Direct payment lookup failed:", directPaymentError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the booking payment status." },
           { status: 500 }
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         .eq("status", "successful")
         .limit(1);
       if (orderError) {
-        console.error("[JyotishSetu Pay] Existing gateway order lookup failed:", orderError);
+        console.error("[Karmic Ascension Pay] Existing gateway order lookup failed:", orderError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the booking payment status." },
           { status: 500 }
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         .gt("expires_at", new Date().toISOString())
         .limit(1);
       if (activeIntentError) {
-        console.error("[JyotishSetu Pay] Active payment intent lookup failed:", activeIntentError);
+        console.error("[Karmic Ascension Pay] Active payment intent lookup failed:", activeIntentError);
         return NextResponse.json(
           { success: false, error: "Unable to validate existing payment sessions." },
           { status: 500 }
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle();
       if (astrologerError) {
-        console.error("[JyotishSetu Pay] Astrologer profile lookup failed:", astrologerError);
+        console.error("[Karmic Ascension Pay] Astrologer profile lookup failed:", astrologerError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the astrologer profile." },
           { status: 500 }
@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
         .eq("id", body.plan_id)
         .maybeSingle();
       if (planError) {
-        console.error("[JyotishSetu Pay] Payment plan lookup failed:", planError);
+        console.error("[Karmic Ascension Pay] Payment plan lookup failed:", planError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the selected plan." },
           { status: 500 }
@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
         .eq("astrologer_id", astrologer.id)
         .maybeSingle();
       if (subscriptionError) {
-        console.error("[JyotishSetu Pay] Subscription lookup failed:", subscriptionError);
+        console.error("[Karmic Ascension Pay] Subscription lookup failed:", subscriptionError);
         return NextResponse.json(
           { success: false, error: "Unable to validate the current subscription." },
           { status: 500 }
@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
         .gt("expires_at", new Date().toISOString())
         .limit(1);
       if (activeIntentError) {
-        console.error("[JyotishSetu Pay] Active subscription intent lookup failed:", activeIntentError);
+        console.error("[Karmic Ascension Pay] Active subscription intent lookup failed:", activeIntentError);
         return NextResponse.json(
           { success: false, error: "Unable to validate existing payment sessions." },
           { status: 500 }
@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
 
     const { error: intentError } = await supabase.from("payment_intents").insert(intentRecord);
     if (intentError) {
-      console.error("[JyotishSetu Pay] Payment intent insert failed:", intentError);
+      console.error("[Karmic Ascension Pay] Payment intent insert failed:", intentError);
       return NextResponse.json(
         { success: false, error: "Could not create a persistent payment intent. Please try again." },
         { status: 503 }
@@ -325,13 +325,13 @@ export async function POST(req: NextRequest) {
       .from("qr_payment_sessions")
       .insert(qrSessionRecord);
     if (sessionError) {
-      console.error("[JyotishSetu Pay] QR session insert failed:", sessionError);
+      console.error("[Karmic Ascension Pay] QR session insert failed:", sessionError);
       const { error: intentCleanupError } = await supabase
         .from("payment_intents")
         .update({ status: "failed", error_code: "QR_SESSION_CREATE_FAILED", updated_at: new Date().toISOString() })
         .eq("id", intentId);
       if (intentCleanupError) {
-        console.error("[JyotishSetu Pay] Failed to close incomplete payment intent:", intentCleanupError);
+        console.error("[Karmic Ascension Pay] Failed to close incomplete payment intent:", intentCleanupError);
       }
       return NextResponse.json(
         { success: false, error: "Could not create a persistent QR session. Please try again." },
@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[JyotishSetu Pay] Intent creation error:", error);
+    console.error("[Karmic Ascension Pay] Intent creation error:", error);
     const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
     return NextResponse.json(
       { success: false, error: isAuthError ? "Authentication required." : "Failed to create payment intent." },

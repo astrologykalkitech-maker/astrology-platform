@@ -7,7 +7,7 @@ import { ManualPaymentVerificationClient } from "@/components/admin/ManualPaymen
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Manual Payment Verification | JyotishSetu Super Admin",
+  title: "Manual Payment Verification | Karmic Ascension Super Admin",
   description: "Review direct consultation payment UTRs and commission settlement payments against bank evidence.",
 };
 

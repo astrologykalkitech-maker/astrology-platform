@@ -55,7 +55,7 @@ export default async function SuperAdminVerificationPage() {
     user_id: a.user_id,
     full_name: a.display_name || profileMap[a.user_id]?.full_name || "New Applicant",
     display_name: a.display_name || "New Applicant",
-    email: `${a.slug || a.id.slice(0, 8)}@jyotishsetu.test`,
+    email: `${a.slug || a.id.slice(0, 8)}@karmicascension.test`,
     approval_status: a.approval_status || "pending",
     is_approved: a.approval_status === "approved",
     specializations: a.specializations || [],

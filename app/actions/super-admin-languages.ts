@@ -52,7 +52,7 @@ export async function getSuperAdminLanguagePreferences() {
         profile: {
           id: p.id,
           full_name: p.full_name || "Platform Seeker",
-          email: `${(p.full_name || "user").toLowerCase().replace(/[^a-z0-9]/g, "")}_${p.id.slice(0, 4)}@jyotishsetu.test`,
+          email: `${(p.full_name || "user").toLowerCase().replace(/[^a-z0-9]/g, "")}_${p.id.slice(0, 4)}@karmicascension.test`,
           role: p.role || "customer",
         },
       };

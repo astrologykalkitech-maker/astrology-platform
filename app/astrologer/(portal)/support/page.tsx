@@ -8,7 +8,7 @@ import AstrologerSupportInteractiveClient from "./AstrologerSupportInteractiveCl
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Astrologer Support & Escalations | JyotishSetu",
+  title: "Astrologer Support & Escalations | Karmic Ascension",
   description: "AI-powered assistance and direct Super Admin escalation for lead management, profile moderation, or consultations.",
 };
 

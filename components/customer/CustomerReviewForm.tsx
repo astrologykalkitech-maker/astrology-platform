@@ -82,7 +82,7 @@ export function CustomerReviewForm({ leadId, initialReview, astrologerName }: Pr
             <Star className="h-4 w-4 text-gold-deep fill-gold-deep" /> Rate Your Consultation Experience
           </h4>
           <p className="text-xs text-muted mt-0.5">
-            Share authentic feedback to bless {astrologerName}&rsquo;s guidance on JyotishSetu.
+            Share authentic feedback to bless {astrologerName}&rsquo;s guidance on Karmic Ascension.
           </p>
         </div>
 

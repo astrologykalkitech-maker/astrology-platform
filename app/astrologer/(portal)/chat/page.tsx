@@ -8,7 +8,7 @@ import { AstrologerChatClient } from "@/components/astrologer/chat/AstrologerCha
 import { ErrorState } from "@/components/astrologer/ui/feedback";
 
 export const metadata: Metadata = {
-  title: "Direct Messages | JyotishSetu Astrologer Portal",
+  title: "Direct Messages | Karmic Ascension Astrologer Portal",
   description: "One-to-one consultation messaging with seekers.",
 };
 

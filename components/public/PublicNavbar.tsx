@@ -107,7 +107,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
         <Link
           href="/"
           className="flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-gold"
-          aria-label="JyotishSetu Home"
+          aria-label="Karmic Ascension Home"
           onClick={() => setMobileMenuOpen(false)}
         >
           <Logo tone="light" showTagline={true} tagline="Bridging Wisdom, Connecting Lives" />

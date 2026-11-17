@@ -10,7 +10,7 @@ import { CustomerChatClient } from "@/components/customer/chat/CustomerChatClien
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Astrologer Consultation Chat | JyotishSetu Seeker Portal",
+  title: "Astrologer Consultation Chat | Karmic Ascension Seeker Portal",
   description: "Direct real-time consultation messaging with your verified Vedic astrologers.",
 };
 

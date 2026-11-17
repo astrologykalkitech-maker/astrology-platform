@@ -1,4 +1,4 @@
-# JyotishSetu — Notification Sound Failure Root Cause Investigation Report
+# Karmic Ascension — Notification Sound Failure Root Cause Investigation Report
 
 **Date:** November 16, 2026  
 **Auditor:** Senior Next.js, React, Supabase Realtime & WebRTC Debugging Engineer  
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-A comprehensive, end-to-end audit was conducted across the event delivery and audio playback pipelines in JyotishSetu covering both the **Customer Dashboard** and **Astrologer Dashboard**.
+A comprehensive, end-to-end audit was conducted across the event delivery and audio playback pipelines in Karmic Ascension covering both the **Customer Dashboard** and **Astrologer Dashboard**.
 
 The investigation examined:
 1. **Audio Engine Initialization & Browser Autoplay Policies**
@@ -104,7 +104,7 @@ The failure of notification sounds to play was caused by a combination of **Supa
   - `components/customer/CustomerShell.tsx`
   - `components/astrologer/PortalShell.tsx`
 - **Actual Code Behavior:**
-  The `supabase.channel("jyotishsetu-live-consultation-chat")` subscription is only instantiated inside `CustomerChatClient.tsx` and `AstrologerChatClient.tsx`.
+  The `supabase.channel("karmicascension-live-consultation-chat")` subscription is only instantiated inside `CustomerChatClient.tsx` and `AstrologerChatClient.tsx`.
   When an astrologer or customer navigates anywhere else in their dashboard (e.g., `/astrologer/dashboard`, `/astrologer/bookings`, `/customer/astrologers`, `/customer/kundli`), `CustomerChatClient` and `AstrologerChatClient` are unmounted.
 - **Why Sound Does Not Play:**
   If a customer sends a message while the astrologer is on their Dashboard or Bookings page, **no listener exists** to detect the message, and therefore no sound alert plays. The sound only played if the user happened to already be looking at `/chat`.

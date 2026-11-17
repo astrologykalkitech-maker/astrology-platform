@@ -9,7 +9,7 @@ import { CustomerFavoriteListClient } from "@/components/customer/CustomerFavori
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "My Favourite Astrologers | JyotishSetu",
+  title: "My Favourite Astrologers | Karmic Ascension",
   description: "Quick access to your trusted Vedic astrologers, real-time availability, and direct consultations.",
 };
 

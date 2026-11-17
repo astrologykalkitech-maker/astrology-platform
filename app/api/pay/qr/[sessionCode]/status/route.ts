@@ -25,7 +25,7 @@ export async function GET(
       .maybeSingle();
 
     if (sessionError) {
-      console.error("[JyotishSetu Pay] QR status lookup failed:", sessionError);
+      console.error("[Karmic Ascension Pay] QR status lookup failed:", sessionError);
       return NextResponse.json(
         { success: false, error: "Payment status is temporarily unavailable." },
         { status: 503 }
@@ -47,7 +47,7 @@ export async function GET(
         .eq("user_id", user.id)
         .maybeSingle();
       if (astrologerError) {
-        console.error("[JyotishSetu Pay] QR status owner lookup failed:", astrologerError);
+        console.error("[Karmic Ascension Pay] QR status owner lookup failed:", astrologerError);
         return NextResponse.json(
           { success: false, error: "Payment status is temporarily unavailable." },
           { status: 503 }
@@ -70,7 +70,7 @@ export async function GET(
       .limit(1)
       .maybeSingle();
     if (verificationError) {
-      console.error("[JyotishSetu Pay] UTR review status lookup failed:", verificationError);
+      console.error("[Karmic Ascension Pay] UTR review status lookup failed:", verificationError);
       return NextResponse.json(
         { success: false, error: "Payment review status is temporarily unavailable." },
         { status: 503 }
@@ -107,7 +107,7 @@ export async function GET(
         .eq("intent_id", qrSession.intent_id)
         .maybeSingle();
       if (receiptError) {
-        console.error("[JyotishSetu Pay] Verified receipt lookup failed:", receiptError);
+        console.error("[Karmic Ascension Pay] Verified receipt lookup failed:", receiptError);
         return NextResponse.json(
           { success: false, error: "Verified payment receipt is temporarily unavailable." },
           { status: 503 }
@@ -129,7 +129,7 @@ export async function GET(
       expiresAt: qrSession.expires_at,
     });
   } catch (error) {
-    console.error("[JyotishSetu Pay] QR status check error:", error);
+    console.error("[Karmic Ascension Pay] QR status check error:", error);
     const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
     return NextResponse.json(
       { success: false, error: isAuthError ? "Authentication required." : "Failed to check payment status." },

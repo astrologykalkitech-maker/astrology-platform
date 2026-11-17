@@ -6,7 +6,7 @@ import { ReportsLibraryClient } from "@/components/customer/ReportsLibraryClient
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Advanced Astrology Report Library | JyotishSetu",
+  title: "Advanced Astrology Report Library | Karmic Ascension",
   description: "Generate and access comprehensive Vedic astrology reports including Full Janam Kundli, Career, Marriage, and Dasha Analysis.",
 };
 

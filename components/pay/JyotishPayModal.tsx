@@ -69,7 +69,7 @@ export function JyotishPayModal({
   const [sessionAmountPaise, setSessionAmountPaise] = useState<number | null>(null);
   const [upiUri, setUpiUri] = useState<string | null>(null);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
-  const [merchantVpa, setMerchantVpa] = useState<string>("jyotishsetu@upi");
+  const [merchantVpa, setMerchantVpa] = useState<string>("karmicascension@upi");
   const [status, setStatus] = useState<
     "initiating" | "active" | "pending_verification" | "completed" | "rejected" | "expired"
   >("initiating");
@@ -136,7 +136,7 @@ export function JyotishPayModal({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to initialize JyotishSetu Pay");
+        throw new Error(data.error || "Failed to initialize Karmic Ascension Pay");
       }
 
       setSessionCode(data.qrSession.sessionCode);
@@ -371,7 +371,7 @@ export function JyotishPayModal({
           <div className="flex items-center space-x-2.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <h3 className="font-semibold text-sm sm:text-base text-amber-200 tracking-wide">
-              JyotishSetu Pay
+              Karmic Ascension Pay
             </h3>
             <span className="text-[10px] bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded-full border border-amber-500/30 font-medium">
               UPI DIRECT
@@ -459,7 +459,7 @@ export function JyotishPayModal({
                     <Clock className="h-3.5 w-3.5 text-amber-400" />
                     <span>Expires in: <strong className="font-mono text-amber-200">{minutes}:{seconds < 10 ? `0${seconds}` : seconds}</strong></span>
                   </div>
-                  <span className="text-slate-400 text-[11px]">Payee: <strong className="text-slate-200">JyotishSetu</strong></span>
+                  <span className="text-slate-400 text-[11px]">Payee: <strong className="text-slate-200">Karmic Ascension</strong></span>
                 </div>
               </div>
 

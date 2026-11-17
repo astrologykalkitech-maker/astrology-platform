@@ -224,7 +224,7 @@ export function AstrologerSubscriptionClient({
         />
       )}
 
-      {/* JyotishSetu Pay Native Payment Modal */}
+      {/* Karmic Ascension Pay Native Payment Modal */}
       {selectedPlanForPay && (
         <JyotishPayModal
           isOpen={isPayModalOpen}
@@ -242,7 +242,7 @@ export function AstrologerSubscriptionClient({
       <div className="flex items-center gap-2 p-3 rounded-xl border border-gold/20 bg-parchment/40 text-[11px] text-muted">
         <Shield className="h-4 w-4 text-emerald-600 shrink-0" />
         <span>
-          Policy: Subscriptions use 100% manual renewal powered by JyotishSetu Pay. No auto-deductions occur on your payment card or bank.
+          Policy: Subscriptions use 100% manual renewal powered by Karmic Ascension Pay. No auto-deductions occur on your payment card or bank.
         </span>
       </div>
     </div>

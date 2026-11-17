@@ -5,7 +5,7 @@ import { getOrCreateConsultationMeeting } from "@/app/actions/consultation-meeti
 import { ConsultationRoomClient } from "@/components/consultation/ConsultationRoomClient";
 
 export const metadata: Metadata = {
-  title: "Live Vedic Consultation | JyotishSetu",
+  title: "Live Vedic Consultation | Karmic Ascension",
   description: "Secure, confidential, in-house video consultation room.",
 };
 

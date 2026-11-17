@@ -26,7 +26,7 @@ import { isValidUUID } from "@/lib/validations/lead";
 import type { ConsultationMessage } from "@/lib/types/database.types";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 
-export const metadata: Metadata = { title: "Lead Details | JyotishSetu" };
+export const metadata: Metadata = { title: "Lead Details | Karmic Ascension" };
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAstrologerPage();

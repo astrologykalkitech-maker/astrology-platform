@@ -527,44 +527,44 @@ export function generateGreetingResponse(role: "customer" | "astrologer", query:
   // Namaste variations
   if (/\b(namaste|namaskar|namaskaram|pranam|pranaam|vandanam|vanakkam)\b/.test(clean)) {
     if (role === "astrologer") {
-      return "Namaste! Welcome to JyotishSetu Astrologer Support. How may I assist you with your consultations, leads, or profile today?";
+      return "Namaste! Welcome to Karmic Ascension Astrologer Support. How may I assist you with your consultations, leads, or profile today?";
     }
-    return "Namaste! Welcome to JyotishSetu. How may I assist you today? You can ask me about consultations, astrologers, your Kundli birth chart, or bookings.";
+    return "Namaste! Welcome to Karmic Ascension. How may I assist you today? You can ask me about consultations, astrologers, your Kundli birth chart, or bookings.";
   }
 
   // Good morning / afternoon / evening
   if (/\bgood\s*morning\b/.test(clean)) {
     return role === "astrologer"
-      ? "Good morning! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
-      : "Good morning! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+      ? "Good morning! Welcome to Karmic Ascension Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good morning! Welcome to Karmic Ascension. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
   }
 
   if (/\bgood\s*afternoon\b/.test(clean)) {
     return role === "astrologer"
-      ? "Good afternoon! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
-      : "Good afternoon! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+      ? "Good afternoon! Welcome to Karmic Ascension Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good afternoon! Welcome to Karmic Ascension. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
   }
 
   if (/\bgood\s*evening\b/.test(clean)) {
     return role === "astrologer"
-      ? "Good evening! Welcome to JyotishSetu Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
-      : "Good evening! Welcome to JyotishSetu. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
+      ? "Good evening! Welcome to Karmic Ascension Astrologer Support. How can I help you today? Feel free to ask about your leads, consultation room setup, or earnings."
+      : "Good evening! Welcome to Karmic Ascension. How can I help you today? Feel free to ask about astrologer consultations, your Kundli profile, or upcoming bookings.";
   }
 
   // How are you / Kaise ho
   if (/\b(how\s*are\s*you|how\s*r\s*u|how\s*do\s*you\s*do|kaise\s*ho|kya\s*haal\s*hai)\b/.test(clean)) {
     if (/\b(kaise\s*ho|kya\s*haal\s*hai)\b/.test(clean)) {
-      return "Main bilkul theek hoon, dhanyawad! JyotishSetu mein aapka swagat hai. Main aapki kya sahayata kar sakta hoon?";
+      return "Main bilkul theek hoon, dhanyawad! Karmic Ascension mein aapka swagat hai. Main aapki kya sahayata kar sakta hoon?";
     }
     if (role === "astrologer") {
-      return "I'm doing well, thank you! Welcome to JyotishSetu Astrologer Care. How can I assist you with your schedule, leads, or consultations today?";
+      return "I'm doing well, thank you! Welcome to Karmic Ascension Astrologer Care. How can I assist you with your schedule, leads, or consultations today?";
     }
-    return "I'm doing well, thank you! Welcome to JyotishSetu. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
+    return "I'm doing well, thank you! Welcome to Karmic Ascension. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
   }
 
   // Default friendly greeting (hi, hello, hey, hey there, etc.)
   if (role === "astrologer") {
-    return "Hello! Welcome to JyotishSetu Astrologer Support. How can I help you today? You can ask about your assigned leads, upcoming bookings, earnings, or profile verification.";
+    return "Hello! Welcome to Karmic Ascension Astrologer Support. How can I help you today? You can ask about your assigned leads, upcoming bookings, earnings, or profile verification.";
   }
-  return "Hi! Welcome to JyotishSetu. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
+  return "Hi! Welcome to Karmic Ascension. How can I help you today? You can ask me about consultations, bookings, astrologers, birth details, or platform support.";
 }

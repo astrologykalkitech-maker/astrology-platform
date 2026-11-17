@@ -8,7 +8,7 @@ import { CustomerAstrologyToolsClient } from "@/components/customer/CustomerAstr
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Astrology Tools & Advanced Vedic Calculators | JyotishSetu",
+  title: "Astrology Tools & Advanced Vedic Calculators | Karmic Ascension",
   description: "Comprehensive Vedic astrology tools: KP Astrology, 16 Divisional Charts, Shadbala, Ashtakavarga, Sacred Tarot, and Numerology.",
 };
 

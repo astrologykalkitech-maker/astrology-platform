@@ -20,7 +20,7 @@ export interface ReceiptData {
 }
 
 /**
- * Generates an official, branded JyotishSetu PDF receipt.
+ * Generates an official, branded Karmic Ascension PDF receipt.
  * Works both in client-side download and returns ArrayBuffer/Blob.
  */
 export function generatePaymentReceiptPdf(data: ReceiptData): jsPDF {
@@ -167,7 +167,7 @@ export function generatePaymentReceiptPdf(data: ReceiptData): jsPDF {
     footerY + 8
   );
   doc.text(
-    "For customer queries, cancellations, or support, please visit: https://jyotishsetu.com/support",
+    "For customer queries, cancellations, or support, please visit: https://karmicascension.com/support",
     20,
     footerY + 13
   );

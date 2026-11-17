@@ -3,7 +3,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { requireConsultantAdminPage } from "@/lib/auth/admin-guard";
 
 export const metadata = {
-  title: "Consultant Admin Portal | JyotishSetu",
+  title: "Consultant Admin Portal | Karmic Ascension",
   description: "Consultant operations and assigned lead management portal.",
 };
 

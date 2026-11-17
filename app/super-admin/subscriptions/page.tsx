@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Astrologer Subscription Management | JyotishSetu Super Admin",
+  title: "Astrologer Subscription Management | Karmic Ascension Super Admin",
   description: "Monitor and manage astrologer subscriptions, cancellations, downgrades, extensions, and audit logs.",
 };
 

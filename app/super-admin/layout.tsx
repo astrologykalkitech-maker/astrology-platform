@@ -3,7 +3,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { requireSuperAdminPage } from "@/lib/auth/admin-guard";
 
 export const metadata = {
-  title: "Super Admin Command Center | JyotishSetu",
+  title: "Super Admin Command Center | Karmic Ascension",
   description: "Platform owner administration and management dashboard.",
 };
 

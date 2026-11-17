@@ -1,5 +1,5 @@
 /**
- * JyotishSetu Pay — Core Type Definitions
+ * Karmic Ascension Pay — Core Type Definitions
  * 
  * Indigenous Fintech & Payment Orchestration System
  * Strict integer-paise arithmetic, state machines, and reconciliation models.

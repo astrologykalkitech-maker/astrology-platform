@@ -88,7 +88,7 @@ export default function BookingForm({
 
       // Notify realtime sync & bust Next.js client router cache immediately
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("jyotishsetu:booking-created"));
+        window.dispatchEvent(new CustomEvent("karmicascension:booking-created"));
       }
       router.refresh();
       router.replace("/astrologer/bookings");

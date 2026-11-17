@@ -230,7 +230,7 @@ export function ProfileForm({ profile }: { profile: AstrologerProfile | null }) 
                 value={upiVpa}
                 onChange={(e) => setUpiVpa(e.target.value)}
                 placeholder="name@bank"
-                hint="Customers with a booking will use this UPI ID to pay you directly. JyotishSetu never verifies a payment from a submitted UTR alone."
+                hint="Customers with a booking will use this UPI ID to pay you directly. Karmic Ascension never verifies a payment from a submitted UTR alone."
               />
               
               {/* Dynamic Per-Minute Consultation Rates */}

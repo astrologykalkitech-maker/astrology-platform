@@ -14,7 +14,7 @@ import {
   type AccountPresenceRole,
 } from "@/lib/chat/presence";
 
-const ACCOUNT_PRESENCE_CHANNEL = "jyotishsetu-account-presence";
+const ACCOUNT_PRESENCE_CHANNEL = "karmicascension-account-presence";
 const AccountPresenceContext = createContext<ReadonlySet<string>>(new Set());
 
 export function useAccountPresence() {

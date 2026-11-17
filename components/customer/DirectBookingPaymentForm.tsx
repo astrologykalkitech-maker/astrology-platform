@@ -76,8 +76,8 @@ export function DirectBookingPaymentForm({ booking }: { booking: CustomerBooking
           <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${payment.status === "verified" ? "text-emerald-600" : "text-amber-600"}`} />
           <p>
             {payment.status === "verified"
-              ? "Payment verified by JyotishSetu Super Admin."
-              : "This payment was marked refunded by JyotishSetu Super Admin."}
+              ? "Payment verified by Karmic Ascension Super Admin."
+              : "This payment was marked refunded by Karmic Ascension Super Admin."}
             {" "}Reference: <span className="font-mono">{payment.utr}</span>
           </p>
         </div>

@@ -9,7 +9,7 @@ import { CustomerPujaBookingClient } from "@/components/customer/CustomerPujaBoo
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Online Sacred Pujas & Havans | JyotishSetu",
+  title: "Online Sacred Pujas & Havans | Karmic Ascension",
   description: "Book authentic Vedic rituals and havans performed by consecrated temple priests on auspicious muhurats.",
 };
 

@@ -9,7 +9,7 @@ import { CustomerBillingClient } from "@/components/customer/CustomerBillingClie
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Consultation History & Receipts | JyotishSetu",
+  title: "Consultation History & Receipts | Karmic Ascension",
   description: "View verified consultation transaction receipts, pay invoices, and download receipts.",
 };
 

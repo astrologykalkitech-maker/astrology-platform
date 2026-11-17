@@ -106,7 +106,7 @@ export default function CustomerSupportInteractiveClient() {
     {
       role: "assistant",
       content:
-        "Namaste! I am JyotishSetu's AI Support Assistant. I can help you with consultation room access, Muhurat slot timings, birth chart details, recommending verified astrologers, or escalating issues to our human Super Admin team. How may I assist you today?",
+        "Namaste! I am Karmic Ascension's AI Support Assistant. I can help you with consultation room access, Muhurat slot timings, birth chart details, recommending verified astrologers, or escalating issues to our human Super Admin team. How may I assist you today?",
     },
   ]);
 
@@ -362,7 +362,7 @@ export default function CustomerSupportInteractiveClient() {
                 </span>
                 <div>
                   <h3 className="text-sm font-semibold text-midnight flex items-center gap-2">
-                    JyotishSetu AI Care
+                    Karmic Ascension AI Care
                   </h3>
                   <p className="text-xs text-muted">24/7 instant guidance for consultations, rooms, and bookings</p>
                 </div>
@@ -528,7 +528,7 @@ export default function CustomerSupportInteractiveClient() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold/15 text-gold-deep animate-pulse">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </span>
-                  <span>JyotishSetu is thinking...</span>
+                  <span>Karmic Ascension is thinking...</span>
                 </div>
               )}
             </div>

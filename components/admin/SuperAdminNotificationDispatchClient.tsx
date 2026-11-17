@@ -116,7 +116,7 @@ export function SuperAdminNotificationDispatchClient({
     try {
       const res = await dispatchBulkMultiChannelNotification({
         recipientUserIds: effectiveRecipientIds,
-        title: title || "JyotishSetu Platform Update",
+        title: title || "Karmic Ascension Platform Update",
         body,
         eventType,
         channels: selectedChannels,
@@ -221,7 +221,7 @@ export function SuperAdminNotificationDispatchClient({
               <p className="text-emerald-700 leading-relaxed text-[11px]">
                 This notification will automatically resolve and deliver to all{" "}
                 <strong>{astrologers.filter((a) => a.approvalStatus === "approved").length} approved astrologers</strong>{" "}
-                currently active on JyotishSetu.
+                currently active on Karmic Ascension.
               </p>
             </div>
           ) : (

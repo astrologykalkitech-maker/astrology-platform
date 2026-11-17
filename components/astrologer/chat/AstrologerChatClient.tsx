@@ -65,7 +65,7 @@ import { useAccountPresence } from "@/components/chat/AccountPresenceProvider";
 import { getAccountPresenceKey } from "@/lib/chat/presence";
 import { useVoiceCall } from "@/components/chat/VoiceCallProvider";
 
-const LIVE_CHAT_SHARED_CHANNEL = "jyotishsetu-live-consultation-chat";
+const LIVE_CHAT_SHARED_CHANNEL = "karmicascension-live-consultation-chat";
 
 interface AstrologerChatClientProps {
   initialConversations: ConversationSummary[];
@@ -1594,7 +1594,7 @@ export function AstrologerChatClient({
               onCancelReply={() => setReplyingTo(null)}
               isSending={isSending}
               onSharePaymentQR={() => {
-                const qrText = `[JyotishSetu Direct Payment Request]\nScan & Pay via UPI:\nupi://pay?pa=jyotishsetu@icici&pn=JyotishSetu&cu=INR\nPlease complete payment to proceed with your booking.`;
+                const qrText = `[Karmic Ascension Direct Payment Request]\nScan & Pay via UPI:\nupi://pay?pa=karmicascension@icici&pn=Karmic Ascension&cu=INR\nPlease complete payment to proceed with your booking.`;
                 void handleSendMessage(qrText, []);
               }}
             />

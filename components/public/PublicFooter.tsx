@@ -17,7 +17,7 @@ export function PublicFooter() {
           <div className="lg:col-span-2 space-y-4">
             <Logo tone="light" showTagline={true} />
             <p className="text-xs sm:text-sm text-ivory/70 leading-relaxed max-w-sm">
-              JyotishSetu bridges timeless Vedic astrological wisdom with modern digital guidance.
+              Karmic Ascension bridges timeless Vedic astrological wisdom with modern digital guidance.
               Connect with verified Vedic pandits, Prashna Kundli experts, and spiritual guides for
               authentic clarity in life, love, career, and wellbeing.
             </p>
@@ -127,7 +127,7 @@ export function PublicFooter() {
 
         {/* Bottom Bar */}
         <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ivory/50">
-          <p>© {new Date().getFullYear()} JyotishSetu. All rights reserved. Bridging Wisdom, Connecting Lives.</p>
+          <p>© {new Date().getFullYear()} Karmic Ascension. All rights reserved. Bridging Wisdom, Connecting Lives.</p>
           <p className="flex items-center gap-2">
             <span>Built with reverence for Vedic Shastras</span>
             <span aria-hidden="true">•</span>

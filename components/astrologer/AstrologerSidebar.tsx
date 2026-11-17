@@ -87,7 +87,7 @@ function AstrologerSidebarComponent({ open, onNavigate, onClose }: SidebarProps)
     >
       <Image
         src="/images/jyotishsetu/sidebar-palace-art.webp"
-        alt="JyotishSetu Palace Art"
+        alt="Karmic Ascension Palace Art"
         fill
         priority
         sizes="288px"
@@ -111,7 +111,7 @@ function AstrologerSidebarComponent({ open, onNavigate, onClose }: SidebarProps)
         onClick={onNavigate}
         className="absolute inset-x-6 top-[7%] z-10 h-[20%] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-champagne"
       >
-        <span className="sr-only">JyotishSetu Astrologer Portal, go to dashboard</span>
+        <span className="sr-only">Karmic Ascension Astrologer Portal, go to dashboard</span>
       </Link>
 
       <button

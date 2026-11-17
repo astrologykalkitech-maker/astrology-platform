@@ -2,7 +2,7 @@ import { CustomerAIIntelligenceClient } from "@/components/customer/CustomerAIIn
 import { requireCustomerPage } from "@/lib/auth/customer-guard";
 
 export const metadata = {
-  title: "AI Astrology Intelligence & Recommendations | JyotishSetu",
+  title: "AI Astrology Intelligence & Recommendations | Karmic Ascension",
   description: "Intelligent Astrologer Matching and Vedic AI Tools Suite.",
 };
 

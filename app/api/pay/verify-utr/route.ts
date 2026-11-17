@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      console.error("[JyotishSetu Pay] UTR claim submission failed:", error);
+      console.error("[Karmic Ascension Pay] UTR claim submission failed:", error);
       const isConflict = /already submitted|active UTR claim/i.test(error.message);
       return NextResponse.json(
         {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!verificationId) {
-      console.error("[JyotishSetu Pay] UTR submission RPC returned no verification id.");
+      console.error("[Karmic Ascension Pay] UTR submission RPC returned no verification id.");
       return NextResponse.json(
         { success: false, error: "The payment reference was not recorded. Please retry." },
         { status: 500 }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       { status: 202 }
     );
   } catch (error) {
-    console.error("[JyotishSetu Pay] UTR submission error:", error);
+    console.error("[Karmic Ascension Pay] UTR submission error:", error);
     const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
     return NextResponse.json(
       { success: false, error: isAuthError ? "Authentication required." : "UTR submission failed." },

@@ -139,7 +139,7 @@ function generateDeterministicDeepSynthesis(forecast: HoroscopeForecast): Horosc
     family,
     education,
     recommendations,
-    calculationMethodology: `${forecast.calculationMethodology} + JyotishSetu AI Deep Synthesis (Vedic Transit Engine)`,
+    calculationMethodology: `${forecast.calculationMethodology} + Karmic Ascension AI Deep Synthesis (Vedic Transit Engine)`,
   };
 }
 
@@ -178,7 +178,7 @@ async function enrichHoroscopeWithAi(forecast: HoroscopeForecast): Promise<Horos
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
 
-      const prompt = `You are JyotishSetu's Master Vedic Astrology Forecast Synthesizer.
+      const prompt = `You are Karmic Ascension's Master Vedic Astrology Forecast Synthesizer.
 Take this verified astronomical Vedic Gochara transit data and refine the narrative explanations into compassionate, illuminating, authoritative Vedic guidance for ${forecast.zodiacName}.
 
 Astronomical Snapshot:
@@ -244,7 +244,7 @@ Respond ONLY with a JSON object in this format (no markdown code fences):
             recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0
               ? parsed.recommendations
               : forecast.recommendations,
-            calculationMethodology: `${forecast.calculationMethodology} + JyotishSetu AI Deep Synthesis (${model})`,
+            calculationMethodology: `${forecast.calculationMethodology} + Karmic Ascension AI Deep Synthesis (${model})`,
           };
 
           // Cache for 6 hours

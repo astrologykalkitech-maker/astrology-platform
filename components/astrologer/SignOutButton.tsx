@@ -82,7 +82,7 @@ export function SignOutButton({
               <LogOut className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-midnight font-display">Sign Out of JyotishSetu?</h3>
+              <h3 className="text-base font-bold text-midnight font-display">Sign Out of Karmic Ascension?</h3>
               <p className="text-xs text-muted mt-1">
                 Are you sure you want to end your current astrologer session?
               </p>

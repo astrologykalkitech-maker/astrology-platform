@@ -172,7 +172,7 @@ export function AstrologyReportView({ report }: AstrologyReportViewProps) {
       {/* 4. Astrological Notice */}
       <div className="p-4 rounded-2xl bg-parchment/30 border border-gold/20 text-[11px] text-muted leading-relaxed">
         <strong className="text-midnight font-semibold">Traditional Notice: </strong>
-        Vedic astrology represents a classical symbolic and interpretive tradition aimed at spiritual contemplation, self-awareness, and psychological alignment. JyotishSetu calculations are based on high-precision sidereal Lahiri Ayanamsa and do not constitute legal, medical, or financial guarantees.
+        Vedic astrology represents a classical symbolic and interpretive tradition aimed at spiritual contemplation, self-awareness, and psychological alignment. Karmic Ascension calculations are based on high-precision sidereal Lahiri Ayanamsa and do not constitute legal, medical, or financial guarantees.
       </div>
     </div>
   );

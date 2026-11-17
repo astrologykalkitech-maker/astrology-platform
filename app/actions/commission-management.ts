@@ -119,7 +119,7 @@ export async function updateSuperAdminCommissionSetting({
 }
 
 /**
- * Consultant initiates a "Pay Now" commission settlement via JyotishSetu Pay UPI QR / Gateway.
+ * Consultant initiates a "Pay Now" commission settlement via Karmic Ascension Pay UPI QR / Gateway.
  */
 export async function initiateConsultantCommissionSettlementAction(amountRupees?: number) {
   try {
@@ -164,7 +164,7 @@ export async function initiateConsultantCommissionSettlementAction(amountRupees?
     const upiUri = buildUPIUri({
       transactionReference: settlementNumber,
       amountPaise: settlementPaise,
-      transactionNote: "JyotishSetu platform commission settlement",
+      transactionNote: "Karmic Ascension platform commission settlement",
       merchantVpa: paymentConfig.merchantVpa,
       merchantName: paymentConfig.merchantName,
       merchantCode: paymentConfig.merchantCode,
@@ -179,7 +179,7 @@ export async function initiateConsultantCommissionSettlementAction(amountRupees?
         consultant_id: profile.id,
         amount_paise: settlementPaise,
         currency: "INR",
-        gateway: "jyotishsetu_pay",
+        gateway: "karmicascension_pay",
         status: "initiated",
         notes: `Platform commission settlement for ${profile.display_name}`,
       })

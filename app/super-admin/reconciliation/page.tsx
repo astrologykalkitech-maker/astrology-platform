@@ -7,7 +7,7 @@ import { SuperAdminReconciliationClient } from "@/components/admin/SuperAdminRec
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Financial Reconciliation Management | JyotishSetu Super Admin",
+  title: "Financial Reconciliation Management | Karmic Ascension Super Admin",
   description: "Reconcile payment orders, gateway references, and audit discrepancy logs.",
 };
 

@@ -1,5 +1,5 @@
 /**
- * JyotishSetu Vedic Astrology Calculation Engine
+ * Karmic Ascension Vedic Astrology Calculation Engine
  * Comprehensive export of astronomical calculations, Kundli chart generation,
  * Ashtakoota 36 Guna Milan, Daily Panchang & Muhurat, Numerology, and Vedic Remedies.
  */

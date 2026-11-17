@@ -5,7 +5,7 @@ import { MuhuratSearchClient } from "@/components/customer/MuhuratSearchClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Shubh Muhurat Search | JyotishSetu",
+  title: "Shubh Muhurat Search | Karmic Ascension",
   description: "Find auspicious timings for Marriage, Griha Pravesh, Property, Vehicle, and Business launches based on daily Vedic Panchang.",
 };
 

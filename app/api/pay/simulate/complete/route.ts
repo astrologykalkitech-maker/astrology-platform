@@ -136,10 +136,10 @@ export async function POST(req: NextRequest) {
       sessionCode: session_code,
       utr: effectiveUtr,
       receiptNumber: completion.receiptNumber,
-      message: "Payment successfully simulated and cleared via JyotishSetu Pay engine",
+      message: "Payment successfully simulated and cleared via Karmic Ascension Pay engine",
     });
   } catch (error: any) {
-    console.error("[JyotishSetu Pay] Simulation error:", error);
+    console.error("[Karmic Ascension Pay] Simulation error:", error);
     return NextResponse.json(
       {
         success: false,

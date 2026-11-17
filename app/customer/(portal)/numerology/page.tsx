@@ -7,7 +7,7 @@ import { NumerologyClient } from "@/components/customer/NumerologyClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Vedic & Chaldean Numerology | JyotishSetu",
+  title: "Vedic & Chaldean Numerology | Karmic Ascension",
   description: "Calculate Moolank (Birth Number), Bhagyank (Destiny Number), and Namank (Chaldean Name Number) with personalized cosmic insights.",
 };
 

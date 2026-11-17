@@ -9,7 +9,7 @@ import type { PanchangLocation } from "@/lib/astrology/types";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Daily Vedic Panchang & Shubh Muhurat | JyotishSetu Seeker Portal",
+  title: "Daily Vedic Panchang & Shubh Muhurat | Karmic Ascension Seeker Portal",
   description:
     "Location-specific real-time daily Vedic Panchang: Tithi, Nakshatra, Yoga, Karana, Vara, Shubh Muhurats, and Choghadiya.",
 };

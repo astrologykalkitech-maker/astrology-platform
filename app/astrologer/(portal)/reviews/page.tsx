@@ -9,7 +9,7 @@ import { formatExactDateTime } from "@/lib/astrologer/format";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Client Reviews & Ratings | JyotishSetu",
+  title: "Client Reviews & Ratings | Karmic Ascension",
   description: "View verified client feedback, ratings, and testimonials.",
 };
 

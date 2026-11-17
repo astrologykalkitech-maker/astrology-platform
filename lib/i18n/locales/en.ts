@@ -1,6 +1,6 @@
 export const en = {
   common: {
-    appName: "JyotishSetu",
+    appName: "Karmic Ascension",
     tagline: "Bridging Ancient Vedic Wisdom with Modern Life",
     loading: "Loading...",
     save: "Save",
@@ -68,7 +68,7 @@ export const en = {
     viewLiveStreams: "Watch Live Streams",
   },
   astrologer: {
-    portalTitle: "JyotishSetu Astrologer Portal",
+    portalTitle: "Karmic Ascension Astrologer Portal",
     goLive: "Start Live Broadcast",
     endLive: "End Broadcast",
     liveTitle: "Broadcast Title",

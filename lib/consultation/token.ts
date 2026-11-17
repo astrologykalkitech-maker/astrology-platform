@@ -114,7 +114,7 @@ export async function generateLiveKitConsultationToken(
     metadata: JSON.stringify({
       role: options.role,
       avatarUrl: options.avatarUrl || null,
-      platform: "JyotishSetu Consultation",
+      platform: "Karmic Ascension Consultation",
     }),
   });
 

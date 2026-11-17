@@ -60,9 +60,9 @@ export function isGreetingQuery(normalizedQuery: string): boolean {
 
   // Pure greeting patterns (exact matches or greeting phrases)
   const greetingPhrases = [
-    /^(hi|hello|hey|heya|hiya|hie|hii+)(\s+(there|friend|jyotishsetu|team|bot|assistant|ji))?$/,
-    /^(namaste|namaskar|namaskaram|pranam|pranaam|vandanam|vanakkam)(\s+(ji|jyotishsetu|pandit\s*ji))?$/,
-    /^(good\s*(morning|afternoon|evening|day))(\s+(to\s*you|there|jyotishsetu|team))?$/,
+    /^(hi|hello|hey|heya|hiya|hie|hii+)(\s+(there|friend|karmicascension|team|bot|assistant|ji))?$/,
+    /^(namaste|namaskar|namaskaram|pranam|pranaam|vandanam|vanakkam)(\s+(ji|karmicascension|pandit\s*ji))?$/,
+    /^(good\s*(morning|afternoon|evening|day))(\s+(to\s*you|there|karmicascension|team))?$/,
     /^(how\s*are\s*you|how\s*r\s*u|how\s*do\s*you\s*do|how\s*is\s*it\s*going)(\s*today)?$/,
     /^(hi|hello|hey|namaste)[,\s]+(how\s*are\s*you|how\s*r\s*u|kya\s*haal\s*hai|kaise\s*ho)(\s*today)?$/,
     /^(kya\s*haal\s*hai|kaise\s*ho|kaise\s*hain|aap\s*kaise\s*hain|sab\s*theek)(\s*ji)?$/,

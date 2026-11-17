@@ -7,7 +7,7 @@ import { SuperAdminFinancialsClient } from "@/components/admin/SuperAdminFinanci
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Financial Ledger & Payout Management | JyotishSetu Super Admin",
+  title: "Financial Ledger & Payout Management | Karmic Ascension Super Admin",
   description: "Monitor Instamojo collections, marketplace commissions, payouts, and double-entry ledger accounts.",
 };
 

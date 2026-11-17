@@ -10,7 +10,7 @@ import { CustomerBroadcastListClient } from "@/components/customer/CustomerBroad
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Live Astrologer Broadcasts | JyotishSetu",
+  title: "Live Astrologer Broadcasts | Karmic Ascension",
   description: "Join live spiritual streams, planetary guidance sessions, and interactive Vedic discourses.",
 };
 

@@ -20,7 +20,7 @@ const LanguageContext = createContext<LanguageContextType>({
   loading: false,
 });
 
-const STORAGE_KEY = "jyotishsetu_locale";
+const STORAGE_KEY = "karmicascension_locale";
 
 export function LanguageProvider({
   children,
@@ -55,7 +55,7 @@ export function LanguageProvider({
             setLocaleState(json.locale);
             try {
               localStorage.setItem(STORAGE_KEY, json.locale);
-              document.cookie = `jyotishsetu_locale=${json.locale}; path=/; max-age=31536000; SameSite=Lax`;
+              document.cookie = `karmicascension_locale=${json.locale}; path=/; max-age=31536000; SameSite=Lax`;
             } catch {}
             return;
           }
@@ -100,7 +100,7 @@ export function LanguageProvider({
 
     try {
       localStorage.setItem(STORAGE_KEY, newLocale);
-      document.cookie = `jyotishsetu_locale=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `karmicascension_locale=${newLocale}; path=/; max-age=31536000; SameSite=Lax`;
 
       // Persist to server (authoritative for authenticated user)
       await fetch("/api/user/locale", {

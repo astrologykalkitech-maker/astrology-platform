@@ -1,6 +1,6 @@
 # Ola Maps Location Autocomplete & Geolocation Integration Guide
 
-This guide documents the architecture, configuration, testing, and production deployment of **Ola Maps by Krutrim Cloud** across the JyotishSetu astrology platform, including **Location Autocomplete** and **"Use My Current Location" (Browser Geolocation + Reverse Geocoding)**.
+This guide documents the architecture, configuration, testing, and production deployment of **Ola Maps by Krutrim Cloud** across the Karmic Ascension astrology platform, including **Location Autocomplete** and **"Use My Current Location" (Browser Geolocation + Reverse Geocoding)**.
 
 ---
 

@@ -1,4 +1,4 @@
-const CHAT_AUDIO_UNLOCKED_EVENT = "jyotishsetu:chat-audio-unlocked";
+const CHAT_AUDIO_UNLOCKED_EVENT = "karmicascension:chat-audio-unlocked";
 
 let sharedAudioContext: AudioContext | null = null;
 let unlockInProgress: Promise<boolean> | null = null;

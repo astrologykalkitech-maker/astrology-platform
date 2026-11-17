@@ -79,7 +79,7 @@ function AdminHeaderComponent({ displayName, role, isSuperAdmin, onMenuClick }: 
           </span>
           <div className="flex items-baseline gap-2">
             <span className="font-display text-base font-bold text-champagne hidden sm:inline">
-              JyotishSetu
+              Karmic Ascension
             </span>
             <span className="text-xs text-gold/40 hidden sm:inline">/</span>
             <span className="text-xs font-semibold uppercase tracking-wider text-ivory/80">
@@ -140,7 +140,7 @@ function AdminHeaderComponent({ displayName, role, isSuperAdmin, onMenuClick }: 
             </div>
             <div>
               <h3 className="text-base font-bold text-champagne font-display">
-                Sign Out of JyotishSetu Admin?
+                Sign Out of Karmic Ascension Admin?
               </h3>
               <p className="text-xs text-ivory/70 mt-1">
                 Are you sure you want to end your administrative session?

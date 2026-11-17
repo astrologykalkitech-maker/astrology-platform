@@ -39,7 +39,7 @@ export function CustomerBillingClient({
       status: record.payment_status.toUpperCase(),
     });
 
-    doc.save(`JyotishSetu_Receipt_${record.receipt_number || record.booking_id.slice(0, 8)}.pdf`);
+    doc.save(`Karmic Ascension_Receipt_${record.receipt_number || record.booking_id.slice(0, 8)}.pdf`);
   };
 
   const handlePayNow = (record: CustomerBillingRecord) => {
@@ -152,7 +152,7 @@ export function CustomerBillingClient({
                       className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
                     >
                       <CreditCard className="h-3 w-3" />
-                      Pay via UPI (JyotishSetu Pay)
+                      Pay via UPI (Karmic Ascension Pay)
                     </button>
                   )}
                 </td>
@@ -162,7 +162,7 @@ export function CustomerBillingClient({
         </table>
       </div>
 
-      {/* JyotishSetu Pay Modal for Customer Consultations */}
+      {/* Karmic Ascension Pay Modal for Customer Consultations */}
       {selectedBookingForPay && (
         <JyotishPayModal
           isOpen={!!selectedBookingForPay}

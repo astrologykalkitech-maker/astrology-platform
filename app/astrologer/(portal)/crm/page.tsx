@@ -23,7 +23,7 @@ import { timeAgo } from "@/lib/astrologer/format";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Client CRM & Private Notes | JyotishSetu Astrologer Portal",
+  title: "Client CRM & Private Notes | Karmic Ascension Astrologer Portal",
   description: "Manage private client notes, consultation history, and follow-up reminders.",
 };
 

@@ -1,5 +1,5 @@
 /**
- * JyotishSetu Vedic Astrology Calculation Engine Types
+ * Karmic Ascension Vedic Astrology Calculation Engine Types
  * Covers Kundli (Horoscope), Bhavas, Navamsa, Dashas, Transits,
  * Ashtakoota Guna Milan, Panchang, Muhurat, Numerology, and Remedies.
  */

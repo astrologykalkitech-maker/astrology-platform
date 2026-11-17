@@ -43,11 +43,11 @@ export function generateClientSecret(intentId: string): string {
 }
 
 /**
- * Creates a JyotishSetu Pay dynamic QR payment session for an intent.
+ * Creates a Karmic Ascension Pay dynamic QR payment session for an intent.
  */
 export async function createDynamicQRSession(
   intent: JyotishPaymentIntent,
-  note: string = "JyotishSetu Astrology Consultation",
+  note: string = "Karmic Ascension Astrology Consultation",
   customConfig?: {
     merchantVpa?: string;
     merchantName?: string;
@@ -92,7 +92,7 @@ export async function completePaymentIntent(
     intentId: intent.id,
     entityType: intent.entity_type,
     amountPaise: intent.amount_paise,
-    description: `JyotishSetu Pay clearance: ${intent.intent_number} [Ref: ${providerRef}]`,
+    description: `Karmic Ascension Pay clearance: ${intent.intent_number} [Ref: ${providerRef}]`,
   });
   if (!ledgerResult.success) {
     throw new Error(ledgerResult.error || "Failed to record payment in the financial ledger.");

@@ -10,7 +10,7 @@ import type { SavedKundliRecord, SavedHoroscopeRecord } from "@/lib/types/databa
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Vedic Horoscope & Planetary Transit Forecast | JyotishSetu",
+  title: "Vedic Horoscope & Planetary Transit Forecast | Karmic Ascension",
   description:
     "Daily, weekly, monthly, and yearly Vedic horoscope predictions and real-time Gochara planetary transit movements across all 12 Rashis.",
 };

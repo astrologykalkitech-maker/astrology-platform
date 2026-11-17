@@ -136,7 +136,7 @@ function AdminSidebarComponent({
           </div>
           <div className="flex flex-col">
             <span className="font-display text-sm font-bold tracking-wide text-champagne">
-              JyotishSetu
+              Karmic Ascension
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-ivory/60">
               {isSuperAdmin ? "Super Admin" : "Operations"}

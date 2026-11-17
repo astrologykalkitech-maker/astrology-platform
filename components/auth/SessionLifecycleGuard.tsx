@@ -9,9 +9,9 @@ interface SessionLifecycleGuardProps {
   loginPath?: string;
 }
 
-const SESSION_ACTIVE_KEY = "jyotishsetu_active_window_session";
-const SESSION_CLOSED_FLAG = "jyotishsetu_session_closed_flag";
-const CHANNEL_NAME = "jyotishsetu_session_tabs_sync";
+const SESSION_ACTIVE_KEY = "karmicascension_active_window_session";
+const SESSION_CLOSED_FLAG = "karmicascension_session_closed_flag";
+const CHANNEL_NAME = "karmicascension_session_tabs_sync";
 
 /**
  * SessionLifecycleGuard
@@ -88,7 +88,7 @@ export function SessionLifecycleGuard({
     channel?.addEventListener("message", handleMessage);
 
     // Track active tab count in localStorage to detect the true final tab closing
-    const TAB_COUNT_KEY = "jyotishsetu_open_tabs_count";
+    const TAB_COUNT_KEY = "karmicascension_open_tabs_count";
     const incrementTab = () => {
       const current = parseInt(localStorage.getItem(TAB_COUNT_KEY) || "0", 10);
       localStorage.setItem(TAB_COUNT_KEY, String(Math.max(0, current) + 1));

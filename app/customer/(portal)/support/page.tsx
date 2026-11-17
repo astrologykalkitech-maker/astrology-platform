@@ -8,7 +8,7 @@ import CustomerSupportInteractiveClient from "./CustomerSupportInteractiveClient
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Customer Support & Escalations | JyotishSetu",
+  title: "Customer Support & Escalations | Karmic Ascension",
   description:
     "Direct escalation to administrative support, booking guidance, and consultation resolution.",
 };

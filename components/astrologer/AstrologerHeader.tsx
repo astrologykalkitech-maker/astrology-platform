@@ -77,14 +77,14 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
       }
     }
 
-    window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+    window.addEventListener("karmicascension:notifications-updated", onNotificationEvent);
     document.addEventListener("visibilitychange", onVisibilityChange);
     const interval = setInterval(loadCount, 30_000);
 
     return () => {
       mounted = false;
       clearInterval(interval);
-      window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      window.removeEventListener("karmicascension:notifications-updated", onNotificationEvent);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [pathname]);
@@ -104,7 +104,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
         >
           <Menu className="h-6 w-6" aria-hidden="true" />
         </button>
-        <Link href="/astrologer/dashboard" aria-label="JyotishSetu dashboard" className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-champagne">
+        <Link href="/astrologer/dashboard" aria-label="Karmic Ascension dashboard" className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-champagne">
           <Logo tagline="Astrologer Portal" />
         </Link>
         <div className="flex items-center gap-2">

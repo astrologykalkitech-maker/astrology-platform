@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (receiptError) {
-      console.error("[JyotishSetu Pay] Receipt lookup failed:", receiptError);
+      console.error("[Karmic Ascension Pay] Receipt lookup failed:", receiptError);
       return NextResponse.json(
         { success: false, error: "Receipt could not be loaded." },
         { status: 503 }
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       .eq("id", receipt.intent_id)
       .maybeSingle();
     if (intentError || !intent) {
-      console.error("[JyotishSetu Pay] Receipt intent lookup failed:", intentError);
+      console.error("[Karmic Ascension Pay] Receipt intent lookup failed:", intentError);
       return NextResponse.json(
         { success: false, error: "Receipt payment could not be validated." },
         { status: 503 }
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       receipt.customer_id !== (intent.customer_id || null) ||
       receipt.astrologer_id !== (intent.astrologer_id || null)
     ) {
-      console.error("[JyotishSetu Pay] Receipt does not match its payment intent:", receipt.receipt_number);
+      console.error("[Karmic Ascension Pay] Receipt does not match its payment intent:", receipt.receipt_number);
       return NextResponse.json(
         { success: false, error: "Receipt details do not match the verified payment." },
         { status: 409 }
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         .eq("session_code", sessionCode)
         .maybeSingle();
       if (sessionError) {
-        console.error("[JyotishSetu Pay] Receipt session lookup failed:", sessionError);
+        console.error("[Karmic Ascension Pay] Receipt session lookup failed:", sessionError);
         return NextResponse.json(
           { success: false, error: "Receipt session could not be validated." },
           { status: 503 }
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
         .eq("user_id", user.id)
         .maybeSingle();
       if (astrologerError) {
-        console.error("[JyotishSetu Pay] Receipt owner lookup failed:", astrologerError);
+        console.error("[Karmic Ascension Pay] Receipt owner lookup failed:", astrologerError);
         return NextResponse.json(
           { success: false, error: "Receipt access could not be validated." },
           { status: 503 }
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
         .eq("status", "verified")
         .maybeSingle();
       if (verificationError) {
-        console.error("[JyotishSetu Pay] Manual verification lookup failed:", verificationError);
+        console.error("[Karmic Ascension Pay] Manual verification lookup failed:", verificationError);
         return NextResponse.json(
           { success: false, error: "Manual payment verification could not be loaded." },
           { status: 503 }
@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
         : Promise.resolve({ data: null, error: null }),
     ]);
     if (customerResult.error || astrologerResult.error) {
-      console.error("[JyotishSetu Pay] Receipt profile lookup failed:", customerResult.error || astrologerResult.error);
+      console.error("[Karmic Ascension Pay] Receipt profile lookup failed:", customerResult.error || astrologerResult.error);
       return NextResponse.json(
         { success: false, error: "Receipt details could not be loaded." },
         { status: 503 }
@@ -186,7 +186,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[JyotishSetu Pay] Receipt generation error:", error);
+    console.error("[Karmic Ascension Pay] Receipt generation error:", error);
     const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
     return NextResponse.json(
       { success: false, error: isAuthError ? "Authentication required." : "Failed to generate receipt PDF." },

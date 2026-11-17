@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     const res = NextResponse.json({ success: true, locale, authenticated: Boolean(user) });
-    res.cookies.set("jyotishsetu_locale", locale, {
+    res.cookies.set("karmicascension_locale", locale, {
       path: "/",
       maxAge: 31536000,
       sameSite: "lax",

@@ -6,7 +6,7 @@ import { CustomerProtectionRitualsClient } from "@/components/customer/CustomerP
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Vedic Protection Rituals | JyotishSetu",
+  title: "Vedic Protection Rituals | Karmic Ascension",
   description: "Authentic Vedic rituals and sacred practices for Evil Eye (Drishti Dosha), negative energy clearing, and spiritual home protection.",
 };
 

@@ -10,7 +10,7 @@ import { SuperAdminPujaBookingsClient } from "@/components/admin/SuperAdminPujaB
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Puja Bookings Management | JyotishSetu Super Admin",
+  title: "Puja Bookings Management | Karmic Ascension Super Admin",
   description: "Monitor and manage customer Puja bookings, Gotra details, and statuses.",
 };
 

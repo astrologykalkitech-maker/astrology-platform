@@ -37,8 +37,8 @@ export function RealtimeAstrologerPortalSync() {
       const handleLocalEvent = () => {
         triggerRefresh();
       };
-      window.addEventListener("jyotishsetu:booking-created", handleLocalEvent);
-      window.addEventListener("jyotishsetu:booking-updated", handleLocalEvent);
+      window.addEventListener("karmicascension:booking-created", handleLocalEvent);
+      window.addEventListener("karmicascension:booking-updated", handleLocalEvent);
 
       // 2. Subscribe to Supabase Realtime on customer_bookings and lead_assignments
       channel = supabase
@@ -170,8 +170,8 @@ export function RealtimeAstrologerPortalSync() {
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
       return () => {
-        window.removeEventListener("jyotishsetu:booking-created", handleLocalEvent);
-        window.removeEventListener("jyotishsetu:booking-updated", handleLocalEvent);
+        window.removeEventListener("karmicascension:booking-created", handleLocalEvent);
+        window.removeEventListener("karmicascension:booking-updated", handleLocalEvent);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
         if (channel) {
           supabase.removeChannel(channel);

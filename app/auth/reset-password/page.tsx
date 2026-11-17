@@ -6,8 +6,8 @@ import { getCurrentProfile } from "@/lib/auth/session";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Reset Password | JyotishSetu",
-  description: "Set a new secure password for your JyotishSetu account.",
+  title: "Reset Password | Karmic Ascension",
+  description: "Set a new secure password for your Karmic Ascension account.",
 };
 
 interface ResetPasswordPageProps {

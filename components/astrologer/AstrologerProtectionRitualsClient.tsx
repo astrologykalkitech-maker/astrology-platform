@@ -78,7 +78,7 @@ Safety Precautions:
 ${ritual.precautions || "Practice in a clean, quiet environment with pure intention."}
 
 ${ritual.alternative ? `Gentle Alternative:\n${ritual.alternative}\n` : ""}
-Prescribed with spiritual blessings via JyotishSetu.`;
+Prescribed with spiritual blessings via Karmic Ascension.`;
 
     navigator.clipboard.writeText(text);
     setCopiedId(ritual.id);

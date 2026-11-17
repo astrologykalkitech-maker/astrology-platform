@@ -1,5 +1,5 @@
 /**
- * Self-Learning Engine for JyotishSetu AI
+ * Self-Learning Engine for Karmic Ascension AI
  *
  * Implements:
  * 1. Semantic Embedding Generation (text-embedding-004, 768-dim)
@@ -230,7 +230,7 @@ export async function learnFromResolvedTicket(ticketId: string): Promise<boolean
     }
 
     // 4. Distill using Gemini with structured prompt
-    const prompt = `You are JyotishSetu's Knowledge Distillation Specialist.
+    const prompt = `You are Karmic Ascension's Knowledge Distillation Specialist.
 Analyze the resolved customer support dialogue below and extract a generalized question pattern and verified solution.
 
 RULES:

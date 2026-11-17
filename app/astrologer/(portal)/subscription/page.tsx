@@ -7,7 +7,7 @@ import { AstrologerSubscriptionClient } from "@/components/astrologer/Astrologer
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Subscription & Membership Plans | JyotishSetu",
+  title: "Subscription & Membership Plans | Karmic Ascension",
   description: "Manage your astrologer subscription tier, lead quotas, and commission rates.",
 };
 

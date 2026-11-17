@@ -57,7 +57,7 @@ import { useAccountPresence } from "@/components/chat/AccountPresenceProvider";
 import { getAccountPresenceKey } from "@/lib/chat/presence";
 import { useVoiceCall } from "@/components/chat/VoiceCallProvider";
 
-const LIVE_CHAT_SHARED_CHANNEL = "jyotishsetu-live-consultation-chat";
+const LIVE_CHAT_SHARED_CHANNEL = "karmicascension-live-consultation-chat";
 
 interface CustomerChatClientProps {
   initialConversations: (ConversationSummary & {

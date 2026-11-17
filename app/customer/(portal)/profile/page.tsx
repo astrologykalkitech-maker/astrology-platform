@@ -7,7 +7,7 @@ import CustomerProfileClient from "./CustomerProfileClient";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "My Profile & Kundli Details | JyotishSetu",
+  title: "My Profile & Kundli Details | Karmic Ascension",
   description: "Manage your personal profile and Vedic birth chart details for accurate consultations.",
 };
 

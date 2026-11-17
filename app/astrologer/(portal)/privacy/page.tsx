@@ -2,7 +2,7 @@ import { AstrologerPrivacyClient } from "@/components/astrologer/AstrologerPriva
 import { requireAstrologerPage } from "@/lib/astrologer/guard";
 
 export const metadata = {
-  title: "Privacy & Data Management | Astrologer Portal | JyotishSetu",
+  title: "Privacy & Data Management | Astrologer Portal | Karmic Ascension",
   description: "Manage statutory algorithmic processing consent, export practitioner records, and handle account closure.",
 };
 

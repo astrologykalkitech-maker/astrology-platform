@@ -26,11 +26,11 @@ import {
 import type { PublicAstrologerProfile } from "@/lib/types/astrologer.types";
 
 export const metadata: Metadata = {
-  title: "JyotishSetu | Bridging Wisdom, Connecting Lives | Vedic Astrology",
+  title: "Karmic Ascension | Bridging Wisdom, Connecting Lives | Vedic Astrology",
   description:
     "Find Clarity. Connect with Trusted Astrologers. Get personalised guidance for your relationships, career, wellbeing and important life decisions from verified astrologers.",
   openGraph: {
-    title: "JyotishSetu — Ancient Wisdom • Modern Guidance",
+    title: "Karmic Ascension — Ancient Wisdom • Modern Guidance",
     description:
       "Find Clarity. Connect with Trusted Astrologers. Get personalised guidance for your relationships, career, wellbeing and important life decisions.",
     type: "website",
@@ -514,7 +514,7 @@ export default async function HomePage() {
               <div className="lg:col-span-7 space-y-6">
                 <div>
                   <h2 className="font-display text-2xl sm:text-3xl lg:text-[34px] font-semibold text-[#181126] tracking-tight">
-                    Why Choose JyotishSetu?
+                    Why Choose Karmic Ascension?
                   </h2>
                   {/* Star diamond ornament */}
                   <div className="flex items-center gap-2 pt-1.5">
@@ -599,17 +599,17 @@ export default async function HomePage() {
         <section id="about" className="py-14 sm:py-18 bg-white border-t border-[#ede3cf]">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center space-y-4">
             <h2 className="font-display text-2xl sm:text-3xl font-semibold text-[#181126]">
-              About JyotishSetu
+              About Karmic Ascension
             </h2>
             <p className="text-sm text-[#5d516e] leading-relaxed max-w-3xl mx-auto">
-              JyotishSetu is dedicated to preserving the pristine integrity of classical Vedic Jyotish while making authentic consultations accessible to seekers worldwide. Our platform connects you only with rigorously vetted astrologers, ensuring your personal guidance is confidential, compassionate, and truthful.
+              Karmic Ascension is dedicated to preserving the pristine integrity of classical Vedic Jyotish while making authentic consultations accessible to seekers worldwide. Our platform connects you only with rigorously vetted astrologers, ensuring your personal guidance is confidential, compassionate, and truthful.
             </p>
             <div className="pt-2">
               <Link
                 href="/customer/signup"
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#e3c16f] to-[#cf9e3e] px-6 py-2.5 text-xs font-bold text-[#140c26] shadow-sm hover:brightness-105 transition-all"
               >
-                <span>Join JyotishSetu Today</span>
+                <span>Join Karmic Ascension Today</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>

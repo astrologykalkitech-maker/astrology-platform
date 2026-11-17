@@ -80,7 +80,7 @@ export async function getPersonalizedVedicGuidanceAction(params: {
     const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
 
-    const prompt = `You are JyotishSetu's Master Vedic Astrologer.
+    const prompt = `You are Karmic Ascension's Master Vedic Astrologer.
 Analyze the seeker's astrological inquiry and generate a concise, grounded Vedic astrological insight.
 Category: ${params.concernCategory}
 Devotee Context: ${birthDetails}

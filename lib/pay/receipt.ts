@@ -82,7 +82,7 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   doc.setFont("helvetica", "bold");
   doc.text("Payment Method:", 120, 55);
   doc.setFont("helvetica", "normal");
-  doc.text(data.paymentMethod || "UPI (JyotishSetu Pay)", 155, 55);
+  doc.text(data.paymentMethod || "UPI (Karmic Ascension Pay)", 155, 55);
 
   doc.setFont("helvetica", "bold");
   doc.text("Bank Ref / UTR:", 120, 62);
@@ -116,8 +116,8 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   doc.text(data.customerName || "Valued Client", 14, 92);
   doc.text(data.customerEmail || "Not provided", 14, 98);
 
-  doc.text(data.astrologerName || "JyotishSetu Platform Services", 120, 92);
-  doc.text("support@jyotishsetu.in", 120, 98);
+  doc.text(data.astrologerName || "Karmic Ascension Platform Services", 120, 92);
+  doc.text("support@karmicascension.in", 120, 98);
 
   // Line Items Table
   const inrAmount = formatPaiseToInr(data.intent.amount_paise);
@@ -172,8 +172,8 @@ export function generatePaymentReceiptPDF(data: GenerateReceiptData): Uint8Array
   doc.setFont("helvetica", "normal");
   const footerY = 270;
   doc.line(14, footerY - 5, 196, footerY - 5);
-  doc.text("This is an electronically generated and cryptographically verifiable receipt issued by JyotishSetu Pay.", 14, footerY);
-  doc.text("For financial queries or transaction disputes, contact payments@jyotishsetu.in quoting your receipt number.", 14, footerY + 5);
+  doc.text("This is an electronically generated and cryptographically verifiable receipt issued by Karmic Ascension Pay.", 14, footerY);
+  doc.text("For financial queries or transaction disputes, contact payments@karmicascension.in quoting your receipt number.", 14, footerY + 5);
 
   return doc.output("arraybuffer") as unknown as Uint8Array;
 }

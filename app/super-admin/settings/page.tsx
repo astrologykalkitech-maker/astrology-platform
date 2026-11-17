@@ -131,14 +131,14 @@ export default function SuperAdminSettingsPage() {
               <div className="flex items-center gap-2">
                 <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                 <h3 className="text-sm font-bold text-midnight">
-                  JyotishSetu Pay — Zero-Cost Testing Mode
+                  Karmic Ascension Pay — Zero-Cost Testing Mode
                 </h3>
                 <span className="text-[10px] bg-amber-500/15 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-500/30">
                   {formValues["payment_testing_mode_enabled"] ? "TESTING ACTIVE" : "LIVE CHARGES"}
                 </span>
               </div>
               <p className="text-xs text-muted mt-1 max-w-xl">
-                When enabled, astrologers and seekers can test subscription upgrades and booking checkouts without making real bank payments. When turned OFF, JyotishSetu Pay strictly operates in live mode and charges real money via UPI/Bank.
+                When enabled, astrologers and seekers can test subscription upgrades and booking checkouts without making real bank payments. When turned OFF, Karmic Ascension Pay strictly operates in live mode and charges real money via UPI/Bank.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -194,7 +194,7 @@ export default function SuperAdminSettingsPage() {
                   <input
                     type="text"
                     placeholder="e.g. yourname@upi or business@okhdfcbank"
-                    value={String(formValues["payment_upi_vpa"] ?? "jyotishsetu@upi")}
+                    value={String(formValues["payment_upi_vpa"] ?? "karmicascension@upi")}
                     onChange={(e) =>
                       setFormValues((prev) => ({
                         ...prev,
@@ -221,8 +221,8 @@ export default function SuperAdminSettingsPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="JyotishSetu Astrology Services"
-                    value={String(formValues["payment_merchant_name"] ?? "JyotishSetu Astrology Services")}
+                    placeholder="Karmic Ascension Astrology Services"
+                    value={String(formValues["payment_merchant_name"] ?? "Karmic Ascension Astrology Services")}
                     onChange={(e) =>
                       setFormValues((prev) => ({
                         ...prev,

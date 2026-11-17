@@ -117,10 +117,10 @@ export function ManualPaymentVerificationClient({
     });
     setBusyId(null);
     if (!result.success) {
-      setMessage({ type: "error", text: result.error || "JyotishSetu Pay review failed." });
+      setMessage({ type: "error", text: result.error || "Karmic Ascension Pay review failed." });
       return;
     }
-    setMessage({ type: "success", text: `JyotishSetu Pay payment ${result.status || "updated"}.` });
+    setMessage({ type: "success", text: `Karmic Ascension Pay payment ${result.status || "updated"}.` });
     router.refresh();
   }
 
@@ -139,14 +139,14 @@ export function ManualPaymentVerificationClient({
 
       <section className="space-y-3">
         <div>
-          <h2 className="font-display text-lg font-bold text-midnight">JyotishSetu Pay UTR claims</h2>
+          <h2 className="font-display text-lg font-bold text-midnight">Karmic Ascension Pay UTR claims</h2>
           <p className="text-xs text-muted">
             These UTRs are unverified claims. Approving one records the manual review, payment receipt, and accounting entries in a single database transaction.
           </p>
         </div>
         {jyotishPayments.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gold/30 bg-white p-8 text-center text-sm text-muted">
-            No JyotishSetu Pay UTR claims awaiting review.
+            No Karmic Ascension Pay UTR claims awaiting review.
           </div>
         ) : (
           jyotishPayments.map((payment) => (

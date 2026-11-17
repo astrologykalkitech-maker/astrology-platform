@@ -90,7 +90,7 @@ export function CustomerHeader({
       }
     }
 
-    window.addEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+    window.addEventListener("karmicascension:notifications-updated", onNotificationEvent);
     document.addEventListener("visibilitychange", onVisibilityChange);
     // Poll gently every 60 seconds for live notifications without competing with navigation
     const interval = setInterval(loadCount, 60_000);
@@ -98,7 +98,7 @@ export function CustomerHeader({
     return () => {
       mounted = false;
       clearInterval(interval);
-      window.removeEventListener("jyotishsetu:notifications-updated", onNotificationEvent);
+      window.removeEventListener("karmicascension:notifications-updated", onNotificationEvent);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isLoggedIn]);
@@ -120,7 +120,7 @@ export function CustomerHeader({
         </button>
         <Link
           href="/customer/astrologers"
-          aria-label="JyotishSetu Customer Portal"
+          aria-label="Karmic Ascension Customer Portal"
           className="min-w-0 rounded-lg focus-visible:outline-2 focus-visible:outline-champagne"
         >
           <Logo tagline="Customer Portal" />

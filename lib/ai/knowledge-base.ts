@@ -1,5 +1,5 @@
 /**
- * JyotishSetu Comprehensive Platform Knowledge Base
+ * Karmic Ascension Comprehensive Platform Knowledge Base
  *
  * Authoritative, verified knowledge items covering:
  * 1. Platform Operations, Bookings, Virtual Rooms, and Account Access
@@ -55,7 +55,7 @@ export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
     summary: "How to resolve unexpected session logouts and maintain browser authentication.",
     problemDescription: "User gets redirected to login unexpectedly during platform navigation.",
     solutionSteps: [
-      "JyotishSetu sessions use secure HTTP-only cookies that refresh automatically on active tabs.",
+      "Karmic Ascension sessions use secure HTTP-only cookies that refresh automatically on active tabs.",
       "Clear browser cookies for the site if you notice looping redirects.",
       "Ensure third-party cookies or strict ad-blockers are not blocking Supabase authentication calls.",
       "Log in again at /customer/login or /astrologer/login to receive a fresh secure session token.",
@@ -340,7 +340,7 @@ export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
     category: "account",
     keywords: ["onboarding", "register", "astrologer signup", "google signup", "role recovery", "astrologer registration", "new astrologer"],
     hinglishKeywords: ["astrologer register kaise kare", "sign up astrologer", "onboarding process"],
-    summary: "Complete registration and onboarding workflow for Vedic astrologers on JyotishSetu.",
+    summary: "Complete registration and onboarding workflow for Vedic astrologers on Karmic Ascension.",
     problemDescription: "Astrologer wants to know how to create an account or correct an account misassigned as customer.",
     solutionSteps: [
       "Navigate to /astrologer/signup to create your consultant account with email or Google OAuth.",
@@ -421,7 +421,7 @@ export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
     problemDescription: "Astrologer asks how their consultation earnings are tracked and when payouts are disbursed.",
     solutionSteps: [
       "Consultation earnings are calculated directly from your configured session rate and verified completed consultations.",
-      "JyotishSetu operates on a weekly batch reconciliation cycle. All sessions completed from Monday through Sunday are audited and processed.",
+      "Karmic Ascension operates on a weekly batch reconciliation cycle. All sessions completed from Monday through Sunday are audited and processed.",
       "Disbursements are made directly via NEFT/IMPS bank transfer to your verified payout bank account.",
       "You can inspect your itemized consultation breakdown and gross realized revenue at /astrologer/earnings.",
       "The platform strictly does not fabricate arbitrary balances or artificial countdown timers. For payout ledger queries, submit a support ticket to Super Admin.",
@@ -436,7 +436,7 @@ export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
     category: "consultation",
     keywords: ["code of conduct", "ethics", "dharmic", "quality standards", "confidentiality", "astrologer rules", "fear mongering"],
     hinglishKeywords: ["niyam kya hai", "platform rules", "consultation ethics", "astrologer conduct"],
-    summary: "Professional and Dharmic ethical standards every certified astrologer on JyotishSetu must follow.",
+    summary: "Professional and Dharmic ethical standards every certified astrologer on Karmic Ascension must follow.",
     problemDescription: "Astrologer wants to understand platform quality standards and consultation ethics.",
     solutionSteps: [
       "1. Absolute Confidentiality: All seeker birth details, queries, and consultation recordings/notes must remain strictly confidential.",
@@ -645,7 +645,7 @@ export const PLATFORM_KNOWLEDGE_BASE: KnowledgeItem[] = [
     problemDescription: "User asks about guaranteed astrological outcomes or medical/legal predictions.",
     solutionSteps: [
       "Vedic astrology provides cosmic guidance based on planetary cycles, Karma, and Dasha periods. Astrologers must never promise 100% deterministic or guaranteed outcomes.",
-      "Astrologers on JyotishSetu adhere to traditional Dharmic principles of empathy, honesty, and guidance.",
+      "Astrologers on Karmic Ascension adhere to traditional Dharmic principles of empathy, honesty, and guidance.",
       "Consultations must never be treated as substitutes for licensed medical, psychiatric, or legal counsel.",
       "Users experiencing emotional distress or health emergencies should seek qualified professional help immediately.",
     ],

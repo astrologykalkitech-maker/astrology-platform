@@ -26,7 +26,7 @@ import { CustomerNotesClient } from "@/components/astrologer/crm/CustomerNotesCl
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Seeker Profile | JyotishSetu Astrologer Portal",
+  title: "Seeker Profile | Karmic Ascension Astrologer Portal",
   description: "View Vedic birth details and consultation history for an assigned seeker.",
 };
 

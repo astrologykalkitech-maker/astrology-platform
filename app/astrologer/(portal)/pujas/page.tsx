@@ -9,7 +9,7 @@ import { AstrologerPujasClient } from "@/components/astrologer/AstrologerPujasCl
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Assigned Puja Rituals | JyotishSetu Astrologer Portal",
+  title: "Assigned Puja Rituals | Karmic Ascension Astrologer Portal",
   description: "Conduct scheduled Vedic Pujas, host Live Video Darshan, and upload consecration evidence.",
 };
 

@@ -11,7 +11,7 @@ import { formatExactDateTime } from "@/lib/astrologer/format";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Earnings & Commission Float | JyotishSetu",
+  title: "Earnings & Commission Float | Karmic Ascension",
   description: "View verified consultation fees, 10% platform commission ledger, and settle dues.",
 };
 
@@ -153,7 +153,7 @@ export default async function AstrologerEarningsPage() {
               Marketplace Commission & Float Management
             </h2>
             <p className="text-xs text-muted">
-              Configured JyotishSetu platform commission ledger, negative balance tracking, and verified dues settlement.
+              Configured Karmic Ascension platform commission ledger, negative balance tracking, and verified dues settlement.
             </p>
           </div>
         </div>

@@ -118,7 +118,7 @@ export async function startVoiceCallAction(
         callee_role: calleeRole,
         caller_name: callerName,
         callee_name: calleeName,
-        room_name: `jyotishsetu_voice_${crypto.randomBytes(16).toString("hex")}`,
+        room_name: `karmicascension_voice_${crypto.randomBytes(16).toString("hex")}`,
         status: "ringing",
       })
       .select("*")
@@ -395,7 +395,7 @@ export async function getVoiceCallTokenAction(callId: string): Promise<{
       metadata: JSON.stringify({
         role: isCaller ? call.caller_role : call.callee_role,
         callId: call.id,
-        platform: "JyotishSetu Voice Call",
+        platform: "Karmic Ascension Voice Call",
       }),
     });
     token.addGrant({

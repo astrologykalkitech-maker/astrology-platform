@@ -703,7 +703,7 @@ export function CustomerBroadcastListClient({
 
             {reportSuccess ? (
               <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl font-semibold text-center">
-                Report submitted successfully. Thank you for keeping JyotishSetu safe.
+                Report submitted successfully. Thank you for keeping Karmic Ascension safe.
               </div>
             ) : (
               <form onSubmit={handleReportAbuse} className="space-y-4">

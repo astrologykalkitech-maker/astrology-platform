@@ -1,5 +1,5 @@
 /**
- * JyotishSetu Puja Darshan Scheduling & Access Control
+ * Karmic Ascension Puja Darshan Scheduling & Access Control
  * 
  * Strict timezone-aware (Asia/Kolkata) schedule calculations for Live Video Darshan.
  * Derives window intervals, countdowns, eligibility states, and early/late allowances.

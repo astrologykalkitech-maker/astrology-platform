@@ -123,7 +123,7 @@ export function SuperAdminCommissionDashboardClient({
             {formatPaiseToInr(metrics.totalCommissionSettledPaise)}
           </div>
           <p className="mt-1 text-[11px] text-muted">
-            Realized cash settlements via JyotishSetu Pay
+            Realized cash settlements via Karmic Ascension Pay
           </p>
         </div>
 

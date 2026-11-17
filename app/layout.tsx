@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "JyotishSetu | Find Clarity in Life",
+  title: "Karmic Ascension | Find Clarity in Life",
   description:
     "Connect with experienced astrologers for guidance in love, career, marriage, finance and more.",
 };

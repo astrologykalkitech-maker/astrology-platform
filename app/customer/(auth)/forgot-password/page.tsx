@@ -3,8 +3,8 @@ import { AuthShell } from "@/components/astrologer/auth/AuthShell";
 import { ForgotPasswordForm } from "@/components/astrologer/auth/ForgotPasswordForm";
 
 export const metadata: Metadata = {
-  title: "Customer Forgot Password | JyotishSetu",
-  description: "Reset your customer account password on JyotishSetu.",
+  title: "Customer Forgot Password | Karmic Ascension",
+  description: "Reset your customer account password on Karmic Ascension.",
 };
 
 export default function CustomerForgotPasswordPage() {

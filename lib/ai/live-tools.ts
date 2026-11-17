@@ -130,7 +130,7 @@ export async function searchApprovedAstrologers(
       if (a.experience_years >= 8) {
         reasons.push(`${a.experience_years}+ years Vedic wisdom`);
       }
-      const matchReason = reasons.length > 0 ? reasons.join(" • ") : "Verified Vedic astrologer on JyotishSetu";
+      const matchReason = reasons.length > 0 ? reasons.join(" • ") : "Verified Vedic astrologer on Karmic Ascension";
 
       return {
         id: a.id,
@@ -414,7 +414,7 @@ export async function getAstrologerEarningsSummary(userId: string): Promise<stri
     if (error || !astro) {
       return (
         "Consultation Earnings records are managed under your Earnings tab (/astrologer/earnings).\n\n" +
-        "Platform Settlement Policy: JyotishSetu performs weekly batch reconciliations. Payouts reflect completed consultation sessions and are disbursed directly to your verified bank account."
+        "Platform Settlement Policy: Karmic Ascension performs weekly batch reconciliations. Payouts reflect completed consultation sessions and are disbursed directly to your verified bank account."
       );
     }
 
@@ -448,13 +448,13 @@ export async function getAstrologerEarningsSummary(userId: string): Promise<stri
       `• Completed Consultations: ${completedCount} (Realized: ₹${realizedEarnings.toLocaleString("en-IN")})\n` +
       `• Upcoming / Active Sessions: ${upcomingCount} (Pending Realization: ₹${pendingEarnings.toLocaleString("en-IN")})\n` +
       `• Configured Rate: ${configuredFee} per consultation\n\n` +
-      `Platform Settlement Policy: JyotishSetu performs weekly batch reconciliations. Payouts are remitted directly to your verified bank account. For itemized ledger records, visit /astrologer/earnings. For payment inquiries or reconciliation requests, escalate to the Super Admin desk.`
+      `Platform Settlement Policy: Karmic Ascension performs weekly batch reconciliations. Payouts are remitted directly to your verified bank account. For itemized ledger records, visit /astrologer/earnings. For payment inquiries or reconciliation requests, escalate to the Super Admin desk.`
     );
   } catch (err) {
     console.error("[LiveTools: getAstrologerEarningsSummary] error:", err);
     return (
       "Consultation Earnings records are managed under your Earnings tab (/astrologer/earnings).\n\n" +
-      "Platform Settlement Policy: JyotishSetu performs weekly batch reconciliations. Payouts reflect completed consultation sessions and are disbursed directly to your verified bank account."
+      "Platform Settlement Policy: Karmic Ascension performs weekly batch reconciliations. Payouts reflect completed consultation sessions and are disbursed directly to your verified bank account."
     );
   }
 }
@@ -530,7 +530,7 @@ export async function getAstrologerBySlug(slugOrId: string): Promise<AstrologerR
       rating_avg: avg,
       total_reviews: count,
       profile_url: `/customer/astrologers/${astro.slug || astro.id}`,
-      match_reason: "Verified Vedic astrologer on JyotishSetu",
+      match_reason: "Verified Vedic astrologer on Karmic Ascension",
     };
   } catch (err) {
     console.error("[LiveTools: getAstrologerBySlug] error:", err);

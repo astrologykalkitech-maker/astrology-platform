@@ -8,7 +8,7 @@ import KundliDetailClient from "@/components/kundli/KundliDetailClient";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Vedic Kundli Details | JyotishSetu",
+  title: "Vedic Kundli Details | Karmic Ascension",
   description: "View birth charts, planetary positions, houses, nakshatra interpretations, and Vimshottari dasha.",
 };
 
