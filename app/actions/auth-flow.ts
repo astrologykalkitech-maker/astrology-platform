@@ -225,14 +225,41 @@ export async function resolveOrAuthenticateAction(input: {
   try {
     const supabase = await createClient();
 
-    // 1. Attempt to sign in with password
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    // 1. Attempt to sign in with password in primary database (DB1)
+    let signInData: any = null;
+    let signInError: any = null;
+    let authTarget: "main" | "admin" = "main";
+
+    const mainResult = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
 
+    signInData = mainResult.data;
+    signInError = mainResult.error;
+
+    // If primary sign-in failed, check secondary admin database (DB2) for super_admin / consultant_admin
+    if (signInError && process.env.ADMIN_SUPABASE_URL) {
+      try {
+        const adminSupabase = await createClient("admin");
+        const adminResult = await adminSupabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (!adminResult.error && adminResult.data?.user) {
+          signInData = adminResult.data;
+          signInError = null;
+          authTarget = "admin";
+        }
+      } catch (adminErr) {
+        console.warn("[Admin DB Login Check Error]", adminErr);
+      }
+    }
+
     if (!signInError && signInData?.user) {
-      const { data: profile, error: profileError } = await supabase
+      const activeClient = authTarget === "admin" ? await createClient("admin") : supabase;
+      const { data: profile, error: profileError } = await activeClient
         .from("profiles")
         .select("id, full_name, role")
         .eq("id", signInData.user.id)

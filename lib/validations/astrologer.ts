@@ -497,8 +497,8 @@ function parseUpiVpa(value: unknown): { value: string | null; error?: string } {
   }
   if (
     typeof value !== "string" ||
-    value.trim().length > 321 ||
-    !/^[A-Za-z0-9._-]{2,256}@[A-Za-z0-9.-]{2,64}$/.test(value.trim())
+    value.trim().length > 165 ||
+    !/^[A-Za-z0-9._-]{2,100}@[A-Za-z0-9.-]{2,64}$/.test(value.trim())
   ) {
     return { value: null, error: "Enter a valid astrologer UPI ID (for example, name@bank)." };
   }

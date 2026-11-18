@@ -15,7 +15,7 @@ BEGIN
             ADD CONSTRAINT astrologer_profiles_upi_vpa_format
             CHECK (
                 upi_vpa IS NULL
-                OR upi_vpa ~* '^[a-z0-9._-]{2,256}@[a-z0-9.-]{2,64}$'
+                OR upi_vpa ~* '^[a-z0-9._-]{2,100}@[a-z0-9.-]{2,64}$'
             );
     END IF;
 END
