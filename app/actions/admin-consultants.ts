@@ -6,7 +6,9 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
-import { logAdminAction } from "@/lib/admin/audit";
+import { logAdminAction, isRpcNotInstalledError } from "@/lib/admin/audit";
+import { logSecurityEvent } from "@/lib/security/telemetry";
+import { sanitizeLogMessage } from "@/lib/security/redact";
 import type { AdminPermissionKey, Profile } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 import { validateConsultantPermissionsInput } from "@/lib/validations/admin";
@@ -100,9 +102,95 @@ export async function updateConsultantPermissions(
 
     const oldPerms = (beforePerms ?? []).map((p) => p.permission_key);
 
+    // 1. Try single transactional RPC if installed (Migration 073)
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("admin_set_consultant_permissions", {
+      p_admin_id: user.id,
+      p_target_user_id: userId,
+      p_permissions: permissions,
+      p_audit_reason: "Updated consultant administrative permissions",
+    });
+
+    if (!rpcErr && rpcData && typeof rpcData === "object" && (rpcData as Record<string, unknown>).success === true) {
+      return { success: true, data: { userId, permissions } };
+    }
+
+    // If RPC executed without transport error but returned explicit failure or malformed payload, fail closed immediately
+    if (!rpcErr) {
+      const sanitizedRpcMsg = sanitizeLogMessage(
+        typeof (rpcData as Record<string, unknown> | null)?.error === "string"
+          ? ((rpcData as Record<string, unknown>).error as string)
+          : "RPC returned unsuccessful status or malformed response."
+      );
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: "consultant.permissions_update.failure",
+        targetType: "consultant_permissions",
+        targetId: userId,
+        reason: sanitizedRpcMsg,
+        outcome: "failure",
+      });
+      return {
+        success: false,
+        error: "Administrative permission update was rejected by the database.",
+      };
+    }
+
+    // Fail closed on any real database/authorization error, constraint, timeout, or missing internal function.
+    // Fall back ONLY if the exact RPC function positively does not exist in the database (Migration not installed).
+    if (rpcErr && !isRpcNotInstalledError(rpcErr, "admin_set_consultant_permissions")) {
+      const sanitizedCode = sanitizeLogMessage(rpcErr.code || "UNKNOWN");
+      const sanitizedMsg = sanitizeLogMessage(rpcErr.message || "RPC execution error");
+      console.error(
+        `[updateConsultantPermissionsAction] RPC execution failed (fail closed): code=${sanitizedCode}, msg=${sanitizedMsg}`
+      );
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: "consultant.permissions_update.failure",
+        targetType: "consultant_permissions",
+        targetId: userId,
+        reason: sanitizeLogMessage(`Atomic RPC failed: ${sanitizedCode} - ${sanitizedMsg}`),
+        outcome: "failure",
+      });
+      return {
+        success: false,
+        error: "Administrative permissions update failed in transactional database guard.",
+      };
+    }
+
+    // 2. Fallback: Pre-mutation audit record (Attempt) before sequential REST mutations (Only if RPC is not installed)
+    const attemptAuditRes = await logAdminAction({
+      actorId: user.id,
+      actorRole: profile.role,
+      action: "consultant.permissions_update.attempt",
+      targetType: "consultant_permissions",
+      targetId: userId,
+      beforeState: { permissions: oldPerms },
+      afterState: { permissions },
+      outcome: "success",
+    });
+
+    if (!attemptAuditRes.success) {
+      console.error("[updateConsultantPermissionsAction] Pre-mutation audit record failed:", attemptAuditRes.error);
+      return {
+        success: false,
+        error: "Mandatory audit record failed; administrative permission update halted.",
+      };
+    }
+
     // Remove existing permissions
     const { error: deleteErr } = await supabase.from("admin_permissions").delete().eq("user_id", userId);
     if (deleteErr) {
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: "consultant.permissions_update.failure",
+        targetType: "consultant_permissions",
+        targetId: userId,
+        reason: deleteErr.message,
+        outcome: "failure",
+      });
       return { success: false, error: `Failed to clear previous permissions: ${deleteErr.message}` };
     }
 
@@ -118,20 +206,43 @@ export async function updateConsultantPermissions(
 
       if (insertErr) {
         // Attempt compensation: restore old permissions to avoid leaving account stripped of permissions
+        let compensationFailed = false;
         if (oldPerms.length > 0) {
-          await supabase.from("admin_permissions").insert(
+          const { error: restoreErr } = await supabase.from("admin_permissions").insert(
             oldPerms.map((p) => ({
               user_id: userId,
               permission_key: p,
               granted_by: user.id,
             }))
           );
+          if (restoreErr) {
+            compensationFailed = true;
+            console.error("[updateConsultantPermissionsAction] CRITICAL: Permission restoration failed:", restoreErr.message);
+          }
         }
-        return { success: false, error: `Failed to grant permissions: ${insertErr.message}` };
+
+        await logAdminAction({
+          actorId: user.id,
+          actorRole: profile.role,
+          action: "consultant.permissions_update.failure",
+          targetType: "consultant_permissions",
+          targetId: userId,
+          reason: compensationFailed
+            ? `Insert failed (${insertErr.message}) AND restoration failed. Permissions may be empty.`
+            : `Insert failed (${insertErr.message}); previous permissions successfully restored.`,
+          outcome: "failure",
+        });
+
+        return {
+          success: false,
+          error: compensationFailed
+            ? `Failed to grant permissions: ${insertErr.message}. CRITICAL: Previous permissions could not be restored automatically.`
+            : `Failed to grant permissions: ${insertErr.message}. Previous permissions were restored.`,
+        };
       }
     }
 
-    // Audit action
+    // Post-mutation audit confirmation (Completed)
     await logAdminAction({
       actorId: user.id,
       actorRole: profile.role,
@@ -278,9 +389,41 @@ export async function toggleConsultantRole(
     }
 
     if (targetProfile.role === "super_admin") {
+      logSecurityEvent({
+        eventType: "ROLE_ESCALATION_ATTEMPT",
+        actorId: user.id,
+        actorRole: profile.role,
+        targetId: targetUserId,
+        targetType: "profile",
+        outcome: "denied",
+        reason: "Unauthorized attempt to modify Super Administrator profile via consultant lifecycle controls",
+        metadata: {
+          actorEmail: user.email,
+        },
+      });
       return {
         success: false,
         error: "Super Administrator accounts cannot be modified via consultant lifecycle controls.",
+      };
+    }
+
+    // Pre-mutation audit record (Attempt): Ensures audit pipeline is operational before role mutation
+    const attemptAuditRes = await logAdminAction({
+      actorId: user.id,
+      actorRole: profile.role,
+      action: `consultant.role_update.${newRole}.attempt`,
+      targetType: "consultant_account",
+      targetId: targetUserId,
+      beforeState: { role: targetProfile.role },
+      afterState: { role: newRole },
+      outcome: "success",
+    });
+
+    if (!attemptAuditRes.success) {
+      console.error("[updateConsultantStatusAction] Pre-mutation audit record failed:", attemptAuditRes.error);
+      return {
+        success: false,
+        error: "Mandatory audit record failed; administrative role change halted.",
       };
     }
 
@@ -290,6 +433,30 @@ export async function toggleConsultantRole(
       .eq("id", targetUserId);
 
     if (updateErr) {
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: `consultant.role_update.${newRole}.failure`,
+        targetType: "consultant_account",
+        targetId: targetUserId,
+        reason: updateErr.message,
+        outcome: "failure",
+      });
+
+      if (updateErr.code === "42501" || /super administrator/i.test(updateErr.message)) {
+        logSecurityEvent({
+          eventType: "ROLE_ESCALATION_ATTEMPT",
+          actorId: user.id,
+          actorRole: profile.role,
+          targetId: targetUserId,
+          targetType: "profile",
+          outcome: "denied",
+          reason: "Database trigger blocked unauthorized role change (SQLSTATE 42501)",
+          metadata: {
+            actorEmail: user.email,
+          },
+        });
+      }
       return { success: false, error: updateErr.message };
     }
 
@@ -298,6 +465,7 @@ export async function toggleConsultantRole(
       await supabase.from("admin_permissions").delete().eq("user_id", targetUserId);
     }
 
+    // Post-mutation audit confirmation (Completed)
     await logAdminAction({
       actorId: user.id,
       actorRole: profile.role,

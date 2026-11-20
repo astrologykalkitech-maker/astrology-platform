@@ -3,6 +3,7 @@ import { getJyotishPayConfig } from "@/lib/pay/config";
 import { isValidJyotishWebhookSignature } from "@/lib/pay/webhook-signature";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completePaymentIntent } from "@/lib/pay/orchestrator";
+import { logSecurityEvent } from "@/lib/security/telemetry";
 
 type NormalizedPayment = {
   sessionCode: string;
@@ -109,6 +110,12 @@ export async function POST(req: NextRequest) {
       );
     }
     if (!isValidJyotishWebhookSignature(rawBody, signature, config.webhookSecret)) {
+      logSecurityEvent({
+        eventType: "WEBHOOK_SIGNATURE_INVALID",
+        targetType: "payment_webhook",
+        outcome: "denied",
+        reason: "Invalid payment webhook signature received on gateway endpoint",
+      });
       return NextResponse.json(
         { success: false, error: "Invalid payment webhook signature." },
         { status: 401 }

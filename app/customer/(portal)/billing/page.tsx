@@ -5,6 +5,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import { getCustomerBillingHistory } from "@/app/actions/customer";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { CustomerBillingClient } from "@/components/customer/CustomerBillingClient";
+import { CustomerWalletOverviewCard } from "@/components/customer/CustomerWalletOverviewCard";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,8 @@ export default async function BillingHistoryPage() {
           All transactions are secured via 256-bit encrypted Instamojo gateway. Download PDF tax receipts anytime.
         </span>
       </div>
+
+      <CustomerWalletOverviewCard />
 
       {billingRecords.length === 0 ? (
         <div className={`${CARD} py-16 px-6 text-center`}>

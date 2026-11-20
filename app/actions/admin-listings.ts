@@ -118,6 +118,27 @@ export async function updateListingModerationStatus(
       return { success: false, error: "Listing not found." };
     }
 
+    // Pre-mutation audit record (Attempt): Ensures audit pipeline is operational before updating listing status
+    const attemptAuditRes = await logAdminAction({
+      actorId: user.id,
+      actorRole: profile.role,
+      action: `listing.status_change.${status}.attempt`,
+      targetType: "listing",
+      targetId: listingId,
+      reason: reason ?? reviewNotes,
+      beforeState: { approval_status: beforeListing.approval_status },
+      afterState: { approval_status: status },
+      outcome: "success",
+    });
+
+    if (!attemptAuditRes.success) {
+      console.error("[updateListingStatus] Pre-mutation audit record failed:", attemptAuditRes.error);
+      return {
+        success: false,
+        error: "Mandatory audit record failed; listing status update halted.",
+      };
+    }
+
     const { data: profileCheck } = await supabase
       .from("profiles")
       .select("id")
@@ -143,6 +164,15 @@ export async function updateListingModerationStatus(
       .single();
 
     if (updateErr) {
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: `listing.status_change.${status}.failure`,
+        targetType: "listing",
+        targetId: listingId,
+        reason: updateErr.message,
+        outcome: "failure",
+      });
       return { success: false, error: updateErr.message };
     }
 
@@ -187,7 +217,7 @@ export async function updateListingModerationStatus(
     revalidatePath("/super-admin/leads/distribution", "page");
     revalidatePath("/super-admin", "page");
 
-    // Record audit event
+    // Post-mutation audit confirmation (Completed)
     await logAdminAction({
       actorId: user.id,
       actorRole: profile.role,

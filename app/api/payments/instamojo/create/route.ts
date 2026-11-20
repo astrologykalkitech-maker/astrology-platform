@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkRateLimitAsync } from "@/lib/security/rate-limit";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { requireAstrologer } from "@/lib/auth/session";
 import { getOwnAstrologerProfile } from "@/lib/astrologer/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createInstamojoPaymentRequest } from "@/lib/financial/instamojo";
 import { generateOrderNumber, paiseToRupees, rupeesToPaise } from "@/lib/financial/pricing";
+import { logSecurityEvent } from "@/lib/security/telemetry";
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +25,24 @@ export async function POST(req: NextRequest) {
     if (purposeType === "subscription") {
       // 1. Authenticate Astrologer
       const { user } = await requireAstrologer();
+
+      // Rate limit: 10 subscription payment requests per minute per astrologer
+      const rl = await checkRateLimitAsync(`pay:instamojo:sub:${user.id}`, 10, 60_000);
+      if (!rl.allowed) {
+        logSecurityEvent({
+          eventType: "RATE_LIMIT_EXCEEDED",
+          actorId: user.id,
+          actorRole: "astrologer",
+          targetType: "instamojo_subscription_payment",
+          outcome: "blocked",
+          reason: "Rate limit of 10 subscription payments per minute exceeded",
+        });
+        return NextResponse.json(
+          { error: "Too many payment requests. Please wait." },
+          { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+        );
+      }
+
       const { profile, error: profErr } = await getOwnAstrologerProfile();
       if (profErr || !profile) {
         return NextResponse.json({ error: "Astrologer profile not found" }, { status: 403 });
@@ -123,6 +143,15 @@ export async function POST(req: NextRequest) {
     } else if (purposeType === "consultation") {
       // Customer consultation payment
       const { user } = await requireCustomerContext();
+
+      // Rate limit: 10 consultation payment requests per minute per customer
+      const rl = await checkRateLimitAsync(`pay:instamojo:consult:${user.id}`, 10, 60_000);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: "Too many payment requests. Please wait." },
+          { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+        );
+      }
 
       const { data: booking, error: bErr } = await supabase
         .from("customer_bookings")

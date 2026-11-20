@@ -15,6 +15,12 @@ import {
   validateCreateAstrologerProfileInput,
   validateUpdateAstrologerProfileInput,
 } from "@/lib/validations/astrologer";
+import {
+  encryptBeneficiaryFinancialData,
+  maskUpiId,
+  isBeneficiaryEncryptionConfigured,
+  getActiveKeyVersion,
+} from "@/lib/financial/encryption";
 
 /**
  * Handle PostgreSQL unique violation (code 23505) and format friendly error messages.
@@ -71,7 +77,7 @@ export async function createAstrologerProfile(
     }
 
     // 4. Insert profile record (approval_status is forced to 'pending')
-    const insertPayload = {
+    const insertPayload: Record<string, unknown> = {
       user_id: user.id,
       display_name: input.display_name,
       slug: input.slug,
@@ -87,6 +93,14 @@ export async function createAstrologerProfile(
       profile_photo_url: input.profile_photo_url ?? null,
       approval_status: "pending" as const,
     };
+
+    if (input.upi_vpa && isBeneficiaryEncryptionConfigured()) {
+      const cleanUpi = input.upi_vpa.trim().toLowerCase();
+      const enc = encryptBeneficiaryFinancialData(user.id, "upi_id", cleanUpi);
+      insertPayload.encrypted_upi_vpa = enc.ciphertext;
+      insertPayload.masked_upi_vpa = maskUpiId(cleanUpi);
+      insertPayload.upi_encryption_version = getActiveKeyVersion();
+    }
 
     const { data, error } = await supabase
       .from("astrologer_profiles")
@@ -152,9 +166,19 @@ export async function updateAstrologerProfile(
 
     // 4. Execute update
     // Note: approval_status is NOT included in updatePayload, preserving current status
+    const updateRecord = { ...updatePayload } as Record<string, unknown>;
+
+    if (updateRecord.upi_vpa && typeof updateRecord.upi_vpa === "string" && isBeneficiaryEncryptionConfigured()) {
+      const cleanUpi = updateRecord.upi_vpa.trim().toLowerCase();
+      const enc = encryptBeneficiaryFinancialData(user.id, "upi_id", cleanUpi);
+      updateRecord.encrypted_upi_vpa = enc.ciphertext;
+      updateRecord.masked_upi_vpa = maskUpiId(cleanUpi);
+      updateRecord.upi_encryption_version = getActiveKeyVersion();
+    }
+
     const { data, error } = await supabase
       .from("astrologer_profiles")
-      .update(updatePayload)
+      .update(updateRecord)
       .eq("user_id", user.id)
       .select()
       .single();

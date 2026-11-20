@@ -1,5 +1,4 @@
 import https from "https";
-import dns from "dns/promises";
 import crypto from "crypto";
 
 export interface InstamojoConfig {
@@ -331,14 +330,14 @@ export function verifyInstamojoMac(
   const message = dataParts.join("|");
   const computedMac = crypto.createHmac("sha1", secret).update(message).digest("hex");
 
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(computedMac.toLowerCase()),
-      Buffer.from(macToVerify.toLowerCase())
-    );
-  } catch {
+  const computedBuf = Buffer.from(computedMac.toLowerCase(), "utf8");
+  const verifyBuf = Buffer.from(macToVerify.toLowerCase(), "utf8");
+
+  if (computedBuf.length !== verifyBuf.length) {
     return false;
   }
+
+  return crypto.timingSafeEqual(computedBuf, verifyBuf);
 }
 
 export function verifyRequiredInstamojoMac(

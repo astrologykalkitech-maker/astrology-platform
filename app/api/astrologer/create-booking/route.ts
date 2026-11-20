@@ -223,6 +223,7 @@ export async function POST(req: NextRequest) {
             price: Number(astrologerProfile.consultation_fee) || 0.0,
             notes: noteText || null,
             status: "confirmed",
+            payment_mode: "platform_gateway",
           },
         ])
         .select()

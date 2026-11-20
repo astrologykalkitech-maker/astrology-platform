@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { Download, CreditCard, RefreshCw, AlertCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2 } from "lucide-react";
 import type { CustomerBillingRecord } from "@/lib/types/database.types";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
 import { generatePaymentReceiptPdf } from "@/lib/financial/receipt";
-import { requestCustomerRefundAction } from "@/app/actions/payments";
+import { requestCustomerRefundAction, payConsultationViaWalletAction } from "@/app/actions/payments";
 import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
+import { WalletRechargeModal } from "@/components/pay/WalletRechargeModal";
 
 export function CustomerBillingClient({
   records,
@@ -23,6 +24,79 @@ export function CustomerBillingClient({
   const [refundReason, setRefundReason] = useState("");
   const [submittingRefund, setSubmittingRefund] = useState(false);
   const [refundStatusMsg, setRefundStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Customer Wallet State
+  const [walletAvailablePaise, setWalletAvailablePaise] = useState<number | null>(null);
+  const [loadingWallet, setLoadingWallet] = useState(true);
+  const [payingWalletBookingId, setPayingWalletBookingId] = useState<string | null>(null);
+  const [walletPaymentSuccess, setWalletPaymentSuccess] = useState<{ bookingId: string; orderNumber: string; receiptNumber: string } | null>(null);
+  const [walletPaymentError, setWalletPaymentError] = useState<{ bookingId: string; message: string } | null>(null);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadCustomerWallet() {
+      try {
+        const res = await fetch("/api/customer/wallet");
+        if (res.ok) {
+          const json = await res.json();
+          if (mounted && json.success && json.data) {
+            setWalletAvailablePaise(Number(json.data.total_available_paise || 0));
+          }
+        }
+      } catch {
+        // Fallback
+      } finally {
+        if (mounted) setLoadingWallet(false);
+      }
+    }
+    loadCustomerWallet();
+  }, []);
+
+  const handlePayViaWallet = async (record: CustomerBillingRecord) => {
+    const requiredPaise = rupeesToPaise(record.amount);
+    if (walletAvailablePaise !== null && walletAvailablePaise < requiredPaise) {
+      setWalletPaymentError({
+        bookingId: record.booking_id,
+        message: `Insufficient wallet balance. You have ₹${(walletAvailablePaise / 100).toFixed(2)}, required ₹${record.amount.toFixed(2)}. Please recharge your wallet.`,
+      });
+      return;
+    }
+
+    try {
+      setPayingWalletBookingId(record.booking_id);
+      setWalletPaymentError(null);
+      setWalletPaymentSuccess(null);
+
+      const res = await payConsultationViaWalletAction({
+        bookingId: record.booking_id,
+      });
+
+      if (res.success && res.data) {
+        setWalletPaymentSuccess({
+          bookingId: record.booking_id,
+          orderNumber: res.data.orderNumber,
+          receiptNumber: res.data.receiptNumber,
+        });
+        setWalletAvailablePaise(res.data.remainingBalancePaise);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1800);
+      } else {
+        setWalletPaymentError({
+          bookingId: record.booking_id,
+          message: res.error || "Failed to process payment via wallet.",
+        });
+      }
+    } catch (err) {
+      setWalletPaymentError({
+        bookingId: record.booking_id,
+        message: err instanceof Error ? err.message : "Error paying via wallet",
+      });
+    } finally {
+      setPayingWalletBookingId(null);
+    }
+  };
 
   const handleDownloadReceipt = (record: CustomerBillingRecord) => {
     const doc = generatePaymentReceiptPdf({
@@ -180,13 +254,35 @@ export function CustomerBillingClient({
                       )}
                     </>
                   ) : (
-                    <button
-                      onClick={() => handlePayNow(r)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
-                    >
-                      <CreditCard className="h-3 w-3" />
-                      Pay via UPI (Karmic Ascension Pay)
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-1.5">
+                      {/* 1. Pay via Customer Wallet Button */}
+                      <button
+                        onClick={() => handlePayViaWallet(r)}
+                        disabled={payingWalletBookingId === r.booking_id}
+                        className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity disabled:opacity-50"
+                        title={
+                          walletAvailablePaise !== null && walletAvailablePaise < rupeesToPaise(r.amount)
+                            ? `Insufficient wallet funds (₹${(walletAvailablePaise / 100).toFixed(2)} available)`
+                            : "Pay instantly from your Karmic Ascension Wallet"
+                        }
+                      >
+                        {payingWalletBookingId === r.booking_id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Wallet className="h-3 w-3" />
+                        )}
+                        Pay via Wallet
+                      </button>
+
+                      {/* 2. Pay via UPI Button */}
+                      <button
+                        onClick={() => handlePayNow(r)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
+                      >
+                        <CreditCard className="h-3 w-3" />
+                        Pay via UPI
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -211,6 +307,57 @@ export function CustomerBillingClient({
             }, 1500);
           }}
         />
+      )}
+
+      {/* Wallet Recharge Modal (if user wants to add funds) */}
+      <WalletRechargeModal
+        isOpen={showRechargeModal}
+        onClose={() => setShowRechargeModal(false)}
+        userRole="customer"
+        onSuccess={() => {
+          window.location.reload();
+        }}
+      />
+
+      {/* Wallet Payment Status Banner / Notification */}
+      {walletPaymentSuccess && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 shadow-xl text-emerald-900">
+          <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+          <div className="text-xs">
+            <p className="font-bold">Consultation Paid Successfully via Wallet!</p>
+            <p className="text-[11px] text-emerald-700">
+              Receipt #{walletPaymentSuccess.receiptNumber} • Order #{walletPaymentSuccess.orderNumber}. Refreshing page...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {walletPaymentError && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center justify-between gap-4 rounded-2xl border border-red-300 bg-red-50 p-4 shadow-xl text-red-900 max-w-md">
+          <div className="flex items-start gap-2.5 text-xs">
+            <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Payment Error</p>
+              <p className="text-[11px] text-red-700 mt-0.5">{walletPaymentError.message}</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5 shrink-0">
+            {walletPaymentError.message.includes("Insufficient") && (
+              <button
+                onClick={() => setShowRechargeModal(true)}
+                className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-semibold text-white shadow hover:bg-emerald-700"
+              >
+                Recharge Wallet
+              </button>
+            )}
+            <button
+              onClick={() => setWalletPaymentError(null)}
+              className="text-[10px] font-semibold text-red-600 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Refund Request Modal */}

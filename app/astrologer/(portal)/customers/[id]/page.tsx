@@ -22,6 +22,10 @@ import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatDateTime, formatExactDateTime } from "@/lib/astrologer/format";
 import { getAstrologerCustomerNotesAction } from "@/app/actions/astrologer-crm";
 import { CustomerNotesClient } from "@/components/astrologer/crm/CustomerNotesClient";
+import {
+  decryptCustomerBirthData,
+  isBeneficiaryEncryptionConfigured,
+} from "@/lib/financial/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -96,15 +100,68 @@ export default async function AstrologerCustomerDetailPage({
   }
 
   // 3. Fetch customer profile
-  const { data: customer, error: custErr } = await admin
+  const { data: customerRaw, error: custErr } = await admin
     .from("profiles")
-    .select("id, full_name, phone, date_of_birth, time_of_birth, birthplace, gender, avatar_url, created_at")
+    .select("id, full_name, phone, date_of_birth, time_of_birth, birthplace, gender, avatar_url, created_at, encrypted_date_of_birth, encrypted_time_of_birth, encrypted_birthplace")
     .eq("id", customerId)
     .maybeSingle();
 
-  if (custErr || !customer) {
+  if (custErr || !customerRaw) {
     notFound();
   }
+
+  let resolvedDob: string | null = null;
+  let resolvedTob: string | null = null;
+  let resolvedPlace: string | null = null;
+
+  if (customerRaw.encrypted_date_of_birth) {
+    if (isBeneficiaryEncryptionConfigured()) {
+      try {
+        resolvedDob = decryptCustomerBirthData(customerId, "date_of_birth", customerRaw.encrypted_date_of_birth);
+      } catch {
+        resolvedDob = "[Encrypted - Decryption Error]";
+      }
+    } else {
+      resolvedDob = "[Encrypted - Key Unavailable]";
+    }
+  } else {
+    resolvedDob = customerRaw.date_of_birth || null;
+  }
+
+  if (customerRaw.encrypted_time_of_birth) {
+    if (isBeneficiaryEncryptionConfigured()) {
+      try {
+        resolvedTob = decryptCustomerBirthData(customerId, "time_of_birth", customerRaw.encrypted_time_of_birth);
+      } catch {
+        resolvedTob = "[Encrypted - Decryption Error]";
+      }
+    } else {
+      resolvedTob = "[Encrypted - Key Unavailable]";
+    }
+  } else {
+    resolvedTob = customerRaw.time_of_birth || null;
+  }
+
+  if (customerRaw.encrypted_birthplace) {
+    if (isBeneficiaryEncryptionConfigured()) {
+      try {
+        resolvedPlace = decryptCustomerBirthData(customerId, "birthplace", customerRaw.encrypted_birthplace);
+      } catch {
+        resolvedPlace = "[Encrypted - Decryption Error]";
+      }
+    } else {
+      resolvedPlace = "[Encrypted - Key Unavailable]";
+    }
+  } else {
+    resolvedPlace = customerRaw.birthplace || null;
+  }
+
+  const customer = {
+    ...customerRaw,
+    date_of_birth: resolvedDob,
+    time_of_birth: resolvedTob,
+    birthplace: resolvedPlace,
+  };
 
   // 4. Fetch consultation history and confidential notes between this astrologer and customer
   // First, find all lead IDs assigned to this astrologer for this customer

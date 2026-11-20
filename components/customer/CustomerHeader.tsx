@@ -10,6 +10,7 @@ import { CustomerSignOutButton } from "@/components/customer/CustomerSignOutButt
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { LanguageSelector } from "@/components/common/LanguageSelector";
 import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
+import { CustomerWalletBadge } from "@/components/customer/CustomerWalletBadge";
 
 type CustomerHeaderProps = {
   customerName: string;
@@ -127,6 +128,7 @@ export function CustomerHeader({
         </Link>
         {isLoggedIn ? (
           <div className="flex items-center gap-2">
+            <CustomerWalletBadge />
             <Link
               href="/customer/notification"
               className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-champagne hover:bg-white/10"
@@ -161,6 +163,7 @@ export function CustomerHeader({
         </div>
 
         <div className="flex items-center gap-5">
+          <CustomerWalletBadge />
           <LanguageSelector />
           {isLoggedIn ? (
             <>

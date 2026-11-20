@@ -59,17 +59,33 @@ type JyotishPayVerificationRow = {
   astrologer_name?: string;
 };
 
+export type WalletRechargeRow = {
+  id: string;
+  order_number: string;
+  entity_type: "astrologer_wallet_recharge" | "customer_wallet_recharge";
+  entity_id: string;
+  astrologer_id?: string | null;
+  customer_id?: string | null;
+  amount_paise: number;
+  status: string;
+  created_at: string;
+  utr?: string | null;
+  session_code?: string | null;
+  account_holder_name?: string;
+};
+
 export async function getManualVerificationQueueAction(): Promise<{
   success: boolean;
   directPayments?: DirectPaymentRow[];
   settlements?: SettlementRow[];
   jyotishPayments?: JyotishPayVerificationRow[];
+  walletRecharges?: WalletRechargeRow[];
   error?: string;
 }> {
   try {
     await requireSuperAdmin();
     const admin = await createAdminClient("main");
-    const [paymentResult, settlementResult, jyotishResult] = await Promise.all([
+    const [paymentResult, settlementResult, jyotishResult, rechargeResult] = await Promise.all([
       admin
         .from("direct_consultation_payments")
         .select("id, booking_id, astrologer_id, customer_id, utr, amount_paise, payment_date, status, submitted_at, reviewed_at, review_notes, rejection_reason")
@@ -89,15 +105,24 @@ export async function getManualVerificationQueueAction(): Promise<{
         .eq("status", "pending")
         .order("submitted_at", { ascending: true })
         .limit(250),
+      admin
+        .from("payment_orders")
+        .select("id, order_number, entity_type, entity_id, astrologer_id, customer_id, amount_paise, status, metadata, created_at")
+        .in("entity_type", ["astrologer_wallet_recharge", "customer_wallet_recharge"])
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(250),
     ]);
 
     if (paymentResult.error) return { success: false, error: paymentResult.error.message };
     if (settlementResult.error) return { success: false, error: settlementResult.error.message };
     if (jyotishResult.error) return { success: false, error: jyotishResult.error.message };
+    if (rechargeResult.error) return { success: false, error: rechargeResult.error.message };
 
     const payments = (paymentResult.data || []) as DirectPaymentRow[];
     const settlements = (settlementResult.data || []) as SettlementRow[];
     const jyotishPayments = (jyotishResult.data || []) as JyotishPayVerificationRow[];
+    const pendingOrders = (rechargeResult.data || []) as any[];
     const intentIds = Array.from(new Set(jyotishPayments.map((row) => row.intent_id)));
     const intentResult = intentIds.length
       ? await admin
@@ -124,15 +149,22 @@ export async function getManualVerificationQueueAction(): Promise<{
         ...payments.map((row) => row.astrologer_id),
         ...settlements.map((row) => row.consultant_id),
         ...jyotishPayments.map((row) => row.astrologer_id).filter((id): id is string => Boolean(id)),
+        ...pendingOrders
+          .map((row) => row.astrologer_id || (row.entity_type === "astrologer_wallet_recharge" ? row.entity_id : null))
+          .filter((id): id is string => Boolean(id)),
       ])
     );
+    const rechargeCustomerIds = pendingOrders
+      .map((row) => row.customer_id || (row.entity_type === "customer_wallet_recharge" ? row.entity_id : null))
+      .filter((id): id is string => Boolean(id));
+    const allCustomerIds = Array.from(new Set([...customerIds, ...rechargeCustomerIds]));
 
     const [bookingsResult, customersResult, astrologersResult] = await Promise.all([
       allBookingIds.length
         ? admin.from("customer_bookings").select("id, status, price, service_type").in("id", allBookingIds)
         : Promise.resolve({ data: [], error: null }),
-      customerIds.length
-        ? admin.from("profiles").select("id, full_name").in("id", customerIds)
+      allCustomerIds.length
+        ? admin.from("profiles").select("id, full_name").in("id", allCustomerIds)
         : Promise.resolve({ data: [], error: null }),
       astrologerIds.length
         ? admin.from("astrologer_profiles").select("id, display_name, user_id, upi_vpa").in("id", astrologerIds)
@@ -146,6 +178,32 @@ export async function getManualVerificationQueueAction(): Promise<{
     const bookings = new Map((bookingsResult.data || []).map((row) => [row.id, row]));
     const customers = new Map((customersResult.data || []).map((row) => [row.id, row]));
     const astrologers = new Map((astrologersResult.data || []).map((row) => [row.id, row]));
+
+    const walletRecharges: WalletRechargeRow[] = pendingOrders.map((order) => {
+      const meta = typeof order.metadata === "object" && order.metadata !== null ? order.metadata : {};
+      const astroId = order.astrologer_id || (order.entity_type === "astrologer_wallet_recharge" ? order.entity_id : null);
+      const custId = order.customer_id || (order.entity_type === "customer_wallet_recharge" ? order.entity_id : null);
+      const holderName = astroId
+        ? astrologers.get(astroId)?.display_name || "Astrologer"
+        : custId
+        ? customers.get(custId)?.full_name || "Customer"
+        : "Account Holder";
+
+      return {
+        id: order.id,
+        order_number: order.order_number,
+        entity_type: order.entity_type,
+        entity_id: order.entity_id,
+        astrologer_id: astroId,
+        customer_id: custId,
+        amount_paise: Number(order.amount_paise),
+        status: order.status,
+        created_at: order.created_at,
+        utr: meta.utr || null,
+        session_code: meta.session_code || null,
+        account_holder_name: holderName,
+      };
+    });
 
     return {
       success: true,
@@ -188,6 +246,7 @@ export async function getManualVerificationQueueAction(): Promise<{
           astrologer_name: astrologer?.display_name || "Astrologer",
         };
       }),
+      walletRecharges,
     };
   } catch (error) {
     return {
@@ -360,12 +419,183 @@ export async function reviewCommissionSettlementAction(payload: {
     });
     if (error) return { success: false, error: error.message };
 
+    // Note: Migration 072 embeds the mandatory admin_audit_logs insertion directly inside
+    // the review_commission_settlement SQL transaction boundary.
+    // We also record the action via logAdminAction for application-layer consistency.
+    const { logAdminAction } = await import("@/lib/admin/audit");
+    await logAdminAction({
+      actorId: user.id,
+      actorRole: "super_admin",
+      action: `financial.settlement_${payload.decision}`,
+      targetType: "commission_settlement",
+      targetId: payload.settlementId,
+      reason: reviewNotes || rejectionReason,
+      beforeState: { status: "pending_verification", settlementId: payload.settlementId },
+      afterState: { status: data, decision: payload.decision },
+      outcome: "success",
+    });
+
     revalidateFinancialPaths();
     return { success: true, status: data };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unable to review settlement.",
+    };
+  }
+}
+
+export async function reviewWalletRechargeOrderAction(payload: {
+  orderId: string;
+  decision: "approve" | "reject";
+  reviewNotes: string;
+  rejectionReason?: string;
+}): Promise<{ success: boolean; status?: string; error?: string }> {
+  try {
+    const { user } = await requireSuperAdmin();
+    if (!UUID_PATTERN.test(payload.orderId)) {
+      return { success: false, error: "Invalid payment order record." };
+    }
+
+    const reviewNotes = payload.reviewNotes.trim();
+    const rejectionReason = payload.rejectionReason?.trim() || "";
+    if (payload.decision === "approve" && reviewNotes.length < 5) {
+      return { success: false, error: "Record the external bank / gateway evidence you checked." };
+    }
+    if (payload.decision === "reject" && rejectionReason.length < 3) {
+      return { success: false, error: "A rejection reason is required." };
+    }
+
+    const admin = await createAdminClient("main");
+
+    // Execute atomic PostgreSQL RPC ensuring single-transaction boundary across
+    // order locking, wallet crediting, double-entry ledger lines, and admin audit logging
+    const { data: rpcRes, error: rpcErr } = await admin.rpc("review_wallet_recharge_order_atomic", {
+      p_order_id: payload.orderId,
+      p_admin_id: user.id,
+      p_decision: payload.decision,
+      p_review_notes: reviewNotes,
+      p_rejection_reason: rejectionReason || null,
+    });
+
+    if (rpcErr) {
+      // Graceful fallback to application-layer transactional flow if RPC not yet deployed in remote schema cache
+      const { data: order, error: orderErr } = await admin
+        .from("payment_orders")
+        .select("id, order_number, entity_type, entity_id, astrologer_id, customer_id, amount_paise, status, metadata")
+        .eq("id", payload.orderId)
+        .maybeSingle();
+
+      if (orderErr || !order) {
+        return { success: false, error: orderErr?.message || "Payment order not found." };
+      }
+
+      if (order.status !== "pending") {
+        return { success: false, error: `Order is already in '${order.status}' status.` };
+      }
+
+      const currentMeta = (typeof order.metadata === "object" && order.metadata !== null)
+        ? (order.metadata as Record<string, any>)
+        : {};
+
+      if (payload.decision === "reject") {
+        const { error: rejectErr } = await admin
+          .from("payment_orders")
+          .update({
+            status: "failed",
+            updated_at: new Date().toISOString(),
+            metadata: {
+              ...currentMeta,
+              review_decision: "rejected",
+              reviewed_by: user.id,
+              reviewed_at: new Date().toISOString(),
+              review_notes: reviewNotes,
+              rejection_reason: rejectionReason,
+            },
+          })
+          .eq("id", order.id)
+          .eq("status", "pending");
+
+        if (rejectErr) return { success: false, error: rejectErr.message };
+
+        revalidateFinancialPaths();
+        return { success: true, status: "rejected" };
+      }
+
+      // Approve fallback
+      const { error: approveErr } = await admin
+        .from("payment_orders")
+        .update({
+          status: "successful",
+          updated_at: new Date().toISOString(),
+          metadata: {
+            ...currentMeta,
+            review_decision: "approved",
+            reviewed_by: user.id,
+            reviewed_at: new Date().toISOString(),
+            review_notes: reviewNotes,
+          },
+        })
+        .eq("id", order.id)
+        .eq("status", "pending");
+
+      if (approveErr) return { success: false, error: approveErr.message };
+
+      if (order.entity_type === "astrologer_wallet_recharge") {
+        const { creditAstrologerOperatingWallet } = await import("@/lib/financial/astrologer-wallet-engine");
+        const astrologerId = order.astrologer_id || order.entity_id;
+        const creditRes = await creditAstrologerOperatingWallet({
+          astrologerId,
+          amountPaise: Number(order.amount_paise),
+          creditType: "RECHARGE",
+          idempotencyKey: `admin_utr_astro_${order.id}`,
+          description: `Admin Verified Recharge #${order.order_number} [Ref: ${currentMeta.utr || "Direct"}]`,
+          paymentOrderId: order.id,
+        });
+
+        if (!creditRes.success) {
+          return { success: false, error: creditRes.error || "Failed to credit astrologer operating wallet." };
+        }
+      } else if (order.entity_type === "customer_wallet_recharge") {
+        const { creditCustomerWallet } = await import("@/lib/financial/wallet-engine");
+        const customerId = order.customer_id || order.entity_id;
+        const creditRes = await creditCustomerWallet({
+          customerId,
+          amountPaise: Number(order.amount_paise),
+          creditType: "RECHARGE",
+          idempotencyKey: `admin_utr_cust_${order.id}`,
+          description: `Admin Verified Recharge #${order.order_number} [Ref: ${currentMeta.utr || "Direct"}]`,
+          paymentOrderId: order.id,
+        });
+
+        if (!creditRes.success) {
+          return { success: false, error: creditRes.error || "Failed to credit customer consultation wallet." };
+        }
+      }
+
+      const { logAdminAction } = await import("@/lib/admin/audit");
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: "super_admin",
+        action: "financial.wallet_recharge_verified",
+        targetType: "payment_order",
+        targetId: order.id,
+        reason: reviewNotes,
+        beforeState: { status: "pending", amount_paise: order.amount_paise },
+        afterState: { status: "successful", amount_paise: order.amount_paise },
+        outcome: "success",
+      });
+
+      revalidateFinancialPaths();
+      return { success: true, status: "approved" };
+    }
+
+    revalidateFinancialPaths();
+    return { success: true, status: rpcRes?.status || "approved" };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unable to review wallet recharge.",
     };
   }
 }

@@ -7,6 +7,8 @@ import {
   reviewCommissionSettlementAction,
   reviewDirectConsultationPaymentAction,
   reviewJyotishPayPaymentAction,
+  reviewWalletRechargeOrderAction,
+  WalletRechargeRow,
 } from "@/app/actions/financial-verification";
 import { formatPaiseToInr } from "@/lib/financial/pricing";
 
@@ -59,16 +61,36 @@ export function ManualPaymentVerificationClient({
   directPayments,
   settlements,
   jyotishPayments,
+  walletRecharges = [],
 }: {
   directPayments: DirectPayment[];
   settlements: Settlement[];
   jyotishPayments: JyotishPayVerification[];
+  walletRecharges?: WalletRechargeRow[];
 }) {
   const router = useRouter();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  async function reviewWalletRecharge(order: WalletRechargeRow, decision: "approve" | "reject") {
+    setBusyId(order.id);
+    setMessage(null);
+    const result = await reviewWalletRechargeOrderAction({
+      orderId: order.id,
+      decision,
+      reviewNotes: notes[order.id] || "",
+      rejectionReason: reasons[order.id] || "",
+    });
+    setBusyId(null);
+    if (!result.success) {
+      setMessage({ type: "error", text: result.error || "Wallet recharge review failed." });
+      return;
+    }
+    setMessage({ type: "success", text: `Wallet recharge ${result.status || "updated"}.` });
+    router.refresh();
+  }
 
   async function reviewPayment(paymentId: string, decision: "approve" | "reject" | "refund") {
     setBusyId(paymentId);
@@ -136,6 +158,84 @@ export function ManualPaymentVerificationClient({
           {message.text}
         </div>
       )}
+
+      {/* Astrologer & Customer Operating Wallet Recharge Queue */}
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-lg font-bold text-midnight">Operating & Consultation Wallet Recharges</h2>
+          <p className="text-xs text-muted">
+            Direct UPI QR and UTR recharge submissions. Approving atomically credits the operating/consultation wallet and posts balanced general ledger entries.
+          </p>
+        </div>
+        {walletRecharges.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gold/30 bg-white p-8 text-center text-sm text-muted">
+            No pending wallet recharges awaiting verification.
+          </div>
+        ) : (
+          walletRecharges.map((recharge) => (
+            <article key={recharge.id} className="space-y-3 rounded-2xl border border-gold/25 bg-white p-4 shadow-sm">
+              <div className="grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                <Info label="Account Holder" value={recharge.account_holder_name || "Account holder"} />
+                <Info
+                  label="Recharge Type"
+                  value={
+                    recharge.entity_type === "astrologer_wallet_recharge"
+                      ? "Astrologer Operating Wallet"
+                      : "Customer Consultation Wallet"
+                  }
+                />
+                <Info label="Order Number" value={recharge.order_number} mono />
+                <Info label="Amount" value={formatPaiseToInr(recharge.amount_paise)} />
+                <Info label="UTR / Reference" value={recharge.utr || "Direct Gateway / Session"} mono />
+                <Info label="Session Reference" value={recharge.session_code || "None"} mono />
+                <Info label="Status" value={recharge.status} />
+                <Info label="Initiated" value={new Date(recharge.created_at).toLocaleString()} />
+              </div>
+
+              <label className="block text-xs font-medium text-midnight">
+                Evidence review note
+                <textarea
+                  value={notes[recharge.id] || ""}
+                  onChange={(event) => setNotes((current) => ({ ...current, [recharge.id]: event.target.value }))}
+                  rows={2}
+                  maxLength={1000}
+                  placeholder="Record bank statement, VPA match, or UPI transaction ID verified."
+                  className="mt-1 w-full rounded-lg border border-line bg-ivory/70 px-3 py-2 text-xs"
+                />
+              </label>
+
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="min-w-[220px] flex-1 text-xs font-medium text-midnight">
+                  Rejection reason (required to reject)
+                  <input
+                    value={reasons[recharge.id] || ""}
+                    onChange={(event) => setReasons((current) => ({ ...current, [recharge.id]: event.target.value }))}
+                    maxLength={500}
+                    placeholder="Reason if bank transaction was not found..."
+                    className="mt-1 w-full rounded-lg border border-line bg-ivory/70 px-3 py-2 text-xs"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={busyId === recharge.id}
+                  onClick={() => reviewWalletRecharge(recharge, "reject")}
+                  className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50 hover:bg-rose-50 transition cursor-pointer"
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  disabled={busyId === recharge.id}
+                  onClick={() => reviewWalletRecharge(recharge, "approve")}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 hover:bg-emerald-700 transition cursor-pointer"
+                >
+                  {busyId === recharge.id ? "Saving..." : "Approve & Credit Wallet"}
+                </button>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
 
       <section className="space-y-3">
         <div>

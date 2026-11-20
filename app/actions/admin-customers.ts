@@ -8,6 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type { CustomerBooking, CustomerFullProfile, Lead, Profile } from "@/lib/types/database.types";
+import {
+  decryptCustomerBirthData,
+  isBeneficiaryEncryptionConfigured,
+} from "@/lib/financial/encryption";
 import { isValidUUID } from "@/lib/validations/lead";
 import { logAdminAction } from "@/lib/admin/audit";
 import { revalidatePath } from "next/cache";
@@ -60,7 +64,9 @@ export async function getAdminCustomers(
     let query = supabase
       .from("profiles")
       .select("*", { count: "exact" })
-      .eq("role", "customer");
+      .eq("role", "customer")
+      .neq("role", "deleted")
+      .not("full_name", "ilike", "%[Deleted%");
 
     if (filter.search && filter.search.trim()) {
       const term = `%${filter.search.trim()}%`;
@@ -138,12 +144,28 @@ export async function getAdminCustomers(
 
     const enrichedCustomers: AdminCustomerSummary[] = customerProfiles.map((p) => {
       const raw = p as unknown as Record<string, unknown>;
+      let dob = (raw.date_of_birth as string | null) ?? null;
+      let birthplace = (raw.birthplace as string | null) ?? null;
+
+      if (isBeneficiaryEncryptionConfigured()) {
+        try {
+          if (raw.encrypted_date_of_birth && typeof raw.encrypted_date_of_birth === "string") {
+            dob = decryptCustomerBirthData(p.id, "date_of_birth", raw.encrypted_date_of_birth);
+          }
+          if (raw.encrypted_birthplace && typeof raw.encrypted_birthplace === "string") {
+            birthplace = decryptCustomerBirthData(p.id, "birthplace", raw.encrypted_birthplace);
+          }
+        } catch {
+          // Fall back gracefully to existing plaintext value
+        }
+      }
+
       return {
         ...p,
         email: emailMap.get(p.id) ?? (raw.email as string | null) ?? null,
         phone: (raw.phone as string | null) ?? null,
-        date_of_birth: (raw.date_of_birth as string | null) ?? null,
-        birthplace: (raw.birthplace as string | null) ?? null,
+        date_of_birth: dob,
+        birthplace: birthplace,
         gender: (raw.gender as string | null) ?? null,
         total_bookings: bookingCountsMap.get(p.id) ?? 0,
         total_enquiries: leadCountsMap.get(p.id) ?? 0,
@@ -205,14 +227,34 @@ export async function getAdminCustomerDetails(
     }
 
     const raw = profile as unknown as Record<string, unknown>;
+    let detailDob = (raw.date_of_birth as string | null) ?? null;
+    let detailTob = (raw.time_of_birth as string | null) ?? null;
+    let detailBirthplace = (raw.birthplace as string | null) ?? null;
+
+    if (isBeneficiaryEncryptionConfigured()) {
+      try {
+        if (raw.encrypted_date_of_birth && typeof raw.encrypted_date_of_birth === "string") {
+          detailDob = decryptCustomerBirthData(customerId, "date_of_birth", raw.encrypted_date_of_birth);
+        }
+        if (raw.encrypted_time_of_birth && typeof raw.encrypted_time_of_birth === "string") {
+          detailTob = decryptCustomerBirthData(customerId, "time_of_birth", raw.encrypted_time_of_birth);
+        }
+        if (raw.encrypted_birthplace && typeof raw.encrypted_birthplace === "string") {
+          detailBirthplace = decryptCustomerBirthData(customerId, "birthplace", raw.encrypted_birthplace);
+        }
+      } catch {
+        // Fall back gracefully to existing plaintext value
+      }
+    }
+
     const fullProfile: CustomerFullProfile = {
       id: profile.id,
       full_name: profile.full_name || null,
       email,
       phone: (raw.phone as string | null) ?? null,
-      date_of_birth: (raw.date_of_birth as string | null) ?? null,
-      time_of_birth: (raw.time_of_birth as string | null) ?? null,
-      birthplace: (raw.birthplace as string | null) ?? null,
+      date_of_birth: detailDob,
+      time_of_birth: detailTob,
+      birthplace: detailBirthplace,
       gender: (raw.gender as "male" | "female" | "other" | "prefer_not_to_say" | null) ?? null,
       avatar_url: (raw.avatar_url as string | null) ?? null,
       emailVerified,

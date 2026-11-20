@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createInstamojoRefund } from "@/lib/financial/instamojo";
 import { createDoubleEntryJournal } from "@/lib/financial/ledger";
 import { ACCOUNT_CODES } from "@/lib/financial/types";
+import { sanitizeLogMessage } from "@/lib/security/redact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -107,8 +108,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, status: "processed", refundId: mojoRefund.data.id });
   } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : "Internal refund processing error";
+    console.error("[Instamojo Refund Error]", sanitizeLogMessage(rawMsg));
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal refund processing error" },
+      { error: "Internal refund processing error" },
       { status: 500 }
     );
   }

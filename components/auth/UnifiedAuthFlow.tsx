@@ -180,8 +180,7 @@ export function UnifiedAuthFlow({
         if (onSuccess) {
           onSuccess(res.data.role);
         }
-        router.push(res.data.redirectUrl);
-        router.refresh();
+        window.location.href = res.data.redirectUrl;
         return;
       }
 
@@ -223,8 +222,7 @@ export function UnifiedAuthFlow({
 
       if (res.data.status === "authenticated") {
         if (onSuccess) onSuccess(res.data.role);
-        router.push(res.data.redirectUrl);
-        router.refresh();
+        window.location.href = res.data.redirectUrl;
         return;
       }
 
@@ -263,8 +261,7 @@ export function UnifiedAuthFlow({
       }
 
       if (onSuccess) onSuccess("customer");
-      router.push(res.data.redirectUrl);
-      router.refresh();
+      window.location.href = res.data.redirectUrl;
     });
   }
 
@@ -301,8 +298,7 @@ export function UnifiedAuthFlow({
     }
 
     if (onSuccess) onSuccess("astrologer");
-    router.push(res.data.redirectUrl);
-    router.refresh();
+    window.location.href = res.data.redirectUrl;
     return { success: true };
   }
 

@@ -419,3 +419,65 @@ export async function getAstrologerSubscriptionDetails(): Promise<
     };
   }
 }
+
+/**
+ * Pays for an unpaid consultation booking using the Customer's wallet balance.
+ * Uses atomic RPC pay_consultation_via_wallet_atomic (Migration 083) with single-transaction guarantees:
+ * - Locks customer booking and wallet FOR UPDATE
+ * - Validates ownership and unpaid status
+ * - Deducts in priority order: Promo -> Refund -> Paid Cash
+ * - Inserts subledger transaction & balanced double-entry GL (Dr 2040, Cr 2010/4010)
+ * - Marks booking paid and creates invoice/receipt
+ */
+export async function payConsultationViaWalletAction({
+  bookingId,
+}: {
+  bookingId: string;
+}): Promise<AuthResult<{ bookingId: string; orderNumber: string; receiptNumber: string; remainingBalancePaise: number }>> {
+  try {
+    const { user } = await requireCustomerContext();
+
+    if (!bookingId) {
+      return { success: false, error: "Booking ID is required." };
+    }
+
+    const admin = await createAdminClient("main");
+
+    // Execute atomic RPC
+    const { data, error } = await admin.rpc("pay_consultation_via_wallet_atomic", {
+      p_customer_id: user.id,
+      p_booking_id: bookingId,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (!data || !data.success) {
+      return {
+        success: false,
+        error: data?.error || "Failed to process consultation payment via wallet.",
+      };
+    }
+
+    // Revalidate paths
+    revalidatePath("/customer/billing");
+    revalidatePath("/customer/bookings");
+    revalidatePath("/customer");
+
+    return {
+      success: true,
+      data: {
+        bookingId: data.booking_id,
+        orderNumber: data.order_number,
+        receiptNumber: data.receipt_number,
+        remainingBalancePaise: data.remaining_available_paise,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Error processing wallet payment",
+    };
+  }
+}

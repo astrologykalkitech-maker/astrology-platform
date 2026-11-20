@@ -3,6 +3,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth/session";
 import { GoogleGenAI } from "@google/genai";
+import {
+  decryptCustomerBirthData,
+  isBeneficiaryEncryptionConfigured,
+} from "@/lib/financial/encryption";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export interface AstrologerRecommendationItem {
@@ -61,12 +65,45 @@ export async function getPersonalizedVedicGuidanceAction(params: {
     // Fetch customer's profile birth details if available
     const { data: profile } = await admin
       .from("profiles")
-      .select("full_name, date_of_birth, time_of_birth, birthplace")
+      .select("id, full_name, date_of_birth, time_of_birth, birthplace, encrypted_date_of_birth, encrypted_time_of_birth, encrypted_birthplace")
       .eq("id", user.id)
       .maybeSingle();
 
-    const birthDetails = profile?.date_of_birth
-      ? `Devotee: ${profile.full_name || "Seeker"}, DOB: ${profile.date_of_birth}, Time: ${profile.time_of_birth || "Unknown"}, Place: ${profile.birthplace || "Unknown"}`
+    let dob: string | null = null;
+    let tob: string | null = null;
+    let place: string | null = null;
+
+    if (profile) {
+      if (profile.encrypted_date_of_birth) {
+        if (!isBeneficiaryEncryptionConfigured()) {
+          return { success: false, error: "Encryption service unavailable for birth chart recommendations." };
+        }
+        dob = decryptCustomerBirthData(profile.id, "date_of_birth", profile.encrypted_date_of_birth);
+      } else {
+        dob = profile.date_of_birth || null;
+      }
+
+      if (profile.encrypted_time_of_birth) {
+        if (!isBeneficiaryEncryptionConfigured()) {
+          return { success: false, error: "Encryption service unavailable for birth chart recommendations." };
+        }
+        tob = decryptCustomerBirthData(profile.id, "time_of_birth", profile.encrypted_time_of_birth);
+      } else {
+        tob = profile.time_of_birth || null;
+      }
+
+      if (profile.encrypted_birthplace) {
+        if (!isBeneficiaryEncryptionConfigured()) {
+          return { success: false, error: "Encryption service unavailable for birth chart recommendations." };
+        }
+        place = decryptCustomerBirthData(profile.id, "birthplace", profile.encrypted_birthplace);
+      } else {
+        place = profile.birthplace || null;
+      }
+    }
+
+    const birthDetails = dob
+      ? `Devotee: ${profile?.full_name || "Seeker"}, DOB: ${dob}, Time: ${tob || "Unknown"}, Place: ${place || "Unknown"}`
       : `Devotee: ${profile?.full_name || "Seeker"} (Birth chart pending completion)`;
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -116,10 +153,11 @@ Respond STRICTLY in JSON format with exactly these four keys:
         model: modelName,
       },
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Unable to generate personalized Vedic guidance right now.";
     return {
       success: false,
-      error: err.message || "Unable to generate personalized Vedic guidance right now.",
+      error: errorMsg,
     };
   }
 }
@@ -217,7 +255,8 @@ export async function getAIAstrologerRecommendationsAction({
     scoredList.sort((a, b) => b.matchScore - a.matchScore);
 
     return { success: true, data: scoredList.slice(0, 6) };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to generate recommendations", data: [] };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to generate recommendations";
+    return { success: false, error: errorMsg, data: [] };
   }
 }

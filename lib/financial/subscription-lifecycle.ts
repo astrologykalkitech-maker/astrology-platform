@@ -20,6 +20,8 @@ export interface ManualPlanChangeParams {
   targetPlanSlug: "free" | "professional";
   reason: string;
   actorId: string;
+  paymentOrderId?: string;
+  isComplimentaryGrant?: boolean;
 }
 
 export interface ExtendSubscriptionParams {
@@ -201,10 +203,49 @@ export async function executeAdminPlanChange(
   const sub = subData as any;
   const currentPlan = sub.plan as PaymentPlanRecord;
   const now = new Date();
-  const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  // Calendar-aware period resolution
+  const periodEnd = new Date(now.getTime());
+  if (targetPlan.billing_cycle === "annual") {
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  } else if (targetPlan.billing_cycle === "quarterly") {
+    periodEnd.setMonth(periodEnd.getMonth() + 3);
+  } else {
+    // Default monthly calendar-aware addition
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  }
+
   const nextVersion = (sub.subscription_version || 1) + 1;
 
-  const newStatus = targetPlan.slug === "free" ? "active" : "active";
+  // Security gate: Paid plan upgrade requires settled payment order OR authorized complimentary grant
+  let newStatus: string = "active";
+  if (targetPlan.price_paise > 0) {
+    if (params.isComplimentaryGrant) {
+      newStatus = "complimentary";
+    } else if (params.paymentOrderId) {
+      // Verify payment order settlement
+      const { data: order } = await supabase
+        .from("payment_orders")
+        .select("id, status, amount_paise, entity_type")
+        .eq("id", params.paymentOrderId)
+        .single();
+
+      if (!order || order.status !== "successful" || Number(order.amount_paise) < targetPlan.price_paise) {
+        return {
+          success: false,
+          error: "Valid settled payment order matching target plan price is required to activate paid subscription.",
+        };
+      }
+      newStatus = "active";
+    } else {
+      return {
+        success: false,
+        error: "Paid plan upgrades require a verified payment order or explicit complimentary grant authorization.",
+      };
+    }
+  } else {
+    newStatus = "active";
+  }
 
   const { error: updateErr } = await supabase
     .from("astrologer_subscriptions")

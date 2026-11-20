@@ -181,11 +181,12 @@ export async function postCommissionLedgerEntry({
       return { success: false, error: "Invalid consultant or transaction amount" };
     }
 
-    const admin = await createAdminClient("main");
-    const rate = customRate !== undefined ? customRate : await getEffectiveCommissionRate(consultantId);
-    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    if (customRate !== undefined && (!Number.isFinite(customRate) || customRate < 0 || customRate > 100)) {
       return { success: false, error: "Invalid commission rate" };
     }
+
+    const admin = await createAdminClient("main");
+    const rate = customRate !== undefined ? customRate : await getEffectiveCommissionRate(consultantId);
     const commissionPaise = Math.round((grossAmountPaise * rate) / 100);
 
     const referenceId = bookingId || pujaBookingId || paymentOrderId || paymentIntentId;
@@ -195,65 +196,31 @@ export async function postCommissionLedgerEntry({
     const idempotency =
       idempotencyKey || `COMM_${consultantId}_${referenceId}`;
 
-    // 1. Insert into commission_ledger
-    const { data: ledgerEntry, error: insertErr } = await admin
-      .from("commission_ledger")
-      .insert({
-        consultant_id: consultantId,
-        booking_id: bookingId || null,
-        puja_booking_id: pujaBookingId || null,
-        payment_order_id: paymentOrderId || null,
-        payment_intent_id: paymentIntentId || null,
-        entry_type: "COMMISSION_EARNED",
-        commission_rate: rate,
-        gross_amount_paise: grossAmountPaise,
-        commission_amount_paise: commissionPaise,
-        currency: "INR",
-        status: "posted",
-        idempotency_key: idempotency,
-        description,
-      })
-      .select("id")
-      .single();
+    // Route through the authoritative single-writer RPC
+    const serviceType = pujaBookingId ? "offline_puja" : "online_consultation";
+    const { data: rpcRes, error: rpcErr } = await admin.rpc("accrue_platform_commission_atomic", {
+      p_consultant_id: consultantId,
+      p_service_type: serviceType,
+      p_gross_amount_paise: grossAmountPaise,
+      p_commission_rate: rate,
+      p_booking_id: bookingId || null,
+      p_puja_booking_id: pujaBookingId || null,
+      p_payment_order_id: paymentOrderId || null,
+      p_idempotency_key: idempotency,
+      p_description: description,
+    });
 
-    if (insertErr) {
-      if (insertErr.code === "23505") {
-        const { data: existingEntry, error: existingEntryError } = await admin
-          .from("commission_ledger")
-          .select("id, consultant_id, booking_id, puja_booking_id, payment_order_id, payment_intent_id, gross_amount_paise")
-          .eq("idempotency_key", idempotency)
-          .maybeSingle();
-
-        if (existingEntryError) {
-          return { success: false, error: existingEntryError.message };
-        }
-        if (
-          !existingEntry ||
-          existingEntry.consultant_id !== consultantId ||
-          existingEntry.booking_id !== (bookingId || null) ||
-          existingEntry.puja_booking_id !== (pujaBookingId || null) ||
-          existingEntry.payment_order_id !== (paymentOrderId || null) ||
-          existingEntry.payment_intent_id !== (paymentIntentId || null) ||
-          Number(existingEntry.gross_amount_paise) !== grossAmountPaise
-        ) {
-          return { success: false, error: "Idempotency key is already associated with a different transaction" };
-        }
-
-        await refreshConsultantBalanceSummary(consultantId);
-        revalidatePath("/astrologer/earnings");
-        revalidatePath("/super-admin/financials");
-        return { success: true, entryId: existingEntry.id };
-      }
-      return { success: false, error: insertErr.message };
+    if (rpcErr) {
+      return { success: false, error: rpcErr.message };
     }
 
-    // 2. Recompute and update consultant balance summary
-    await refreshConsultantBalanceSummary(consultantId);
+    if (rpcRes && rpcRes.success) {
+      revalidatePath("/astrologer/earnings");
+      revalidatePath("/super-admin/financials");
+      return { success: true, entryId: rpcRes.ledger_id };
+    }
 
-    revalidatePath("/astrologer/earnings");
-    revalidatePath("/super-admin/financials");
-
-    return { success: true, entryId: ledgerEntry.id };
+    return { success: false, error: rpcRes?.error || "Commission accrual failed" };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to post commission" };
   }

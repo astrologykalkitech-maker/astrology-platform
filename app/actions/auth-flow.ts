@@ -1,5 +1,8 @@
 "use server";
 
+import { sanitizeLogMessage } from "@/lib/security/redact";
+import { logSecurityEvent } from "@/lib/security/telemetry";
+
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +12,6 @@ import {
   validateEmail,
   validateFullName,
   validateLoginPassword,
-  validateNewPassword,
 } from "@/lib/astrologer/form-validation";
 import { sanitizeRedirectPath } from "@/lib/security/safe-redirect";
 
@@ -75,7 +77,13 @@ export async function sendEmailOtpAction(input: {
     });
 
     if (error) {
-      console.error("[sendEmailOtpAction Error]", error);
+      logSecurityEvent({
+        eventType: "AUTH_FAILURE",
+        actorRole: selectedRole,
+        outcome: "failure",
+        reason: sanitizeLogMessage(error.message),
+      });
+      console.error("[sendEmailOtpAction Error]", sanitizeLogMessage(error.message));
       return { success: false, error: error.message };
     }
 
@@ -226,8 +234,9 @@ export async function resolveOrAuthenticateAction(input: {
     const supabase = await createClient();
 
     // 1. Attempt to sign in with password in primary database (DB1)
-    let signInData: any = null;
-    let signInError: any = null;
+    type SignInResultType = Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+    let signInData: SignInResultType["data"] | null = null;
+    let signInError: SignInResultType["error"] | null = null;
     let authTarget: "main" | "admin" = "main";
 
     const mainResult = await supabase.auth.signInWithPassword({

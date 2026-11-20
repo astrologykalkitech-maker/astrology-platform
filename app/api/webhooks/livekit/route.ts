@@ -43,6 +43,20 @@ export async function POST(req: NextRequest) {
 
     const admin = await createAdminClient("main");
 
+    // 0. Deduplicate and log raw webhook event
+    const eventId = event.id || `${eventType}_${roomName}_${Date.now()}`;
+    await admin
+      .from("consultation_raw_webhook_events")
+      .insert({
+        event_id: eventId,
+        event_type: eventType,
+        room_name: roomName,
+        payload: event,
+        status: "PROCESSED",
+        processed_at: new Date().toISOString(),
+      })
+      .maybeSingle();
+
     // 1. Room Finished: Mark broadcast or voice call authoritatively ended
     if (eventType === "room_finished") {
       const nowIso = new Date().toISOString();
@@ -106,6 +120,26 @@ export async function POST(req: NextRequest) {
                 .in("status", ["pending", "confirmed"]);
             }
           }
+        }
+      }
+
+      // Case C: One-on-One Consultation Billing Session Settlement
+      if (roomName.startsWith("karmicascension_consultation_")) {
+        const { data: session } = await admin
+          .from("consultation_billing_sessions")
+          .select("id, started_at, status")
+          .eq("room_name", roomName)
+          .maybeSingle();
+
+        if (session && session.status === "ACTIVE") {
+          const startedAtMs = session.started_at ? Date.parse(session.started_at) : Date.now();
+          const billableSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+
+          await admin.rpc("settle_consultation_billing_atomic", {
+            p_session_id: session.id,
+            p_billable_seconds: billableSeconds,
+            p_termination_reason: "Room finished on SFU",
+          });
         }
       }
     }

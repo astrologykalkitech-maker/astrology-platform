@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+// Mock Supabase environment for unit test environment
+process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://mock-project.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "mock-service-role-key-for-test-suite";
+
 import {
   getAstrologerEntitlements,
   hasSubscriptionFeature,
@@ -83,6 +88,19 @@ test("Subscription Lifecycle & Entitlements Suite", async (t) => {
 
     // Validates clean execution without SQL syntax errors or uncaught exceptions
     assert.equal(typeof res.success, "boolean");
+  });
+
+  await t.test("Security: Paid plan upgrade without payment order or complimentary authorization is rejected", async () => {
+    const fakeAstroId = "00000000-0000-0000-0000-000000000005";
+    const res = await executeAdminPlanChange({
+      astrologerId: fakeAstroId,
+      targetPlanSlug: "professional",
+      reason: "Unauthorized manual upgrade attempt",
+      actorId: "admin-1",
+    });
+
+    assert.equal(res.success, false);
+    assert.match(res.error || "", /Paid plan upgrades require a verified payment order|Plan 'professional' not found/i);
   });
 });
 

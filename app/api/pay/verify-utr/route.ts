@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
+import { checkRateLimitAsync } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeLogMessage } from "@/lib/security/redact";
 import { isValidManualPaymentDate, normalizeManualUtr } from "@/lib/pay/manual-utr-rules";
 
 type UtrRequest = {
@@ -12,6 +14,16 @@ type UtrRequest = {
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireAuth();
+
+    // Rate limit: 10 UTR verification attempts per minute per user
+    const rl = await checkRateLimitAsync(`pay:utr:${user.id}`, 10, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many verification attempts. Please wait." },
+        { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+      );
+    }
+
     const body = (await req.json()) as UtrRequest;
     const sessionCode = typeof body.session_code === "string" ? body.session_code.trim() : "";
     const utr = normalizeManualUtr(body.utr);
@@ -44,7 +56,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      console.error("[Karmic Ascension Pay] UTR claim submission failed:", error);
+      console.error("[Karmic Ascension Pay] UTR claim submission failed:", sanitizeLogMessage(error.message));
       const isConflict = /already submitted|active UTR claim/i.test(error.message);
       return NextResponse.json(
         {
@@ -72,7 +84,8 @@ export async function POST(req: NextRequest) {
       { status: 202 }
     );
   } catch (error) {
-    console.error("[Karmic Ascension Pay] UTR submission error:", error);
+    const rawMsg = error instanceof Error ? error.message : "UTR submission failed.";
+    console.error("[Karmic Ascension Pay] UTR submission error:", sanitizeLogMessage(rawMsg));
     const isAuthError = error instanceof Error && error.name === "AuthRequiredError";
     return NextResponse.json(
       { success: false, error: isAuthError ? "Authentication required." : "UTR submission failed." },

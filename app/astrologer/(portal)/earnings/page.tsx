@@ -5,6 +5,7 @@ import { requireAstrologerPage } from "@/lib/astrologer/guard";
 import { getAstrologerEarningsAction } from "@/app/actions/astrologer-portal";
 import { getConsultantCommissionStatement } from "@/lib/financial/commission-engine";
 import { AstrologerCommissionBalanceClient } from "@/components/astrologer/AstrologerCommissionBalanceClient";
+import { AstrologerOperatingWalletCard } from "@/components/astrologer/AstrologerOperatingWalletCard";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
@@ -19,10 +20,19 @@ const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
 
 export default async function AstrologerEarningsPage() {
-  const [, res, commissionRes] = await Promise.all([
-    requireAstrologerPage(),
-    getAstrologerEarningsAction(),
-    getConsultantCommissionStatement(),
+  await requireAstrologerPage();
+
+  const [res, commissionRes] = await Promise.all([
+    getAstrologerEarningsAction().catch((err) => ({
+      success: false as const,
+      error: err instanceof Error ? err.message : "Failed to load earnings",
+      data: null,
+    })),
+    getConsultantCommissionStatement().catch((err) => ({
+      success: false as const,
+      error: err instanceof Error ? err.message : "Failed to load commission statement",
+      data: null,
+    })),
   ]);
   const summary = res.success ? res.data : null;
 
@@ -57,6 +67,9 @@ export default async function AstrologerEarningsPage() {
           Direct customer payments are manually verified against bank/UPI records. Commission is accrued only after payment verification and booking completion.
         </span>
       </div>
+
+      {/* Astrologer Operating Recharge Wallet */}
+      <AstrologerOperatingWalletCard />
 
       {summary ? (
         <>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
+import { checkRateLimitAsync } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logSecurityEvent } from "@/lib/security/telemetry";
 import {
   generateIntentNumber,
   generateClientSecret,
@@ -17,6 +19,32 @@ type PaymentRequest = {
 export async function POST(req: NextRequest) {
   try {
     const { user, profile } = await requireAuth();
+
+    // Rate limit: 10 intent creations per minute per authenticated user
+    const rl = await checkRateLimitAsync(`pay:intent:${user.id}`, 10, 60_000);
+    if (!rl.allowed) {
+      logSecurityEvent({
+        eventType: "RATE_LIMIT_EXCEEDED",
+        actorId: user.id,
+        actorRole: profile.role,
+        targetType: "pay_intent",
+        outcome: "blocked",
+        reason: "Rate limit of 10 payment intent creations per minute exceeded",
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many payment requests. Please wait before creating another payment session.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rl.retryAfterSeconds.toString(),
+          },
+        }
+      );
+    }
+
     const body = (await req.json()) as PaymentRequest;
     const entityType = body.entity_type;
 
@@ -68,11 +96,18 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
-      if (booking.payment_mode !== "platform_gateway") {
+      // Allow checkout for platform_gateway or unassigned/direct bookings (automatically upgrading mode to platform_gateway)
+      if (booking.payment_mode === "pay_at_drop") {
         return NextResponse.json(
-          { success: false, error: "This booking is not configured for platform checkout." },
+          { success: false, error: "This booking is configured for cash-on-drop payment." },
           { status: 409 }
         );
+      }
+      if (booking.payment_mode !== "platform_gateway") {
+        await supabase
+          .from("customer_bookings")
+          .update({ payment_mode: "platform_gateway", updated_at: new Date().toISOString() })
+          .eq("id", booking.id);
       }
 
       amountPaise = Math.round(Number(booking.price) * 100);

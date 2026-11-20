@@ -1,28 +1,29 @@
+import { isIP } from "node:net";
+
 // =====================================================
 // RATE LIMITING & ABUSE TELEMETRY
 // =====================================================
 //
-// IMPORTANT DEPLOYMENT NOTE:
-// The current implementation uses a process-local in-memory store.
-// This is sufficient for single-instance deployments.
-//
-// For multi-instance deployments (Vercel, Railway, ECS, etc.) this store
-// is NOT shared between instances. Each instance maintains independent counters,
-// which means an attacker can exceed the limit by routing requests across
-// different instances.
-//
-// TO UPGRADE FOR MULTI-INSTANCE PRODUCTION:
-// Replace the memoryRateLimitStore with a distributed store such as:
-//   - Upstash Redis (recommended for Vercel/serverless): https://upstash.com
-//   - @upstash/ratelimit library for atomic increment-and-expire semantics
-//   - Redis via ioredis for traditional infrastructure
-//
-// Until a shared store is configured, rate limiting provides abuse deterrence
-// for single-instance deployments but is NOT a hard security boundary.
+// Dual-mode rate limiting architecture:
+// 1. Distributed Mode: Automatically activates when UPSTASH_REDIS_REST_URL and
+//    UPSTASH_REDIS_REST_TOKEN are set in environment. Performs atomic HTTP REST
+//    increments with TTL to guarantee multi-instance cluster enforcement.
+// 2. Safe Fallback Mode: When distributed storage is unconfigured or encounters a
+//    network timeout, immediately and safely falls back to local in-memory sliding
+//    window protection. Fails open to the in-memory fallback with warning telemetry
+//    to ensure an external Redis outage never takes down the entire payment platform.
 
 interface RateLimitRecord {
   count: number;
   resetAt: number;
+}
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  retryAfterSeconds: number;
+  backend: "redis" | "memory";
 }
 
 const memoryRateLimitStore = new Map<string, RateLimitRecord>();
@@ -43,7 +44,16 @@ function pruneExpiredEntries(): void {
 }
 
 /**
- * Checks in-memory sliding window rate limits.
+ * Reports whether distributed Redis rate limiting is configured in environment.
+ */
+export function isDistributedRateLimitingConfigured(): boolean {
+  return Boolean(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  );
+}
+
+/**
+ * Synchronous in-memory sliding window rate limit check.
  * @param identifier - e.g. "enquiry:user:<id>" or "enquiry:ip:<ip>"
  * @param maxRequests - maximum allowed requests within the window
  * @param windowMs - time window in milliseconds
@@ -52,7 +62,7 @@ export function checkRateLimit(
   identifier: string,
   maxRequests = 5,
   windowMs = 60_000
-): { allowed: boolean; remaining: number; retryAfterSeconds: number } {
+): RateLimitResult {
   pruneExpiredEntries();
 
   const now = Date.now();
@@ -60,14 +70,17 @@ export function checkRateLimit(
 
   // Clean up if expired
   if (!record || now > record.resetAt) {
+    const resetAt = now + windowMs;
     memoryRateLimitStore.set(identifier, {
       count: 1,
-      resetAt: now + windowMs,
+      resetAt,
     });
     return {
       allowed: true,
       remaining: maxRequests - 1,
+      resetAt,
       retryAfterSeconds: Math.ceil(windowMs / 1000),
+      backend: "memory",
     };
   }
 
@@ -77,7 +90,9 @@ export function checkRateLimit(
     return {
       allowed: false,
       remaining: 0,
+      resetAt: record.resetAt,
       retryAfterSeconds,
+      backend: "memory",
     };
   }
 
@@ -85,55 +100,166 @@ export function checkRateLimit(
   return {
     allowed: true,
     remaining: maxRequests - record.count,
+    resetAt: record.resetAt,
     retryAfterSeconds: Math.ceil((record.resetAt - now) / 1000),
+    backend: "memory",
   };
+}
+
+/**
+ * Asynchronous rate limit check supporting distributed Redis with seamless in-memory fallback.
+ * Uses atomic Redis EVAL script (increment + expire) when Upstash Redis is configured.
+ */
+export async function checkRateLimitAsync(
+  identifier: string,
+  maxRequests = 5,
+  windowMs = 60_000
+): Promise<RateLimitResult> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (url && token) {
+    try {
+      const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
+      // Atomic Lua script: increment key and set expire on first call
+      const luaScript = `
+        local current = redis.call('INCR', KEYS[1])
+        if tonumber(current) == 1 then
+          redis.call('EXPIRE', KEYS[1], ARGV[1])
+        end
+        local ttl = redis.call('TTL', KEYS[1])
+        return {current, ttl}
+      `;
+
+      const response = await fetch(`${url}/eval`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          script: luaScript,
+          keys: [`rl:${identifier}`],
+          args: [windowSeconds.toString()],
+        }),
+        signal: AbortSignal.timeout(1500), // Strict 1.5s timeout for distributed check
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const result = json.result;
+        if (Array.isArray(result) && result.length >= 2) {
+          const currentCount = Number(result[0]);
+          const ttlSeconds = Math.max(1, Number(result[1]));
+          const now = Date.now();
+          const resetAt = now + ttlSeconds * 1000;
+
+          if (currentCount > maxRequests) {
+            return {
+              allowed: false,
+              remaining: 0,
+              resetAt,
+              retryAfterSeconds: ttlSeconds,
+              backend: "redis",
+            };
+          }
+
+          return {
+            allowed: true,
+            remaining: Math.max(0, maxRequests - currentCount),
+            resetAt,
+            retryAfterSeconds: ttlSeconds,
+            backend: "redis",
+          };
+        }
+      }
+      console.warn("[RateLimit Warning] Distributed Redis returned non-200. Falling back to local in-memory store.");
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.warn("[RateLimit Warning] Distributed Redis check failed/timed out. Falling back to local in-memory store:", errorMsg);
+    }
+  } else if (process.env.NODE_ENV === "production" && process.env.STRICT_FINANCIAL_RATE_LIMIT === "true") {
+    // Production fail-closed gate for critical financial endpoints when distributed Redis is missing
+    console.error("[RateLimit Critical] Production distributed Redis is not configured. Failing closed for critical financial action.");
+    return {
+      allowed: false,
+      remaining: 0,
+      resetAt: Date.now() + windowMs,
+      retryAfterSeconds: Math.ceil(windowMs / 1000),
+      backend: "memory",
+    };
+  }
+
+  // Safe fallback to local in-memory rate limiter
+  return checkRateLimit(identifier, maxRequests, windowMs);
 }
 
 /**
  * Extracts the client IP safely.
  *
  * Security considerations:
- * - X-Forwarded-For is a comma-separated list of IPs added by each proxy.
- * - The LAST entry before the trusted proxy is the client's real IP.
- * - However, without knowing exactly how many proxies are in the chain,
- *   we cannot safely strip all appended IPs.
- * - For Vercel/Cloudflare deployments, CF-Connecting-IP / x-real-ip is
- *   the most reliable option since the CDN validates it.
- * - Taking the LAST non-empty X-Forwarded-For value (rightmost) is safer
- *   than taking the first, since the rightmost entry is added by the most
- *   recently traversed trusted proxy, while the leftmost can be spoofed.
- *
- * For production hardening with a known proxy chain, configure the number
- * of trusted proxies and strip that many hops from the right.
+ * - CF-Connecting-IP / x-real-ip is validated by trusted CDNs.
+ * - X-Forwarded-For: rightmost entry is the nearest trusted proxy's record.
+ * - Sanitizes formatting to prevent header injection.
  */
 export function extractClientIp(request: Request): string {
   return extractClientIpFromHeaders(request.headers);
 }
 
 /**
- * Same as extractClientIp but works with a bare Headers object (e.g. `await headers()`
- * inside a server action, where no Request is available).
+ * Extracts client IP from a bare Headers object.
  */
 export function extractClientIpFromHeaders(requestHeaders: { get(name: string): string | null }): string {
   // Cloudflare / most CDNs set this header reliably
   const cfConnecting = requestHeaders.get("cf-connecting-ip");
-  if (cfConnecting) return cfConnecting.trim();
+  if (cfConnecting) {
+    const clean = cfConnecting.trim();
+    if (isValidIp(clean)) return clean;
+  }
 
   // Vercel sets x-real-ip after validation
   const realIp = requestHeaders.get("x-real-ip");
-  if (realIp) return realIp.trim();
+  if (realIp) {
+    const clean = realIp.trim();
+    if (isValidIp(clean)) return clean;
+  }
 
-  // X-Forwarded-For: rightmost entry is the nearest trusted proxy's record
-  // of where the request came from — safer than leftmost which can be forged.
+  // X-Forwarded-For: rightmost entry is nearest trusted proxy
   const forwarded = requestHeaders.get("x-forwarded-for");
   if (forwarded) {
     const hops = forwarded.split(",").map((h) => h.trim()).filter(Boolean);
     if (hops.length > 0) {
-      // Use rightmost entry (least likely to be spoofed)
       const rightmost = hops[hops.length - 1];
-      if (rightmost) return rightmost;
+      if (isValidIp(rightmost)) return rightmost;
     }
   }
 
   return "127.0.0.1";
+}
+
+/**
+ * Generates an anonymous bucket key using client IP or a deterministic unidentifiable fallback.
+ * Prevents colliding unrelated clients whose headers are completely missing into 127.0.0.1.
+ */
+export function getAnonymousClientIdentifier(request: Request, prefix = "anon"): string {
+  const ip = extractClientIp(request);
+  if (ip && ip !== "127.0.0.1") {
+    return `${prefix}:ip:${ip}`;
+  }
+  // If IP is 127.0.0.1 or undetectable, incorporate user-agent hash to prevent global bucket starvation
+  const ua = request.headers.get("user-agent") || "unknown-client";
+  let hash = 0;
+  for (let i = 0; i < ua.length; i++) {
+    hash = (hash << 5) - hash + ua.charCodeAt(i);
+    hash |= 0;
+  }
+  return `${prefix}:client:${ip}:${Math.abs(hash)}`;
+}
+
+/**
+ * Validates IPv4 or IPv6 string format using node:net isIP to reject forged or malformed headers.
+ */
+function isValidIp(ip: string): boolean {
+  if (!ip || ip.length > 45) return false;
+  return isIP(ip) !== 0;
 }

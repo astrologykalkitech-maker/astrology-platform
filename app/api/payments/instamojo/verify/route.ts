@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sanitizeLogMessage } from "@/lib/security/redact";
 import { getAuthSession } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getInstamojoPaymentDetails } from "@/lib/financial/instamojo";
@@ -398,9 +399,10 @@ export async function POST(req: NextRequest) {
       orderId: order.id,
     });
   } catch (err) {
-    console.error("[Instamojo Verify] Error:", err);
+    const rawMsg = err instanceof Error ? err.message : "Error verifying payment";
+    console.error("[Instamojo Verify] Error:", sanitizeLogMessage(rawMsg));
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error verifying payment" },
+      { error: "Error verifying payment" },
       { status: 500 }
     );
   }

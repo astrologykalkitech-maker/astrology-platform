@@ -3,8 +3,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
-import { requireAdminAccess, resolveAdminSession, requireSuperAdmin } from "@/lib/auth/admin-guard";
-import { logAdminAction } from "@/lib/admin/audit";
+import { resolveAdminSession, requireSuperAdmin } from "@/lib/auth/admin-guard";
+import { logAdminAction, isRpcNotInstalledError } from "@/lib/admin/audit";
+import { sanitizeLogMessage } from "@/lib/security/redact";
 import { createInAppNotification } from "@/lib/notifications";
 import type { ApprovalStatus } from "@/lib/types/database.types";
 
@@ -55,7 +56,7 @@ export interface VerificationStageRecord {
   reviewer_notes?: string | null;
   submitted_at?: string | null;
   reviewed_at?: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface VerificationDocumentRecord {
@@ -73,10 +74,15 @@ export interface VerificationDocumentRecord {
   expires_at?: string | null;
 }
 
+type AdminClientType = Awaited<ReturnType<typeof createAdminClient>>;
+
 /**
  * Helper to resolve the astrologer's profile and user profile ID.
  */
-export async function resolveAstrologerTarget(admin: any, astrologerId: string) {
+export async function resolveAstrologerTarget(
+  admin: AdminClientType,
+  astrologerId: string
+) {
   // Check astrologer_profiles by id or user_id
   const { data: profile } = await admin
     .from("astrologer_profiles")
@@ -184,8 +190,9 @@ export async function getAstrologerVerificationOverview(targetAstrologerId?: str
         probation: probationsRes.data || null,
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to load verification overview", data: null };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to load verification overview";
+    return { success: false, error: errorMsg, data: null };
   }
 }
 
@@ -194,7 +201,7 @@ export async function getAstrologerVerificationOverview(targetAstrologerId?: str
  */
 export async function submitVerificationStageAction(
   stageName: VerificationStageName,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, unknown> = {}
 ) {
   try {
     const user = await getCurrentUser();
@@ -224,8 +231,9 @@ export async function submitVerificationStageAction(
 
     revalidatePath("/astrologer/profile");
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to submit verification stage" };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to submit verification stage";
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -279,6 +287,27 @@ export async function updateVerificationStageReviewAction({
       };
     }
 
+    // Pre-mutation audit record (Attempt): Ensures audit pipeline is operational before stage review mutation
+    const attemptAuditRes = await logAdminAction({
+      actorId: adminSession.user.id,
+      actorRole: adminSession.profile.role,
+      action: `verification.stage_${status}.attempt`,
+      targetType: "astrologer_verification",
+      targetId: target.userId,
+      reason: reviewerNotes || `Stage '${stageName}' review attempt (${status})`,
+      beforeState: { stageName, previousApprovalStatus: target.approvalStatus },
+      afterState: { stageName, status },
+      outcome: "success",
+    });
+
+    if (!attemptAuditRes.success) {
+      console.error("[updateVerificationStageReviewAction] Pre-mutation audit record failed:", attemptAuditRes.error);
+      return {
+        success: false,
+        error: "Mandatory audit record failed; verification stage review halted.",
+      };
+    }
+
     // 1. Update verification stage (astrologer_id in astrologer_verification_stages references public.profiles.id)
     const { error: stageError } = await admin
       .from("astrologer_verification_stages")
@@ -297,6 +326,15 @@ export async function updateVerificationStageReviewAction({
 
     if (stageError) {
       console.error("[updateVerificationStageReviewAction] Stage upsert error:", stageError);
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: `verification.stage_${status}.failure`,
+        targetType: "astrologer_verification",
+        targetId: target.userId,
+        reason: stageError.message,
+        outcome: "failure",
+      });
       return { success: false, error: stageError.message };
     }
 
@@ -381,22 +419,18 @@ export async function updateVerificationStageReviewAction({
       });
     }
 
-    // 3. Log administrative audit action
-    try {
-      await logAdminAction({
-        actorId: adminSession.user.id,
-        actorRole: adminSession.profile.role,
-        action: `verification.stage_${status}`,
-        targetType: "astrologer_verification",
-        targetId: target.userId,
-        reason: reviewerNotes || `Stage '${stageName}' set to ${status}`,
-        beforeState: { stageName, previousApprovalStatus: target.approvalStatus },
-        afterState: { stageName, status, newApprovalStatus },
-        outcome: "success",
-      });
-    } catch (auditErr) {
-      console.warn("[updateVerificationStageReviewAction] Failed to log admin action:", auditErr);
-    }
+    // 3. Post-mutation audit confirmation (Completed)
+    await logAdminAction({
+      actorId: adminSession.user.id,
+      actorRole: adminSession.profile.role,
+      action: `verification.stage_${status}`,
+      targetType: "astrologer_verification",
+      targetId: target.userId,
+      reason: reviewerNotes || `Stage '${stageName}' set to ${status}`,
+      beforeState: { stageName, previousApprovalStatus: target.approvalStatus },
+      afterState: { stageName, status, newApprovalStatus },
+      outcome: "success",
+    });
 
     revalidatePath("/super-admin/verification", "page");
     revalidatePath("/super-admin/listings", "page");
@@ -404,8 +438,9 @@ export async function updateVerificationStageReviewAction({
     revalidatePath("/astrologer/profile", "page");
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to review verification stage" };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to review verification stage";
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -448,6 +483,107 @@ export async function approveAstrologerWithSyncAction({
 
     const nowIso = new Date().toISOString();
 
+    // 1. Try single transactional RPC if installed (Migration 073)
+    const { data: rpcData, error: rpcErr } = await admin.rpc("admin_approve_astrologer_with_sync", {
+      p_admin_id: adminSession.user.id,
+      p_target_user_id: target.userId,
+      p_stages: ALL_VERIFICATION_STAGES,
+      p_review_notes: notes || "Full multi-stage verification and listing synchronization approved.",
+    });
+
+    if (!rpcErr && rpcData && typeof rpcData === "object" && (rpcData as Record<string, unknown>).success === true) {
+      // Revalidate and dispatch notification
+      await createInAppNotification({
+        recipientUserId: target.userId,
+        title: "Profile & Listing Approved!",
+        message:
+          "Congratulations! Your astrologer credentials and profile listing have been approved and activated by the Super Admin.",
+        linkUrl: "/astrologer/profile",
+        eventType: "verification_approved",
+      });
+
+      revalidatePath("/super-admin/verification", "page");
+      revalidatePath("/super-admin/listings", "page");
+      revalidatePath("/super-admin/listings/ranking", "page");
+      revalidatePath("/customer/astrologers", "page");
+      revalidatePath("/customer/astrologers", "layout");
+      revalidatePath("/astrologer/profile", "page");
+
+      return { success: true };
+    }
+
+    // If RPC executed without transport error but returned explicit failure or malformed payload, fail closed immediately
+    if (!rpcErr) {
+      const sanitizedRpcMsg = sanitizeLogMessage(
+        typeof (rpcData as Record<string, unknown> | null)?.error === "string"
+          ? ((rpcData as Record<string, unknown>).error as string)
+          : "RPC returned unsuccessful status or malformed response."
+      );
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: "verification.full_approval_and_sync.failure",
+        targetType: "astrologer_listing",
+        targetId: target.userId,
+        reason: sanitizedRpcMsg,
+        outcome: "failure",
+      });
+      return {
+        success: false,
+        error: "Astrologer verification and approval was rejected by the database.",
+      };
+    }
+
+    // Fail closed on any real database/authorization error, constraint, timeout, or missing internal function.
+    // Fall back ONLY if the exact RPC function positively does not exist in the database (Migration not installed).
+    if (rpcErr && !isRpcNotInstalledError(rpcErr, "admin_approve_astrologer_with_sync")) {
+      const sanitizedCode = sanitizeLogMessage(rpcErr.code || "UNKNOWN");
+      const sanitizedMsg = sanitizeLogMessage(rpcErr.message || "RPC execution error");
+      console.error(
+        `[approveAstrologerWithSyncAction] RPC execution failed (fail closed): code=${sanitizedCode}, msg=${sanitizedMsg}`
+      );
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: "verification.full_approval_and_sync.failure",
+        targetType: "astrologer_listing",
+        targetId: target.userId,
+        reason: sanitizeLogMessage(`Atomic RPC failed: ${sanitizedCode} - ${sanitizedMsg}`),
+        outcome: "failure",
+      });
+      return {
+        success: false,
+        error: "Atomic approval and synchronization failed in database guard.",
+      };
+    }
+
+    // 2. Fallback: Pre-mutation audit record (Attempt) before sequential REST mutations (Only if RPC is not installed)
+    const attemptAuditRes = await logAdminAction({
+      actorId: adminSession.user.id,
+      actorRole: adminSession.profile.role,
+      action: "verification.full_approval_and_sync.attempt",
+      targetType: "astrologer_listing",
+      targetId: target.userId,
+      reason: notes || "Full multi-stage verification and listing synchronization attempt.",
+      beforeState: { previousApprovalStatus: target.approvalStatus },
+      afterState: { approval_status: "approved" },
+      outcome: "success",
+    });
+
+    if (!attemptAuditRes.success) {
+      console.error("[approveAstrologerWithSyncAction] Pre-mutation audit record failed:", attemptAuditRes.error);
+      return {
+        success: false,
+        error: "Mandatory audit record failed; astrologer verification approval halted.",
+      };
+    }
+
+    // Fetch previous stages state for rollback compensation if profile update fails
+    const { data: previousStages } = await admin
+      .from("astrologer_verification_stages")
+      .select("stage_name, status, reviewer_notes, reviewer_id, reviewed_at")
+      .eq("astrologer_id", target.userId);
+
     // 1. Batch upsert all verification stages to 'approved'
     const stageRecords = ALL_VERIFICATION_STAGES.map((s) => ({
       astrologer_id: target.userId,
@@ -465,6 +601,16 @@ export async function approveAstrologerWithSyncAction({
 
     if (stagesErr) {
       console.error("[approveAstrologerWithSyncAction] Stages upsert error:", stagesErr);
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: "verification.full_approval_and_sync.failure",
+        targetType: "astrologer_listing",
+        targetId: target.userId,
+        reason: stagesErr.message,
+        outcome: "failure",
+      });
+      return { success: false, error: `Failed to update verification stages: ${stagesErr.message}` };
     }
 
     // 2. Authoritative listing status update in DB1
@@ -488,7 +634,45 @@ export async function approveAstrologerWithSyncAction({
       .or(`id.eq.${target.astrologerProfileId},user_id.eq.${target.userId}`);
 
     if (profileErr) {
-      return { success: false, error: `Failed to update listing approval: ${profileErr.message}` };
+      // Rollback compensation: Restore previous stages state to avoid inconsistency
+      let compensationFailed = false;
+      if (previousStages && previousStages.length > 0) {
+        const rollbackRecords = previousStages.map((ps) => ({
+          astrologer_id: target.userId,
+          stage_name: ps.stage_name,
+          status: ps.status,
+          reviewer_id: ps.reviewer_id,
+          reviewer_notes: ps.reviewer_notes,
+          reviewed_at: ps.reviewed_at,
+          updated_at: new Date().toISOString(),
+        }));
+        const { error: rbErr } = await admin
+          .from("astrologer_verification_stages")
+          .upsert(rollbackRecords, { onConflict: "astrologer_id,stage_name" });
+        if (rbErr) {
+          compensationFailed = true;
+          console.error("[approveAstrologerWithSyncAction] CRITICAL: Stages rollback compensation failed:", rbErr.message);
+        }
+      }
+
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: "verification.full_approval_and_sync.failure",
+        targetType: "astrologer_listing",
+        targetId: target.userId,
+        reason: compensationFailed
+          ? `Listing update failed (${profileErr.message}) AND stages rollback failed. Verification stages may be inconsistent.`
+          : `Listing update failed (${profileErr.message}); verification stages rolled back to previous state.`,
+        outcome: "failure",
+      });
+
+      return {
+        success: false,
+        error: compensationFailed
+          ? `Failed to update listing approval: ${profileErr.message}. CRITICAL: Verification stages could not be restored automatically.`
+          : `Failed to update listing approval: ${profileErr.message}. Verification stages were rolled back to their previous state.`,
+      };
     }
 
     // 3. Mirror to secondary admin database (DB2)
@@ -526,22 +710,18 @@ export async function approveAstrologerWithSyncAction({
       eventType: "verification_approved",
     });
 
-    // 5. Immutable audit logging
-    try {
-      await logAdminAction({
-        actorId: adminSession.user.id,
-        actorRole: adminSession.profile.role,
-        action: "verification.full_approval_and_sync",
-        targetType: "astrologer_listing",
-        targetId: target.userId,
-        reason: notes || "Full multi-stage verification and listing synchronization approved.",
-        beforeState: { previousApprovalStatus: target.approvalStatus },
-        afterState: { approval_status: "approved" },
-        outcome: "success",
-      });
-    } catch (auditErr) {
-      console.warn("[approveAstrologerWithSyncAction] Audit error:", auditErr);
-    }
+    // 5. Post-mutation audit confirmation (Completed)
+    await logAdminAction({
+      actorId: adminSession.user.id,
+      actorRole: adminSession.profile.role,
+      action: "verification.full_approval_and_sync",
+      targetType: "astrologer_listing",
+      targetId: target.userId,
+      reason: notes || "Full multi-stage verification and listing synchronization approved.",
+      beforeState: { previousApprovalStatus: target.approvalStatus },
+      afterState: { approval_status: "approved" },
+      outcome: "success",
+    });
 
     // 6. Instant cache revalidation across both admin and public routes
     revalidatePath("/super-admin/verification", "page");
@@ -552,8 +732,9 @@ export async function approveAstrologerWithSyncAction({
     revalidatePath("/astrologer/profile", "page");
 
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to approve and synchronize astrologer." };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to approve and synchronize astrologer.";
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -701,12 +882,13 @@ export async function reconcileAstrologerVerificationAndListingsAction(): Promis
       reconciledCount,
       report,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to reconcile verification and listings.";
     return {
       success: false,
       reconciledCount: 0,
       report: [],
-      error: err.message || "Failed to reconcile verification and listings.",
+      error: errorMsg,
     };
   }
 }
@@ -781,7 +963,8 @@ export async function scheduleAstrologerInterviewAction({
 
     revalidatePath("/super-admin/verification", "page");
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message || "Failed to schedule interview" };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to schedule interview";
+    return { success: false, error: errorMsg };
   }
 }

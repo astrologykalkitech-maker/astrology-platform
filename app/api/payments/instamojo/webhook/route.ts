@@ -8,6 +8,7 @@ import { matchesVerifiedInstamojoPayment, parseInstamojoAmountPaise } from "@/li
 import { recordConsultationPaymentInLedger, recordSubscriptionPaymentInLedger } from "@/lib/financial/ledger";
 import { calculateCommissionBreakdown, generateReceiptNumber } from "@/lib/financial/pricing";
 import { createInAppNotification } from "@/lib/notifications";
+import { logSecurityEvent } from "@/lib/security/telemetry";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,6 +28,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!verifyRequiredInstamojoMac(payload, mac)) {
+      logSecurityEvent({
+        eventType: "WEBHOOK_SIGNATURE_INVALID",
+        targetType: "instamojo_webhook",
+        targetId: paymentId || undefined,
+        outcome: "denied",
+        reason: "Invalid or missing Instamojo webhook MAC signature",
+      });
       return NextResponse.json({ error: "Invalid or missing webhook signature" }, { status: 401 });
     }
 
@@ -360,6 +368,34 @@ export async function POST(req: NextRequest) {
           paymentId: paymentRecord.id,
           amountPaise: amountInPaise,
           description: `Astrologer subscription for plan ${planRecord?.name || "Professional"} (Receipt ${paymentRecord.receipt_number})`,
+        });
+      }
+    } else if (order.entity_type === "astrologer_wallet_recharge") {
+      // Astrologer Operating Wallet recharge via Instamojo
+      const { creditAstrologerOperatingWallet } = await import("@/lib/financial/astrologer-wallet-engine");
+      const astrologerId = order.astrologer_id || order.entity_id;
+      if (astrologerId) {
+        await creditAstrologerOperatingWallet({
+          astrologerId,
+          amountPaise: amountInPaise,
+          creditType: "RECHARGE",
+          idempotencyKey: `mojo_astro_${paymentRecord.id || paymentId}`,
+          description: `Online Gateway Recharge via Instamojo #${order.order_number}`,
+          paymentOrderId: order.id,
+        });
+      }
+    } else if (order.entity_type === "customer_wallet_recharge") {
+      // Customer Consultation Wallet recharge via Instamojo
+      const { creditCustomerWallet } = await import("@/lib/financial/wallet-engine");
+      const customerId = order.customer_id || order.entity_id;
+      if (customerId) {
+        await creditCustomerWallet({
+          customerId,
+          amountPaise: amountInPaise,
+          creditType: "RECHARGE",
+          idempotencyKey: `mojo_cust_${paymentRecord.id || paymentId}`,
+          description: `Online Gateway Recharge via Instamojo #${order.order_number}`,
+          paymentOrderId: order.id,
         });
       }
     }

@@ -4,7 +4,6 @@
 
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { decodeJwt } from "jose";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile, UserRole } from "@/lib/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -27,7 +26,7 @@ export class ForbiddenRoleError extends Error {
   ) {
     super(
       message ??
-        `Access denied: requires '${requiredRole}' role, but user has '${actualRole ?? "unknown"}'.`
+      `Access denied: requires '${requiredRole}' role, but user has '${actualRole ?? "unknown"}'.`
     );
     this.name = "ForbiddenRoleError";
     this.requiredRole = requiredRole;
@@ -35,67 +34,87 @@ export class ForbiddenRoleError extends Error {
   }
 }
 
-function extractCombinedCookieValue(
-  cookies: { name: string; value: string }[],
-  prefix: string
-): string | null {
-  const hasChunkZero = cookies.some((c) => c.name === `${prefix}.0`);
-  if (hasChunkZero) {
-    const chunks: string[] = [];
-    for (let i = 0; ; i++) {
-      const chunk = cookies.find((c) => c.name === `${prefix}.${i}`);
-      if (!chunk || typeof chunk.value !== "string") break;
-      chunks.push(chunk.value);
-    }
-    return chunks.join("");
-  }
+/**
+ * Authoritative cookie expiration options matching Supabase SSR cookie scope.
+ * Path is "/" and domain is omitted (host-only) to match the host-only cookies set by @supabase/ssr.
+ */
+export const AUTH_COOKIE_EXPIRATION_OPTIONS = {
+  path: "/",
+  maxAge: 0,
+  expires: new Date(0),
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  httpOnly: false,
+};
 
-  const single = cookies.find((c) => c.name === prefix);
-  return single?.value || null;
+/**
+ * Returns true if the cookie is an authentication token cookie for main or admin Supabase instance.
+ * Strictly preserves unrelated application cookies (e.g. locale, theme, preferences, cookie consent).
+ */
+export function isAuthTokenCookie(name: string): boolean {
+  if (name.startsWith("sb-main-auth-token") || name.startsWith("sb-admin-auth-token")) {
+    return true;
+  }
+  // Check for PKCE code-verifier cookies created by Supabase SSR auth flows
+  if (
+    name === "sb-main-auth-token-code-verifier" ||
+    name === "sb-admin-auth-token-code-verifier" ||
+    name.endsWith("-code-verifier") && name.startsWith("sb-")
+  ) {
+    return true;
+  }
+  // Generic project auth token pattern: sb-<ref>-auth-token
+  if (name.startsWith("sb-") && name.includes("-auth-token")) {
+    return true;
+  }
+  return false;
 }
 
-function extractJwtClaimsFromCookies(
-  allCookies: { name: string; value: string }[],
-  prefix: string
-): { sub: string; exp: number; email?: string; user_metadata?: Record<string, unknown>; iat?: number } | null {
-  try {
-    let combined = extractCombinedCookieValue(allCookies, prefix);
-    if (!combined) return null;
+/**
+ * Expires every authentication cookie chunk present in the cookie list,
+ * as well as proactive baseline chunks. Guarantees no chunk is left behind,
+ * regardless of whether chunk index exceeds 10.
+ */
+export function expireAuthCookies(
+  cookieStore: { set: (name: string, value: string, options: Record<string, unknown>) => void },
+  existingCookies: Array<{ name: string }>,
+  optionsOverride?: Record<string, unknown>
+): string[] {
+  const expiredNames: string[] = [];
+  const options = optionsOverride
+    ? { ...AUTH_COOKIE_EXPIRATION_OPTIONS, ...optionsOverride }
+    : AUTH_COOKIE_EXPIRATION_OPTIONS;
 
-    try {
-      combined = decodeURIComponent(combined);
-    } catch {
-      // Keep as-is if decodeURIComponent fails
+  // 1. Expire every cookie that matches auth token cookie pattern (handles any chunk index, e.g. .10, .15, .99)
+  for (const cookie of existingCookies) {
+    if (isAuthTokenCookie(cookie.name)) {
+      cookieStore.set(cookie.name, "", options);
+      expiredNames.push(cookie.name);
     }
-
-    if (combined.startsWith("base64-")) {
-      const raw = combined.slice(7);
-      try {
-        combined = Buffer.from(raw, "base64url").toString("utf-8");
-      } catch {
-        combined = Buffer.from(raw, "base64").toString("utf-8");
-      }
-    }
-
-    const parsed = JSON.parse(combined);
-    const token = Array.isArray(parsed) ? parsed[0] : parsed?.access_token || parsed;
-
-    if (typeof token === "string") {
-      const claims = decodeJwt(token);
-      if (claims?.sub && typeof claims.exp === "number") {
-        return {
-          sub: claims.sub,
-          exp: claims.exp,
-          email: claims.email as string | undefined,
-          user_metadata: claims.user_metadata as Record<string, unknown> | undefined,
-          iat: typeof claims.iat === "number" ? claims.iat : undefined,
-        };
-      }
-    }
-  } catch {
-    return null;
   }
-  return null;
+
+  // 2. Proactively expire baseline single, chunked, and code-verifier names for standard prefixes
+  const standardPrefixes = ["sb-main-auth-token", "sb-admin-auth-token"];
+  for (const prefix of standardPrefixes) {
+    if (!expiredNames.includes(prefix)) {
+      cookieStore.set(prefix, "", options);
+      expiredNames.push(prefix);
+    }
+    const verifier = `${prefix}-code-verifier`;
+    if (!expiredNames.includes(verifier)) {
+      cookieStore.set(verifier, "", options);
+      expiredNames.push(verifier);
+    }
+    for (let i = 0; i < 20; i++) {
+      const chunkName = `${prefix}.${i}`;
+      if (!expiredNames.includes(chunkName)) {
+        cookieStore.set(chunkName, "", options);
+        expiredNames.push(chunkName);
+      }
+    }
+  }
+
+  return expiredNames;
 }
 
 /**
@@ -132,49 +151,14 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
     return null;
   }
 
-  let cookieList: { name: string; value: string }[] = [];
-  try {
-    const cookieStore = await cookies();
-    cookieList = cookieStore.getAll();
-  } catch {
-    // Outside request context
-  }
-
-  const nowSec = Math.floor(Date.now() / 1000);
-
   // Try main client (DB1) first
   if (hasMain) {
     try {
       const mainClient = await createClient("main");
-      const mainClaims = extractJwtClaimsFromCookies(cookieList, "sb-main-auth-token");
 
-      // Fast Path: If valid JWT claims exist in cookie, query profile directly with RLS
-      if (mainClaims && mainClaims.exp - nowSec > 30) {
-        const { data: profile } = await mainClient
-          .from("profiles")
-          .select("id, full_name, role, avatar_url, created_at, updated_at")
-          .eq("id", mainClaims.sub)
-          .maybeSingle();
-
-        if (profile) {
-          const fastUser: User = {
-            id: mainClaims.sub,
-            app_metadata: {},
-            user_metadata: mainClaims.user_metadata || {},
-            aud: "authenticated",
-            created_at: new Date((mainClaims.iat || nowSec) * 1000).toISOString(),
-            email: mainClaims.email,
-          };
-
-          return {
-            user: fastUser,
-            profile: profile as Profile,
-            target: "main",
-          };
-        }
-      }
-
-      // Standard / Fallback Path: full getUser() call
+      // Cryptographically verified user lookup via Supabase Auth server.
+      // SECURITY: Unsigned cookie JWT decoding was removed to prevent forged JWT claims
+      // from generating synthetic authenticated sessions.
       const {
         data: { user },
         error,

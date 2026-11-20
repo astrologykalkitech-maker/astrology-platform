@@ -39,6 +39,7 @@ export default async function ManualPaymentVerificationsPage() {
           directPayments={result.directPayments || []}
           settlements={result.settlements || []}
           jyotishPayments={result.jyotishPayments || []}
+          walletRecharges={result.walletRecharges || []}
         />
       )}
     </div>

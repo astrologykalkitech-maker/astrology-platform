@@ -29,8 +29,8 @@ BEGIN
 
     -- Assert payment_settlement_claims table from Migration 064
     SELECT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'payment_settlement_claims' AND column_name = 'claimed_at'
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'payment_settlement_claims'
     ) INTO v_has_claim_table;
 
     IF NOT v_has_claim_table THEN
@@ -92,13 +92,12 @@ UPDATE public.customer_bookings b
 SET completed_at = latest_call.ended_at,
     completion_source = 'voice_ended'
 FROM (
-    SELECT DISTINCT ON (c.booking_id) c.booking_id, vc.ended_at
-    FROM public.conversations c
-    JOIN public.voice_calls vc ON vc.conversation_id = c.id
-    WHERE c.booking_id IS NOT NULL
+    SELECT DISTINCT ON (vc.booking_id) vc.booking_id, vc.ended_at
+    FROM public.voice_calls vc
+    WHERE vc.booking_id IS NOT NULL
       AND vc.status = 'ended'
       AND vc.ended_at IS NOT NULL
-    ORDER BY c.booking_id, vc.ended_at DESC, vc.id ASC
+    ORDER BY vc.booking_id, vc.ended_at DESC, vc.id ASC
 ) latest_call
 WHERE latest_call.booking_id = b.id
   AND b.status = 'completed'

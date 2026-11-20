@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendDirectMessageAction } from "@/app/actions/direct-chat";
+import { checkRateLimitAsync, extractClientIp } from "@/lib/security/rate-limit";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Identify caller and enforce rate limiting (30 messages/min)
+    const user = await getCurrentUser();
+    const rateLimitKey = user?.id
+      ? `chat:send:user:${user.id}`
+      : `chat:send:ip:${extractClientIp(req)}`;
+
+    const rl = await checkRateLimitAsync(rateLimitKey, 30, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many messages sent. Please slow down." },
+        { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { conversationId, message, options } = body;
 
@@ -22,9 +38,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(res);
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to send message";
     return NextResponse.json(
-      { success: false, error: err?.message || "Failed to send message" },
+      { success: false, error: errorMsg },
       { status: 500 }
     );
   }

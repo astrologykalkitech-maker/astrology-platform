@@ -25,6 +25,12 @@ import { createInAppNotification } from "@/lib/notifications";
 import { assertAstrologerAvailable } from "@/lib/availability/server";
 import { toUuidOrNull } from "@/lib/security/postgrest";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  encryptCustomerBirthData,
+  decryptCustomerBirthData,
+  isBeneficiaryEncryptionConfigured,
+  getActiveKeyVersion,
+} from "@/lib/financial/encryption";
 
 export interface CustomerEnquiryItem {
   id: string;
@@ -1414,14 +1420,60 @@ export async function getCustomerFullProfile(): Promise<
       };
     }
 
+    const rawProfile = profile as Record<string, unknown>;
+    let resolvedDob: string | null = null;
+    let resolvedTob: string | null = null;
+    let resolvedBirthplace: string | null = null;
+
+    // Strict Decryption Path: If encrypted columns exist, require valid encryption and fail closed.
+    // If encrypted column is null (historical unmigrated record), allow read from legacy column during migration transition.
+    if (rawProfile.encrypted_date_of_birth && typeof rawProfile.encrypted_date_of_birth === "string") {
+      if (!isBeneficiaryEncryptionConfigured()) {
+        return { success: false, error: "Secure profile decryption service is temporarily unavailable." };
+      }
+      try {
+        resolvedDob = decryptCustomerBirthData(profile.id, "date_of_birth", rawProfile.encrypted_date_of_birth);
+      } catch {
+        return { success: false, error: "Unable to verify secure birth chart credentials. Please contact support." };
+      }
+    } else {
+      resolvedDob = (rawProfile.date_of_birth as string | null) || null;
+    }
+
+    if (rawProfile.encrypted_time_of_birth && typeof rawProfile.encrypted_time_of_birth === "string") {
+      if (!isBeneficiaryEncryptionConfigured()) {
+        return { success: false, error: "Secure profile decryption service is temporarily unavailable." };
+      }
+      try {
+        resolvedTob = decryptCustomerBirthData(profile.id, "time_of_birth", rawProfile.encrypted_time_of_birth);
+      } catch {
+        return { success: false, error: "Unable to verify secure birth time credentials." };
+      }
+    } else {
+      resolvedTob = (rawProfile.time_of_birth as string | null) || null;
+    }
+
+    if (rawProfile.encrypted_birthplace && typeof rawProfile.encrypted_birthplace === "string") {
+      if (!isBeneficiaryEncryptionConfigured()) {
+        return { success: false, error: "Secure profile decryption service is temporarily unavailable." };
+      }
+      try {
+        resolvedBirthplace = decryptCustomerBirthData(profile.id, "birthplace", rawProfile.encrypted_birthplace);
+      } catch {
+        return { success: false, error: "Unable to verify secure birthplace credentials." };
+      }
+    } else {
+      resolvedBirthplace = (rawProfile.birthplace as string | null) || null;
+    }
+
     const fullProfile: CustomerFullProfile = {
       id: profile.id,
       full_name: profile.full_name || null,
       email: user.email || null,
       phone: profile.phone || null,
-      date_of_birth: profile.date_of_birth || null,
-      time_of_birth: profile.time_of_birth || null,
-      birthplace: profile.birthplace || null,
+      date_of_birth: resolvedDob,
+      time_of_birth: resolvedTob,
+      birthplace: resolvedBirthplace,
       gender: profile.gender || null,
       avatar_url: profile.avatar_url || null,
       emailVerified: Boolean(user.email_confirmed_at),
@@ -1480,6 +1532,23 @@ export async function updateCustomerProfileAction(payload: {
 
     const supabase = await createClient(target);
 
+    // Prepare encrypted birth data if encryption engine is configured
+    let encryptedDob: string | null = null;
+    let encryptedTob: string | null = null;
+    let encryptedBirthplace: string | null = null;
+
+    if (isBeneficiaryEncryptionConfigured()) {
+      if (payload.date_of_birth) {
+        encryptedDob = encryptCustomerBirthData(user.id, "date_of_birth", payload.date_of_birth).ciphertext;
+      }
+      if (payload.time_of_birth) {
+        encryptedTob = encryptCustomerBirthData(user.id, "time_of_birth", payload.time_of_birth).ciphertext;
+      }
+      if (cleanBirthplace) {
+        encryptedBirthplace = encryptCustomerBirthData(user.id, "birthplace", cleanBirthplace).ciphertext;
+      }
+    }
+
     // Call update_customer_profile RPC
     const { error: rpcErr } = await supabase.rpc("update_customer_profile", {
       p_full_name: cleanName || null,
@@ -1492,22 +1561,43 @@ export async function updateCustomerProfileAction(payload: {
 
     if (rpcErr) {
       // Fallback direct update with RLS guard
+      const updateData: Record<string, unknown> = {
+        full_name: cleanName || undefined,
+        phone: cleanPhone,
+        date_of_birth: payload.date_of_birth || null,
+        time_of_birth: payload.time_of_birth || null,
+        birthplace: cleanBirthplace,
+        gender: payload.gender || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (isBeneficiaryEncryptionConfigured()) {
+        updateData.encrypted_date_of_birth = encryptedDob;
+        updateData.encrypted_time_of_birth = encryptedTob;
+        updateData.encrypted_birthplace = encryptedBirthplace;
+        updateData.birth_encryption_version = getActiveKeyVersion();
+      }
+
       const { error: updateErr } = await supabase
         .from("profiles")
-        .update({
-          full_name: cleanName || undefined,
-          phone: cleanPhone,
-          date_of_birth: payload.date_of_birth || null,
-          time_of_birth: payload.time_of_birth || null,
-          birthplace: cleanBirthplace,
-          gender: payload.gender || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", user.id);
 
       if (updateErr) {
         return { success: false, error: updateErr.message };
       }
+    } else if (isBeneficiaryEncryptionConfigured()) {
+      // Synchronize encrypted birth columns when RPC succeeds
+      await supabase
+        .from("profiles")
+        .update({
+          encrypted_date_of_birth: encryptedDob,
+          encrypted_time_of_birth: encryptedTob,
+          encrypted_birthplace: encryptedBirthplace,
+          birth_encryption_version: getActiveKeyVersion(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
     }
 
     revalidatePath("/customer", "page");

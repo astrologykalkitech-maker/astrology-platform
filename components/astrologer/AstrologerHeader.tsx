@@ -9,6 +9,7 @@ import { SignOutButton } from "@/components/astrologer/SignOutButton";
 import { ComponentErrorBoundary } from "@/components/common/ComponentErrorBoundary";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { LanguageSelector } from "@/components/common/LanguageSelector";
+import { AstrologerWalletBadge } from "@/components/astrologer/AstrologerWalletBadge";
 import { soundNotificationService } from "@/lib/sound/SoundNotificationService";
 
 type HeaderProps = {
@@ -108,6 +109,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
           <Logo tagline="Astrologer Portal" />
         </Link>
         <div className="flex items-center gap-2">
+          <AstrologerWalletBadge />
           <Link
             href="/astrologer/notifications"
             aria-label="Notifications"
@@ -138,6 +140,7 @@ export function AstrologerHeader({ displayName, photoUrl, menuOpen, onMenuClick 
         </div>
 
         <div className="flex items-center gap-5">
+          <AstrologerWalletBadge />
           <LanguageSelector />
           <Link
             href="/astrologer/notifications"
