@@ -32,12 +32,60 @@ export async function startVoiceCallAction(
     const admin = await createAdminClient("main");
     const { data: conversation, error: conversationError } = await admin
       .from("conversations")
-      .select("id, customer_id, astrologer_id")
+      .select("id, customer_id, astrologer_id, booking_id")
       .eq("id", conversationId)
       .maybeSingle();
 
     if (conversationError || !conversation) {
       return { success: false, error: "Conversation not found." };
+    }
+
+    // Payment verification guard: if conversation is linked to a paid booking, ensure payment is verified
+    if (conversation.booking_id) {
+      const { data: booking } = await admin
+        .from("customer_bookings")
+        .select("id, price, payment_mode, payment_status")
+        .eq("id", conversation.booking_id)
+        .maybeSingle();
+
+      if (booking && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
+        const [directPayRes, orderRes, intentRes] = await Promise.all([
+          admin
+            .from("direct_consultation_payments")
+            .select("id, status")
+            .eq("booking_id", booking.id)
+            .eq("status", "verified")
+            .maybeSingle(),
+          admin
+            .from("payment_orders")
+            .select("id, status")
+            .eq("entity_type", "consultation")
+            .eq("entity_id", booking.id)
+            .eq("status", "successful")
+            .maybeSingle(),
+          admin
+            .from("payment_intents")
+            .select("id, status")
+            .eq("entity_type", "consultation")
+            .eq("booking_id", booking.id)
+            .eq("status", "succeeded")
+            .maybeSingle(),
+        ]);
+
+        const isPaid =
+          booking.payment_status === "completed" ||
+          booking.payment_status === "paid" ||
+          !!directPayRes.data ||
+          !!orderRes.data ||
+          !!intentRes.data;
+
+        if (!isPaid) {
+          return {
+            success: false,
+            error: "Payment required before initiating this consultation call. Please complete checkout.",
+          };
+        }
+      }
     }
 
     const { data: astrologer, error: astrologerError } = await admin
@@ -345,10 +393,17 @@ export async function updateVoiceCallStatusAction(
         console.warn("[updateVoiceCallStatusAction] LiveKit room cleanup notice:", roomError);
       }
 
-      if (status === "ended" && updates.duration_seconds && updates.duration_seconds > 0) {
-        const reconciliationError = await reconcileVerifiedBookingCommission(updates.duration_seconds);
-        if (reconciliationError) {
-          console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
+      if (status === "ended") {
+        // SECURITY ARCHITECTURE RULE (Stage 2A.3):
+        // Participant-initiated call status mutations (via updateVoiceCallStatusAction) MUST NEVER
+        // complete a consultation booking. Booking completion via voice_ended is restricted exclusively
+        // to cryptographically signed LiveKit server webhooks (/api/webhooks/livekit) verifying actual
+        // room termination and server-tracked participant session duration.
+        if (updates.duration_seconds && updates.duration_seconds > 0) {
+          const reconciliationError = await reconcileVerifiedBookingCommission(updates.duration_seconds);
+          if (reconciliationError) {
+            console.warn("[updateVoiceCallStatusAction] verified commission reconciliation notice:", reconciliationError);
+          }
         }
       }
     }

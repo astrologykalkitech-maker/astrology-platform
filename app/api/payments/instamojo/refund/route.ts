@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Refund request not found" }, { status: 404 });
     }
 
+    if (request.status !== "requested") {
+      return NextResponse.json(
+        { error: `Refund request cannot be processed: current status is '${request.status}'` },
+        { status: 400 }
+      );
+    }
+
     if (decision === "reject") {
       await supabase
         .from("refund_requests")

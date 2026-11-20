@@ -53,12 +53,18 @@ function extractNormalizedPayment(body: Record<string, unknown>): NormalizedPaym
   }
 
   if (!result.isSuccessful && body.data && typeof body.data === "object") {
-    const data = body.data as Record<string, any>;
-    if (data.order?.order_id && data.payment?.payment_status === "SUCCESS") {
+    const data = body.data as Record<string, unknown>;
+    const order = data.order && typeof data.order === "object"
+      ? data.order as Record<string, unknown>
+      : null;
+    const gatewayPayment = data.payment && typeof data.payment === "object"
+      ? data.payment as Record<string, unknown>
+      : null;
+    if (order?.order_id && gatewayPayment?.payment_status === "SUCCESS") {
       result.isSuccessful = true;
-      result.sessionCode = String(data.order.order_id);
-      result.utr = String(data.payment.cf_payment_id || data.payment.bank_reference || "");
-      result.amountPaise = Math.round(Number(data.payment.payment_amount || 0) * 100);
+      result.sessionCode = String(order.order_id);
+      result.utr = String(gatewayPayment.cf_payment_id || gatewayPayment.bank_reference || "");
+      result.amountPaise = Math.round(Number(gatewayPayment.payment_amount || 0) * 100);
     }
   }
 
@@ -76,7 +82,7 @@ function extractNormalizedPayment(body: Record<string, unknown>): NormalizedPaym
       body.status === "completed" ||
       body.success === true)
   ) {
-    const data = (body.data && typeof body.data === "object" ? body.data : body) as Record<string, any>;
+    const data = (body.data && typeof body.data === "object" ? body.data : body) as Record<string, unknown>;
     result.isSuccessful = true;
     result.sessionCode = String(
       data.session_code || data.sessionCode || data.merchantTransactionId || data.order_id || ""
@@ -128,6 +134,32 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createAdminClient("main");
+    const { data: webhookEventClaim, error: webhookEventClaimError } = await supabase.rpc(
+      "claim_payment_webhook_event",
+      {
+        p_gateway: "jyotishsetu",
+        p_event_id: payment.utr,
+        p_payload: {
+          session_code: payment.sessionCode || null,
+          intent_id: payment.intentId || null,
+          utr: payment.utr,
+          amount_paise: payment.amountPaise,
+          status: "payment.succeeded",
+        },
+      }
+    );
+    if (webhookEventClaimError) {
+      return NextResponse.json(
+        { success: false, error: "Could not safely claim the webhook event." },
+        { status: 500 }
+      );
+    }
+    const webhookEventClaimRow = Array.isArray(webhookEventClaim)
+      ? webhookEventClaim[0]
+      : webhookEventClaim;
+    if (webhookEventClaimRow?.state === "already_processed") {
+      return NextResponse.json({ success: true, processed: false, status: "completed" });
+    }
     let sessionQuery = supabase
       .from("qr_payment_sessions")
       .select("id, session_code, intent_id, amount_paise, status, payment_intents(*)");
@@ -227,8 +259,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { data: settlementClaim, error: settlementClaimError } = await supabase.rpc(
+      "claim_payment_settlement",
+      {
+        p_gateway: "jyotishsetu",
+        p_payment_id: payment.utr,
+        p_order_id: null,
+        p_payment_request_id: session.session_code,
+        p_amount_paise: session.amount_paise,
+        p_currency: "INR",
+      }
+    );
+    if (settlementClaimError) {
+      return NextResponse.json(
+        { success: false, error: "Could not safely claim this payment settlement." },
+        { status: 409 }
+      );
+    }
+    const settlementClaimRow = Array.isArray(settlementClaim) ? settlementClaim[0] : settlementClaim;
+    if (settlementClaimRow?.state === "already_processed") {
+      return NextResponse.json({
+        success: true,
+        processed: false,
+        sessionCode: session.session_code,
+        status: "completed",
+      });
+    }
+    if (!settlementClaimRow?.claimed) {
+      return NextResponse.json(
+        { success: true, processed: false, status: "processing" },
+        { status: 202 }
+      );
+    }
+
     const completion = await completePaymentIntent(claimedIntent, payment.utr, { supabaseClient: supabase });
     if (!completion.success) {
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: "Payment completion could not be recorded",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: webhookEventClaimRow.event_record_id,
+        p_error_message: "Payment completion could not be recorded",
+      });
       return NextResponse.json(
         { success: false, error: "Payment completion could not be recorded." },
         { status: 500 }
@@ -250,6 +323,14 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (sessionUpdateError || !sessionUpdate) {
       console.error("[Karmic Ascension Pay] Webhook QR session update failed:", sessionUpdateError);
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: "QR session could not be finalized",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: webhookEventClaimRow.event_record_id,
+        p_error_message: "QR session could not be finalized",
+      });
       return NextResponse.json(
         { success: false, error: "Payment was received but QR status could not be finalized." },
         { status: 500 }
@@ -270,11 +351,26 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (intentUpdateError || !intentUpdate) {
       console.error("[Karmic Ascension Pay] Webhook intent update failed:", intentUpdateError);
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: "Payment intent could not be finalized",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: webhookEventClaimRow.event_record_id,
+        p_error_message: "Payment intent could not be finalized",
+      });
       return NextResponse.json(
         { success: false, error: "Payment was received but the intent could not be finalized." },
         { status: 500 }
       );
     }
+
+    await supabase.rpc("complete_payment_settlement", {
+      p_claim_id: settlementClaimRow.claim_id,
+    });
+    await supabase.rpc("complete_payment_webhook_event", {
+      p_event_record_id: webhookEventClaimRow.event_record_id,
+    });
 
     return NextResponse.json({
       success: true,

@@ -223,36 +223,27 @@ export async function processRefundDecisionAction(payload: {
       };
     }
 
-    // Update refund request status
-    await supabase
-      .from("refund_requests")
-      .update({
-        status: "processed",
-        instamojo_refund_id: mojoRefund.data.id,
-        reviewed_by: adminContext.user.id,
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", request.id);
+    // Invoke atomic customer refund RPC (handles pre-release, post-release, deficits, and universal locking)
+    // Stage 2C.2: Identity is derived securely from auth.uid() inside the database function
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc(
+      "process_customer_refund_atomic",
+      {
+        p_refund_request_id: request.id,
+        p_provider_refund_id: mojoRefund.data.id,
+      }
+    );
 
-    // Record refund in double-entry ledger:
-    await createDoubleEntryJournal({
-      referenceType: "refund",
-      referenceId: request.id,
-      description: `Refund approved for Payment ${paymentData.payment_id}`,
-      lines: [
-        {
-          accountCode: ACCOUNT_CODES.REFUND_EXPENSE,
-          debitPaise: request.amount_paise,
-          creditPaise: 0,
-        },
-        {
-          accountCode: ACCOUNT_CODES.INSTAMOJO_CLEARING,
-          debitPaise: 0,
-          creditPaise: request.amount_paise,
-        },
-      ],
-    });
+    if (atomicErr) {
+      console.error("[processRefundDecisionAction] Atomic refund RPC error:", atomicErr.message);
+      return { success: false, error: atomicErr.message };
+    }
+
+    if (!atomicResult || !atomicResult.success) {
+      return {
+        success: false,
+        error: atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.",
+      };
+    }
 
     revalidatePath("/super-admin/financials");
     return { success: true, data: true };
@@ -263,57 +254,70 @@ export async function processRefundDecisionAction(payload: {
 
 /**
  * Super Admin: Record a manual consultant payout settlement (Mode B platform collection).
+ * Protected by database-level transactional astrologer advisory locking and atomic double-entry posting.
+ * Stage 2D.3: Captures authenticated super admin context, supports source account selection (1020 vs 1010).
  */
 export async function recordConsultantSettlementAction(payload: {
   astrologerId: string;
   amountPaise: number;
   transferReference: string;
   notes?: string;
+  sourceAccount?: "1020" | "1010";
 }): Promise<AuthResult<ConsultantSettlementRecord>> {
   try {
     const adminContext = await requireSuperAdmin();
     const supabase = await createAdminClient("main");
 
-    const settlementNumber = generateSettlementNumber();
+    // Invoke dedicated atomic legacy settlement RPC with verified super_admin ID and source account (1020 Operating Bank default)
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc(
+      "record_legacy_consultant_settlement_atomic",
+      {
+        p_astrologer_id: payload.astrologerId,
+        p_amount_paise: payload.amountPaise,
+        p_transfer_reference: payload.transferReference,
+        p_notes: payload.notes || "Bank NEFT/RTGS Settlement",
+        p_source_account: payload.sourceAccount || "1020",
+        p_admin_id: adminContext.user.id,
+      }
+    );
 
-    const { data: settlement, error } = await supabase
+    if (atomicErr) {
+      console.error("[recordConsultantSettlementAction] RPC error:", atomicErr.message);
+      return { success: false, error: atomicErr.message };
+    }
+
+    if (!atomicResult || !atomicResult.success) {
+      return {
+        success: false,
+        error: atomicResult?.error || "Failed to record consultant settlement.",
+      };
+    }
+
+    // Query recorded settlement record
+    const { data: settlement, error: sErr } = await supabase
       .from("consultant_settlements")
-      .insert({
+      .select()
+      .eq("id", atomicResult.settlement_id)
+      .single();
+
+    if (sErr || !settlement) {
+      // If select fails but atomic RPC succeeded, return synthetic record from RPC payload
+      const fallbackRecord: ConsultantSettlementRecord = {
+        id: atomicResult.settlement_id,
         astrologer_id: payload.astrologerId,
-        settlement_number: settlementNumber,
+        settlement_number: atomicResult.settlement_number,
         amount_paise: payload.amountPaise,
         currency: "INR",
         status: "completed",
+        bank_account_snapshot: {},
         transfer_reference: payload.transferReference,
         notes: payload.notes || "Bank NEFT/RTGS Settlement",
-        processed_by: adminContext.user.id,
-        processed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error || !settlement) {
-      return { success: false, error: error?.message || "Failed to record settlement." };
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      revalidatePath("/super-admin/financials");
+      return { success: true, data: fallbackRecord };
     }
-
-    // Record in ledger:
-    await createDoubleEntryJournal({
-      referenceType: "consultant_settlement",
-      referenceId: settlement.id,
-      description: `Settlement payout ${settlementNumber} to astrologer ${payload.astrologerId}`,
-      lines: [
-        {
-          accountCode: ACCOUNT_CODES.ASTROLOGER_PAYABLE,
-          debitPaise: payload.amountPaise,
-          creditPaise: 0,
-        },
-        {
-          accountCode: ACCOUNT_CODES.INSTAMOJO_CLEARING,
-          debitPaise: 0,
-          creditPaise: payload.amountPaise,
-        },
-      ],
-    });
 
     revalidatePath("/super-admin/financials");
     return { success: true, data: settlement as ConsultantSettlementRecord };

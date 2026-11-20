@@ -133,6 +133,52 @@ export async function updateAstrologerBookingStatusAction(params: {
     if (!transition.allowed) {
       return { success: false, error: transition.reason };
     }
+
+    // Payment Verification Guard:
+    // Prevent astrologer from unilaterally confirming an unpaid booking.
+    if (params.status === "confirmed" && beforeBooking.status === "pending") {
+      const priceNum = Number(beforeBooking.price) || 0;
+      const isPayAtDrop = beforeBooking.payment_mode === "pay_at_drop";
+      const isPaid = beforeBooking.payment_status === "paid";
+      const isFree = priceNum <= 0;
+
+      if (!isFree && !isPayAtDrop && !isPaid) {
+        const [directRes, orderRes, intentRes] = await Promise.all([
+          admin
+            .from("direct_consultation_payments")
+            .select("id")
+            .eq("booking_id", params.bookingId)
+            .eq("status", "verified")
+            .limit(1),
+          admin
+            .from("payment_orders")
+            .select("id")
+            .eq("entity_type", "consultation")
+            .eq("entity_id", params.bookingId)
+            .eq("status", "successful")
+            .limit(1),
+          admin
+            .from("payment_intents")
+            .select("id")
+            .eq("entity_type", "consultation")
+            .eq("booking_id", params.bookingId)
+            .eq("status", "succeeded")
+            .limit(1),
+        ]);
+
+        const hasVerifiedPayment =
+          Boolean(directRes.data?.length) ||
+          Boolean(orderRes.data?.length) ||
+          Boolean(intentRes.data?.length);
+
+        if (!hasVerifiedPayment) {
+          return {
+            success: false,
+            error: "This consultation cannot be confirmed until payment is verified.",
+          };
+        }
+      }
+    }
     if (transition.noop) {
       // Repeated request for the state the booking is already in: succeed without side effects
       if (params.status === "completed") {
@@ -239,6 +285,16 @@ export async function updateAstrologerBookingStatusAction(params: {
       });
       if (accrualError) {
         console.warn("[updateAstrologerBookingStatusAction] verified commission accrual notice:", accrualError.message);
+      }
+
+      try {
+        const { reconcileCompletedConsultationLedgers } = await import("@/lib/financial/ledger");
+        await reconcileCompletedConsultationLedgers({
+          bookingId: beforeBooking.id,
+          astrologerId: profile.id,
+        });
+      } catch (ledgerReconcileErr) {
+        console.warn("[updateAstrologerBookingStatusAction] Ledger reconciliation notice:", ledgerReconcileErr);
       }
     }
 

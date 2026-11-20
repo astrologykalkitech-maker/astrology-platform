@@ -114,17 +114,40 @@ export function CustomerBillingClient({
                   {formatPaiseToInr(rupeesToPaise(r.amount))}
                 </td>
                 <td className="px-4 py-3.5">
-                  <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      r.payment_status === "paid"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : r.payment_status === "refunded"
-                        ? "bg-purple-50 text-purple-700 border border-purple-200"
-                        : "bg-amber-50 text-amber-700 border border-amber-200"
-                    }`}
-                  >
-                    {r.payment_status.toUpperCase()}
-                  </span>
+                  <div className="flex flex-col gap-1 items-start">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        r.payment_status === "paid"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : r.payment_status === "refunded"
+                          ? "bg-purple-50 text-purple-700 border border-purple-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      {r.payment_status.toUpperCase()}
+                    </span>
+                    {r.payment_gateway && r.payment_gateway !== "complimentary" && (
+                      <span className="text-[9px] text-muted font-medium uppercase tracking-wider">
+                        {r.payment_gateway === "jyotish_pay" ? "UPI QR" : r.payment_gateway === "direct_upi" ? "DIRECT UPI" : "GATEWAY"}
+                      </span>
+                    )}
+                    {r.refund_status && (
+                      <span
+                        className={`inline-flex items-center rounded-full px-1.5 py-0.2 text-[9px] font-medium ${
+                          r.refund_status === "requested"
+                            ? "bg-amber-100 text-amber-800"
+                            : r.refund_status === "approved"
+                            ? "bg-blue-100 text-blue-800"
+                            : r.refund_status === "processed"
+                            ? "bg-purple-100 text-purple-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
+                        title={r.refund_rejection_reason || r.refund_reason || undefined}
+                      >
+                        Refund: {r.refund_status.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3.5 text-right space-x-2">
                   {r.payment_status === "paid" ? (
@@ -136,15 +159,25 @@ export function CustomerBillingClient({
                         <Download className="h-3 w-3" />
                         Invoice
                       </button>
-                      <button
-                        onClick={() => {
-                          setRefundModalRecord(r);
-                          setRefundStatusMsg(null);
-                        }}
-                        className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
-                      >
-                        Refund
-                      </button>
+                      {r.refund_status === "requested" ? (
+                        <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700">
+                          Refund Pending
+                        </span>
+                      ) : r.refund_status === "approved" || r.refund_status === "processed" ? (
+                        <span className="inline-flex items-center rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[10px] font-medium text-purple-700">
+                          Refunded
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setRefundModalRecord(r);
+                            setRefundStatusMsg(null);
+                          }}
+                          className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
+                        >
+                          {r.refund_status === "rejected" ? "Re-apply Refund" : "Refund"}
+                        </button>
+                      )}
                     </>
                   ) : (
                     <button

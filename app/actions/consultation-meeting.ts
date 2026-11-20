@@ -341,6 +341,7 @@ export async function endConsultationMeetingAction(
         .from("customer_bookings")
         .update({
           status: "completed",
+          completion_source: "meeting_ended",
           updated_at: nowIso,
         })
         .eq("id", meeting.booking_id)
@@ -438,6 +439,17 @@ export async function endConsultationMeetingAction(
       });
       if (accrualError) {
         console.warn("[endConsultationMeetingAction] Verified commission reconciliation notice:", accrualError.message);
+      }
+
+      // Reconcile escrow clearance and bridge gateway earnings to commission ledger
+      try {
+        const { reconcileCompletedConsultationLedgers } = await import("@/lib/financial/ledger");
+        await reconcileCompletedConsultationLedgers({
+          bookingId: meeting.booking_id,
+          astrologerId: meeting.host_astrologer_id,
+        });
+      } catch (ledgerReconcileErr) {
+        console.warn("[endConsultationMeetingAction] Ledger reconciliation notice:", ledgerReconcileErr);
       }
     }
 

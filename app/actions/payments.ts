@@ -222,20 +222,37 @@ export async function initiateSubscriptionPaymentAction(payload: {
       };
     }
 
-    // PAID PLAN: Create payment order without modifying astrologer_subscriptions
+    // PAID PLAN: Initialize pending subscription record (past_due) and create payment order
     const orderNumber = generateOrderNumber();
+
+    const { data: subRecord } = await supabase
+      .from("astrologer_subscriptions")
+      .upsert(
+        {
+          astrologer_id: profile.id,
+          plan_id: plan.id,
+          status: "past_due",
+          auto_renew: false,
+        },
+        { onConflict: "astrologer_id" }
+      )
+      .select("id")
+      .maybeSingle();
+
+    const orderEntityId = subRecord?.id || plan.id;
 
     const { data: order, error: orderErr } = await supabase
       .from("payment_orders")
       .insert({
         order_number: orderNumber,
         entity_type: "subscription",
-        entity_id: plan.id, // targets the plan to be purchased
+        entity_id: orderEntityId,
         astrologer_id: profile.id,
         amount_paise: plan.price_paise,
         currency: "INR",
         status: "created",
         metadata: {
+          plan_id: plan.id,
           plan_name: plan.name,
           astrologer_name: profile.display_name,
           email: user.email,
@@ -317,6 +334,21 @@ export async function requestCustomerRefundAction(payload: {
     const orderData = Array.isArray(payment?.order) ? payment?.order[0] : payment?.order;
     if (!payment || orderData?.customer_id !== user.id) {
       return { success: false, error: "Payment record not found or unauthorized." };
+    }
+
+    // Check if an active or processed refund request already exists for this payment
+    const { data: existingRefund } = await supabase
+      .from("refund_requests")
+      .select("id, status")
+      .eq("payment_id", payment.id)
+      .in("status", ["requested", "approved", "processed"])
+      .maybeSingle();
+
+    if (existingRefund) {
+      return {
+        success: false,
+        error: `A refund request for this payment is already ${existingRefund.status}.`,
+      };
     }
 
     const { error } = await supabase.from("refund_requests").insert({

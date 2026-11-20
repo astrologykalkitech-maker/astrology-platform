@@ -32,36 +32,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createAdminClient("main");
 
-    // 1. Webhook Replay / Idempotency Check
-    const { data: existingEvent, error: existingEventError } = await supabase
-      .from("payment_webhook_events")
-      .select("id, processed")
-      .eq("event_id", paymentId)
-      .maybeSingle();
-
-    if (existingEventError) {
-      console.error("[Instamojo Webhook] Could not check replay state:", existingEventError.message);
+    // 1. Transactional webhook event claim. Full payloads are not stored.
+    const safeWebhookPayload = Object.fromEntries(
+      Object.entries(payload).filter(([key]) =>
+        !["mac", "salt", "secret", "token", "auth", "authorization", "password"].includes(key.toLowerCase())
+      )
+    );
+    const { data: eventClaim, error: eventClaimError } = await supabase.rpc(
+      "claim_payment_webhook_event",
+      {
+        p_gateway: "instamojo",
+        p_event_id: paymentId,
+        p_payload: safeWebhookPayload,
+      }
+    );
+    if (eventClaimError) {
+      console.error("[Instamojo Webhook] Could not claim webhook event:", eventClaimError.message);
       return NextResponse.json({ error: "Unable to validate webhook state" }, { status: 500 });
     }
-
-    if (existingEvent && existingEvent.processed) {
+    const eventClaimRow = Array.isArray(eventClaim) ? eventClaim[0] : eventClaim;
+    if (eventClaimRow?.state === "already_processed") {
       return NextResponse.json({ status: "already_processed" }, { status: 200 });
     }
-
-    // Record webhook event receipt
-    const { error: eventUpsertError } = await supabase.from("payment_webhook_events").upsert(
-      {
-        gateway: "instamojo",
-        event_id: paymentId,
-        payload,
-        processed: false,
-      },
-      { onConflict: "event_id" }
-    );
-
-    if (eventUpsertError) {
-      console.error("[Instamojo Webhook] Could not record webhook event:", eventUpsertError.message);
-      return NextResponse.json({ error: "Unable to record webhook event" }, { status: 500 });
+    if (!eventClaimRow?.claimed) {
+      return NextResponse.json({ status: "processing" }, { status: 202 });
     }
 
     // 2. Find corresponding internal payment_order
@@ -121,14 +115,9 @@ export async function POST(req: NextRequest) {
         if (failedOrderError) {
           return NextResponse.json({ error: "Unable to record failed payment status" }, { status: 500 });
         }
-
-        const { error: failedEventError } = await supabase
-          .from("payment_webhook_events")
-          .update({ processed: true })
-          .eq("event_id", paymentId);
-        if (failedEventError) {
-          return NextResponse.json({ error: "Unable to finalize failed webhook event" }, { status: 500 });
-        }
+        await supabase.rpc("complete_payment_webhook_event", {
+          p_event_record_id: eventClaimRow.event_record_id,
+        });
         return NextResponse.json({ status: "payment_failed_recorded" }, { status: 200 });
       }
 
@@ -154,6 +143,35 @@ export async function POST(req: NextRequest) {
       : 0;
     if (amountInPaise === null || feesInPaise === null) {
       return NextResponse.json({ error: "Verified gateway amount or fee is invalid" }, { status: 502 });
+    }
+
+    const { data: settlementClaim, error: settlementClaimError } = await supabase.rpc(
+      "claim_payment_settlement",
+      {
+        p_gateway: "instamojo",
+        p_payment_id: paymentId,
+        p_order_id: order.id,
+        p_payment_request_id: paymentRequestId,
+        p_amount_paise: amountInPaise,
+        p_currency: "INR",
+      }
+    );
+    if (settlementClaimError) {
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: eventClaimRow.event_record_id,
+        p_error_message: settlementClaimError.message,
+      });
+      return NextResponse.json({ error: "Unable to claim the payment settlement" }, { status: 409 });
+    }
+    const settlementClaimRow = Array.isArray(settlementClaim) ? settlementClaim[0] : settlementClaim;
+    if (settlementClaimRow?.state === "already_processed") {
+      await supabase.rpc("complete_payment_webhook_event", {
+        p_event_record_id: eventClaimRow.event_record_id,
+      });
+      return NextResponse.json({ status: "already_processed" }, { status: 200 });
+    }
+    if (!settlementClaimRow?.claimed) {
+      return NextResponse.json({ status: "processing" }, { status: 202 });
     }
 
     let paymentRecord: { id: string; receipt_number: string };
@@ -261,13 +279,63 @@ export async function POST(req: NextRequest) {
         });
       }
     } else if (order.entity_type === "subscription") {
-      // entity_id is plan_id
-      const planId = order.entity_id;
-      const { data: plan } = await supabase
+      let resolvedPlanId: string | null = null;
+      let planRecord: { id: string; name?: string; lead_quota?: number } | null = null;
+
+      // 1. Try resolving order.entity_id as payment_plans.id
+      const { data: directPlan } = await supabase
         .from("payment_plans")
         .select("*")
-        .eq("id", planId)
-        .single();
+        .eq("id", order.entity_id)
+        .maybeSingle();
+
+      if (directPlan) {
+        resolvedPlanId = directPlan.id;
+        planRecord = directPlan;
+      } else {
+        // 2. If entity_id is a subscription ID, resolve subscription then its plan
+        const { data: sub } = await supabase
+          .from("astrologer_subscriptions")
+          .select("id, plan_id, plan:payment_plans(*)")
+          .eq("id", order.entity_id)
+          .maybeSingle();
+
+        if (sub) {
+          const planData = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+          resolvedPlanId = planData?.id || sub.plan_id;
+          planRecord = planData;
+        }
+      }
+
+      // 3. Fallback to order metadata or professional plan if needed
+      if (!resolvedPlanId && order.metadata && typeof order.metadata === "object") {
+        const meta = order.metadata as Record<string, unknown>;
+        if (typeof meta.plan_id === "string") {
+          resolvedPlanId = meta.plan_id;
+          const { data: metaPlan } = await supabase
+            .from("payment_plans")
+            .select("*")
+            .eq("id", resolvedPlanId)
+            .maybeSingle();
+          if (metaPlan) planRecord = metaPlan;
+        }
+      }
+
+      if (!resolvedPlanId) {
+        const { data: defaultPro } = await supabase
+          .from("payment_plans")
+          .select("*")
+          .eq("slug", "professional")
+          .maybeSingle();
+        if (defaultPro) {
+          resolvedPlanId = defaultPro.id;
+          planRecord = defaultPro;
+        }
+      }
+
+      if (!resolvedPlanId) {
+        return NextResponse.json({ error: "Unable to resolve target subscription plan" }, { status: 500 });
+      }
 
       const now = new Date();
       const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -275,11 +343,11 @@ export async function POST(req: NextRequest) {
       await supabase.from("astrologer_subscriptions").upsert(
         {
           astrologer_id: order.astrologer_id,
-          plan_id: planId,
+          plan_id: resolvedPlanId,
           status: "active",
           current_period_start: now.toISOString(),
           current_period_end: periodEnd.toISOString(),
-          leads_allocated: plan?.lead_quota || 10,
+          leads_allocated: planRecord?.lead_quota || 10,
           leads_consumed: 0,
           last_payment_id: paymentRecord?.id || null,
           updated_at: now.toISOString(),
@@ -291,15 +359,31 @@ export async function POST(req: NextRequest) {
         await recordSubscriptionPaymentInLedger({
           paymentId: paymentRecord.id,
           amountPaise: amountInPaise,
-          description: `Astrologer subscription for plan ${plan?.name || "Professional"} (Receipt ${paymentRecord.receipt_number})`,
+          description: `Astrologer subscription for plan ${planRecord?.name || "Professional"} (Receipt ${paymentRecord.receipt_number})`,
         });
       }
     }
 
-    const { error: eventProcessedError } = await supabase
-      .from("payment_webhook_events")
-      .update({ processed: true })
-      .eq("event_id", paymentId);
+    const { data: settlementCompleted, error: settlementCompleteError } = await supabase.rpc(
+      "complete_payment_settlement",
+      { p_claim_id: settlementClaimRow.claim_id }
+    );
+    if (settlementCompleteError || settlementCompleted !== true) {
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: settlementCompleteError?.message || "Settlement completion failed",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: eventClaimRow.event_record_id,
+        p_error_message: "Payment settlement state could not be finalized",
+      });
+      return NextResponse.json({ error: "Payment verified but settlement state could not be finalized" }, { status: 500 });
+    }
+
+    const { error: eventProcessedError } = await supabase.rpc(
+      "complete_payment_webhook_event",
+      { p_event_record_id: eventClaimRow.event_record_id }
+    );
     if (eventProcessedError) {
       return NextResponse.json({ error: "Payment verified but webhook event could not be finalized" }, { status: 500 });
     }

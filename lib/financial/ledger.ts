@@ -14,7 +14,8 @@ export interface CreateJournalEntryParams {
     | "subscription_payment"
     | "consultant_settlement"
     | "refund"
-    | "jyotish_payment_intent";
+    | "jyotish_payment_intent"
+    | "consultation_escrow_release";
   referenceId: string;
   description: string;
   entryDate?: string;
@@ -63,91 +64,38 @@ export async function createDoubleEntryJournal(
 
   const supabase = await createAdminClient("main");
 
-  // 3. Resolve accounts by code
-  const accountCodes = Array.from(new Set(lines.map((l) => l.accountCode)));
-  const { data: accounts, error: accErr } = await supabase
-    .from("financial_accounts")
-    .select("id, code, balance_paise, type")
-    .in("code", accountCodes);
-
-  if (accErr || !accounts || accounts.length < accountCodes.length) {
-    return {
-      success: false,
-      error: `Failed to resolve financial accounts: ${accErr?.message || "Missing accounts in database"}`,
-    };
-  }
-
-  interface AccountRow {
-    id: string;
-    code: string;
-    balance_paise: number;
-    type: string;
-  }
-
-  const accountMap = new Map<string, AccountRow>(
-    (accounts as AccountRow[]).map((a) => [a.code, a])
-  );
-
-  // 4. Generate entry number if not provided
   const entryNumber =
     params.entryNumber ||
     `JE-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const rpcLines = lines.map((line) => ({
+    account_code: line.accountCode,
+    debit_paise: line.debitPaise,
+    credit_paise: line.creditPaise,
+  }));
 
-  // 5. Insert journal entry header
-  const { data: entry, error: entryErr } = await supabase
-    .from("financial_journal_entries")
-    .insert({
-      entry_number: entryNumber,
-      reference_type: referenceType,
-      reference_id: referenceId,
-      description,
-      entry_date: params.entryDate || new Date().toISOString().slice(0, 10),
-    })
-    .select("id")
-    .single();
-
-  if (entryErr || !entry) {
-    return { success: false, error: `Failed to record journal header: ${entryErr?.message}` };
-  }
-
-  // 6. Insert lines
-  const lineRecords = lines.map((l) => {
-    const acc = accountMap.get(l.accountCode)!;
-    return {
-      journal_entry_id: entry.id,
-      account_id: acc.id,
-      debit_paise: l.debitPaise,
-      credit_paise: l.creditPaise,
-    };
+  const { data: entryId, error } = await supabase.rpc("post_atomic_financial_journal", {
+    p_entry_number: entryNumber,
+    p_reference_type: referenceType,
+    p_reference_id: referenceId,
+    p_description: description,
+    p_entry_date: params.entryDate || new Date().toISOString().slice(0, 10),
+    p_lines: rpcLines,
   });
 
-  const { error: linesErr } = await supabase.from("financial_journal_lines").insert(lineRecords);
-  if (linesErr) {
-    return { success: false, error: `Failed to record journal lines: ${linesErr.message}` };
+  if (error) {
+    if (/Could not find the function|does not exist|schema cache/i.test(error.message)) {
+      return {
+        success: false,
+        error: "Payment safety migration 064 must be applied before posting financial journals.",
+      };
+    }
+    return { success: false, error: `Failed to post atomic journal entry: ${error.message}` };
+  }
+  if (typeof entryId !== "string") {
+    return { success: false, error: "Atomic journal RPC returned no journal entry." };
   }
 
-  // 7. Update account balances safely
-  for (const l of lines) {
-    const acc = accountMap.get(l.accountCode)!;
-    let delta = 0;
-    if (acc.type === "asset" || acc.type === "expense") {
-      delta = l.debitPaise - l.creditPaise;
-    } else {
-      delta = l.creditPaise - l.debitPaise;
-    }
-
-    const { error: balanceError } = await supabase
-      .from("financial_accounts")
-      .update({
-        balance_paise: acc.balance_paise + delta,
-      })
-      .eq("id", acc.id);
-    if (balanceError) {
-      return { success: false, error: `Failed to update account ${acc.code}: ${balanceError.message}` };
-    }
-  }
-
-  return { success: true, entryId: entry.id };
+  return { success: true, entryId };
 }
 
 /**
@@ -276,4 +224,91 @@ export async function recordJyotishPaymentIntentInLedger(params: {
   });
 }
 
+/**
+ * Releases escrowed consultation funds upon session delivery.
+ * Debit: Customer Consultation Escrow (2010 - Liability reduction)
+ * Credit: Platform Commission Revenue (4010 - Revenue earned)
+ * Credit: Astrologer Payable Liability (2020 - Liability owed to practitioner)
+ */
+export async function releaseConsultationEscrowInLedger(params: {
+  bookingId: string;
+  grossPaise: number;
+  platformFeePaise: number;
+  astrologerPayablePaise: number;
+  description: string;
+}): Promise<{ success: boolean; entryId?: string; error?: string }> {
+  return createDoubleEntryJournal({
+    referenceType: "consultation_escrow_release",
+    referenceId: params.bookingId,
+    description: params.description,
+    lines: [
+      {
+        accountCode: ACCOUNT_CODES.ESCROW_CONSULTATION,
+        debitPaise: params.grossPaise,
+        creditPaise: 0,
+      },
+      {
+        accountCode: ACCOUNT_CODES.PLATFORM_COMMISSION_REVENUE,
+        debitPaise: 0,
+        creditPaise: params.platformFeePaise,
+      },
+      {
+        accountCode: ACCOUNT_CODES.ASTROLOGER_PAYABLE,
+        debitPaise: 0,
+        creditPaise: params.astrologerPayablePaise,
+      },
+    ],
+  });
+}
+
+/**
+ * Reconciles dual-ledger accounting upon consultation completion:
+ * 1. Releases Escrow (Account 2010) if booking was paid via Jyotish Pay QR.
+ * 2. Bridges gateway earnings (Instamojo / Jyotish Pay) into commission_ledger.
+ */
+export async function reconcileCompletedConsultationLedgers(params: {
+  bookingId: string;
+  astrologerId?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createAdminClient("main");
+
+    const { data: booking, error: bErr } = await supabase
+      .from("customer_bookings")
+      .select("id, price, astrologer_id, payment_mode, status")
+      .eq("id", params.bookingId)
+      .maybeSingle();
+
+    if (bErr || !booking) {
+      return { success: false, error: bErr?.message || "Booking not found" };
+    }
+
+    const astrologerId = params.astrologerId || booking.astrologer_id;
+
+    // Authoritative atomic escrow release via Migration 066 RPC
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc(
+      "release_consultation_escrow_atomic",
+      { p_booking_id: params.bookingId }
+    );
+
+    if (atomicErr) {
+      console.error("[reconcileCompletedBookingEscrowAndCommission] Atomic RPC invocation error:", atomicErr.message);
+      return { success: false, error: atomicErr.message };
+    }
+
+    if (!atomicResult || !atomicResult.success) {
+      return {
+        success: false,
+        error: atomicResult?.error || "Consultation escrow release failed or was rejected.",
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Ledger reconciliation failed",
+    };
+  }
+}
 

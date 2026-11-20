@@ -22,6 +22,7 @@ import {
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
 import { DirectBookingPaymentForm } from "@/components/customer/DirectBookingPaymentForm";
+import { UnifiedCheckoutModal } from "@/components/pay/CheckoutMethodSelector";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
@@ -38,6 +39,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
+  const [activeCheckoutBooking, setActiveCheckoutBooking] = useState<CustomerBooking | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
 
   // Sync state whenever initialBookings prop updates
@@ -263,6 +265,15 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       <span className="font-mono text-[10px] text-muted truncate max-w-[100px]">
                         {booking.id.slice(0, 8)}
                       </span>
+                      {booking.status === "pending" && Number(booking.price) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveCheckoutBooking(booking)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-sm hover:opacity-95 transition-opacity"
+                        >
+                          Pay Now
+                        </button>
+                      )}
                       {!isCancelled && !isCompleted && (
                         <button
                           type="button"
@@ -393,6 +404,16 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                             )
                           )}
 
+                          {booking.status === "pending" && Number(booking.price) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setActiveCheckoutBooking(booking)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-sm hover:opacity-95 transition-opacity"
+                            >
+                              Pay Now
+                            </button>
+                          )}
+
                           {!isCancelled && !isCompleted && (
                             <button
                               type="button"
@@ -521,6 +542,19 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
             )}
           </div>
         </div>
+      )}
+
+      {/* Unified Checkout Modal */}
+      {activeCheckoutBooking && (
+        <UnifiedCheckoutModal
+          isOpen={!!activeCheckoutBooking}
+          booking={activeCheckoutBooking}
+          onClose={() => setActiveCheckoutBooking(null)}
+          onSuccess={() => {
+            setActiveCheckoutBooking(null);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

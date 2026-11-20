@@ -680,7 +680,7 @@ export async function sendDirectMessageAction(
 
     const { data: convo } = await admin
       .from("conversations")
-      .select("id, customer_id, astrologer_id, customer_unread_count, astrologer_unread_count")
+      .select("id, customer_id, astrologer_id, booking_id, customer_unread_count, astrologer_unread_count")
       .eq("id", conversationId)
       .maybeSingle();
 
@@ -701,6 +701,54 @@ export async function sendDirectMessageAction(
       senderRole = "astrologer";
     } else {
       return { success: false, error: "Unauthorized to send message in this conversation" };
+    }
+
+    // Payment verification guard: if customer is sending in a conversation tied to a paid consultation booking
+    if (senderRole === "customer" && convo.booking_id) {
+      const { data: booking } = await admin
+        .from("customer_bookings")
+        .select("id, price, payment_mode, payment_status")
+        .eq("id", convo.booking_id)
+        .maybeSingle();
+
+      if (booking && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
+        const [directPayRes, orderRes, intentRes] = await Promise.all([
+          admin
+            .from("direct_consultation_payments")
+            .select("id, status")
+            .eq("booking_id", booking.id)
+            .eq("status", "verified")
+            .maybeSingle(),
+          admin
+            .from("payment_orders")
+            .select("id, status")
+            .eq("entity_type", "consultation")
+            .eq("entity_id", booking.id)
+            .eq("status", "successful")
+            .maybeSingle(),
+          admin
+            .from("payment_intents")
+            .select("id, status")
+            .eq("entity_type", "consultation")
+            .eq("booking_id", booking.id)
+            .eq("status", "succeeded")
+            .maybeSingle(),
+        ]);
+
+        const isPaid =
+          booking.payment_status === "completed" ||
+          booking.payment_status === "paid" ||
+          !!directPayRes.data ||
+          !!orderRes.data ||
+          !!intentRes.data;
+
+        if (!isPaid) {
+          return {
+            success: false,
+            error: "Payment required before sending consultation messages. Please complete checkout.",
+          };
+        }
+      }
     }
 
     // 1. Idempotency Check: prevent duplicate messages from rapid retries or HTTP fallback

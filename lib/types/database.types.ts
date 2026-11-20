@@ -302,6 +302,10 @@ export interface CustomerBillingRecord {
   receipt_number?: string;
   payment_id?: string;
   created_at: string;
+  payment_gateway?: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary";
+  refund_status?: "requested" | "approved" | "processed" | "rejected" | null;
+  refund_reason?: string | null;
+  refund_rejection_reason?: string | null;
 }
 
 // =====================================================

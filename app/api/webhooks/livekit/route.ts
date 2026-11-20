@@ -43,9 +43,11 @@ export async function POST(req: NextRequest) {
 
     const admin = await createAdminClient("main");
 
-    // 1. Room Finished: Mark broadcast authoritatively ended
+    // 1. Room Finished: Mark broadcast or voice call authoritatively ended
     if (eventType === "room_finished") {
       const nowIso = new Date().toISOString();
+
+      // Case A: Astrologer Live Broadcast
       await admin
         .from("astrologer_live_broadcasts")
         .update({
@@ -57,6 +59,55 @@ export async function POST(req: NextRequest) {
         })
         .eq("room_name", roomName)
         .in("status", ["live", "starting", "preparing", "paused"]);
+
+      // Case B: Direct Voice Call Session (Authoritative Server-Side Termination)
+      if (roomName.startsWith("karmicascension_voice_")) {
+        const { data: voiceCall } = await admin
+          .from("voice_calls")
+          .select("id, conversation_id, status, started_at")
+          .eq("room_name", roomName)
+          .maybeSingle();
+
+        if (voiceCall) {
+          // Calculate authoritative duration from server-tracked started_at to now
+          const startedAtMs = voiceCall.started_at ? Date.parse(voiceCall.started_at) : 0;
+          const durationSeconds = startedAtMs > 0 ? Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)) : 0;
+
+          // Transition call to ended if still active
+          await admin
+            .from("voice_calls")
+            .update({
+              status: "ended",
+              ended_at: nowIso,
+              duration_seconds: durationSeconds,
+              end_reason: "SFU room_finished webhook",
+              updated_at: nowIso,
+            })
+            .eq("id", voiceCall.id)
+            .in("status", ["ringing", "accepted", "active"]);
+
+          // Complete linked consultation booking ONLY if call was active and lasted at least 30s
+          if (voiceCall.status === "active" && durationSeconds >= 30) {
+            const { data: conv } = await admin
+              .from("conversations")
+              .select("booking_id")
+              .eq("id", voiceCall.conversation_id)
+              .maybeSingle();
+
+            if (conv?.booking_id) {
+              await admin
+                .from("customer_bookings")
+                .update({
+                  status: "completed",
+                  completion_source: "voice_ended",
+                  updated_at: nowIso,
+                })
+                .eq("id", conv.booking_id)
+                .in("status", ["pending", "confirmed"]);
+            }
+          }
+        }
+      }
     }
 
     // 2. Participant Left: Check if broadcaster left

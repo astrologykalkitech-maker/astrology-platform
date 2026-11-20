@@ -1684,11 +1684,17 @@ export async function getCustomerBillingHistory(): Promise<
       }
     }
 
-    // Query any payments for these bookings via payment_orders
+    // Query payments across all 3 gateways: Instamojo, Jyotish Pay, and Direct UPI
     const bookingIds = bookings.map((b) => b.id);
-    const paymentMap: Record<string, { receipt_number: string; payment_id: string }> = {};
+    const paymentMap: Record<string, { receipt_number: string; payment_id: string; gateway: "instamojo" }> = {};
+    const intentPaymentMap: Record<string, { receipt_number?: string; intent_id: string; gateway: "jyotish_pay" }> = {};
+    const directPaymentMap: Record<string, { status: string; utr: string; gateway: "direct_upi" }> = {};
+    const refundRequestMap: Record<string, { status: "requested" | "approved" | "processed" | "rejected"; reason: string; rejection_reason?: string }> = {};
+
     if (bookingIds.length > 0) {
       const adminClient = await createAdminClient("main");
+
+      // 1. Instamojo payment orders + payments
       const { data: orders, error: orderError } = await adminClient
         .from("payment_orders")
         .select(`
@@ -1711,26 +1717,82 @@ export async function getCustomerBillingHistory(): Promise<
             paymentMap[o.entity_id] = {
               receipt_number: successfulPayment.receipt_number,
               payment_id: successfulPayment.payment_id,
+              gateway: "instamojo",
             };
           }
         }
       }
-    }
 
-    const directPaymentMap: Record<string, { status: string; utr: string }> = {};
-    if (bookingIds.length > 0) {
-      const adminClient = await createAdminClient("main");
+      // 2. Jyotish Pay UPI intents + receipts
+      const { data: intents, error: intentError } = await adminClient
+        .from("payment_intents")
+        .select("id, booking_id, status")
+        .eq("entity_type", "consultation")
+        .eq("status", "succeeded")
+        .in("booking_id", bookingIds);
+
+      if (intentError) {
+        console.warn("[getCustomerBillingHistory] payment_intents lookup:", intentError.message);
+      } else if (intents && intents.length > 0) {
+        const intentIds = intents.map((i) => i.id);
+        const { data: receipts } = await adminClient
+          .from("payment_receipts")
+          .select("receipt_number, intent_id, booking_id")
+          .in("intent_id", intentIds);
+
+        const receiptByIntent = Object.fromEntries(
+          (receipts || []).map((r) => [r.intent_id, r.receipt_number])
+        );
+
+        for (const intent of intents) {
+          if (intent.booking_id) {
+            intentPaymentMap[intent.booking_id] = {
+              receipt_number: receiptByIntent[intent.id] || `JSP-${intent.id.slice(0, 8).toUpperCase()}`,
+              intent_id: intent.id,
+              gateway: "jyotish_pay",
+            };
+          }
+        }
+      }
+
+      // 3. Direct consultation payments (UTR)
       const { data: directPayments, error: directPaymentError } = await adminClient
         .from("direct_consultation_payments")
         .select("booking_id, status, utr, submitted_at")
         .in("booking_id", bookingIds)
         .order("submitted_at", { ascending: false });
+
       if (directPaymentError) {
         console.warn("[getCustomerBillingHistory] direct_consultation_payments lookup:", directPaymentError.message);
       } else {
         for (const payment of directPayments || []) {
           if (!directPaymentMap[payment.booking_id]) {
-            directPaymentMap[payment.booking_id] = { status: payment.status, utr: payment.utr };
+            directPaymentMap[payment.booking_id] = {
+              status: payment.status,
+              utr: payment.utr,
+              gateway: "direct_upi",
+            };
+          }
+        }
+      }
+
+      // 4. Refund requests for user context
+      const { data: refunds, error: refundError } = await adminClient
+        .from("refund_requests")
+        .select("id, payment_id, status, reason, rejection_reason, created_at")
+        .eq("customer_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (refundError) {
+        console.warn("[getCustomerBillingHistory] refund_requests lookup:", refundError.message);
+      } else if (refunds) {
+        for (const r of refunds) {
+          if (r.payment_id && !refundRequestMap[r.payment_id]) {
+            refundRequestMap[r.payment_id] = {
+              status: r.status as "requested" | "approved" | "processed" | "rejected",
+              reason: r.reason,
+              rejection_reason: r.rejection_reason || undefined,
+            };
           }
         }
       }
@@ -1738,9 +1800,44 @@ export async function getCustomerBillingHistory(): Promise<
 
     const billingRecords: CustomerBillingRecord[] = bookings.map((b) => {
       const priceNum = Number(b.price) || 0;
-      const paymentInfo = paymentMap[b.id];
+      const instamojoPayment = paymentMap[b.id];
+      const jyotishPayment = intentPaymentMap[b.id];
       const directPayment = directPaymentMap[b.id];
-      const isPaid = !!paymentInfo || directPayment?.status === "verified";
+
+      const isPaid =
+        !!instamojoPayment ||
+        !!jyotishPayment ||
+        directPayment?.status === "verified";
+
+      const gateway: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary" =
+        priceNum === 0
+          ? "complimentary"
+          : instamojoPayment
+          ? "instamojo"
+          : jyotishPayment
+          ? "jyotish_pay"
+          : directPayment
+          ? "direct_upi"
+          : "instamojo";
+
+      const receiptNumber =
+        instamojoPayment?.receipt_number ||
+        jyotishPayment?.receipt_number;
+
+      const paymentId =
+        instamojoPayment?.payment_id ||
+        jyotishPayment?.intent_id;
+
+      const refundInfo = paymentId ? refundRequestMap[paymentId] : null;
+
+      const paymentStatus: "paid" | "pending" | "complimentary" | "refunded" =
+        priceNum === 0
+          ? "complimentary"
+          : directPayment?.status === "refunded" || refundInfo?.status === "processed"
+          ? "refunded"
+          : isPaid
+          ? "paid"
+          : "pending";
 
       return {
         id: `tx-${b.id.slice(0, 8)}`,
@@ -1750,19 +1847,18 @@ export async function getCustomerBillingHistory(): Promise<
         astrologer_name: astroMap[b.astrologer_id] || "Vedic Astrologer",
         amount: priceNum,
         currency: "INR",
-        payment_status: priceNum === 0
-          ? "complimentary"
-          : directPayment?.status === "refunded"
-          ? "refunded"
-          : isPaid
-          ? "paid"
-          : "pending",
-        transaction_ref: paymentInfo?.receipt_number
-          || directPayment?.utr
-          || `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
-        receipt_number: paymentInfo?.receipt_number,
-        payment_id: paymentInfo?.payment_id,
+        payment_status: paymentStatus,
+        transaction_ref:
+          receiptNumber ||
+          directPayment?.utr ||
+          `JS-${b.created_at.slice(0, 10).replace(/-/g, "")}-${b.id.slice(0, 6).toUpperCase()}`,
+        receipt_number: receiptNumber,
+        payment_id: paymentId,
         created_at: b.created_at,
+        payment_gateway: gateway,
+        refund_status: refundInfo?.status || null,
+        refund_reason: refundInfo?.reason || null,
+        refund_rejection_reason: refundInfo?.rejection_reason || null,
       };
     });
 

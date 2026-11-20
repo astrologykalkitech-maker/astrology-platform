@@ -178,6 +178,10 @@ export async function updateAdminBookingStatus(params: {
       updated_at: new Date().toISOString(),
     };
 
+    if (params.status === "completed") {
+      updatePayload.completion_source = "portal_manual";
+    }
+
     if (params.status === "cancelled") {
       updatePayload.cancellation_reason = params.cancellationReason || "Cancelled by administrator";
       updatePayload.cancelled_at = new Date().toISOString();

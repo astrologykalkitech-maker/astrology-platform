@@ -171,6 +171,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Verified gateway amount or fee is invalid" }, { status: 502 });
     }
 
+    const { data: settlementClaim, error: settlementClaimError } = await supabase.rpc(
+      "claim_payment_settlement",
+      {
+        p_gateway: "instamojo",
+        p_payment_id: paymentId,
+        p_order_id: order.id,
+        p_payment_request_id: requestId,
+        p_amount_paise: amountPaise,
+        p_currency: order.currency,
+      }
+    );
+    if (settlementClaimError) {
+      return NextResponse.json({ error: "Unable to claim the payment settlement" }, { status: 409 });
+    }
     const { data: existingPayment, error: existingPaymentError } = await supabase
       .from("payments")
       .select("id, order_id, payment_request_id, amount_paise, status, receipt_number")
@@ -179,6 +193,19 @@ export async function POST(req: NextRequest) {
     if (existingPaymentError) {
       console.error("[Instamojo Verify] Could not check existing payment:", existingPaymentError.message);
       return NextResponse.json({ error: "Unable to check existing payment" }, { status: 500 });
+    }
+
+    const settlementClaimRow = Array.isArray(settlementClaim) ? settlementClaim[0] : settlementClaim;
+    if (settlementClaimRow?.state === "already_processed") {
+      return NextResponse.json({
+      success: true,
+      status: "successful",
+      receiptNumber: existingPayment?.receipt_number,
+      orderId: order.id,
+      });
+    }
+    if (!settlementClaimRow?.claimed) {
+      return NextResponse.json({ status: "processing" }, { status: 202 });
     }
     if (
       existingPayment &&
@@ -242,33 +269,96 @@ export async function POST(req: NextRequest) {
       const now = new Date();
       const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      const { data: sub, error: subError } = await supabase
+      let sub: Record<string, unknown> | null = null;
+      let plan: { id: string; name?: string; lead_quota?: number } | null = null;
+
+      // 1. Try resolving order.entity_id as astrologer_subscriptions id
+      const { data: subById } = await supabase
         .from("astrologer_subscriptions")
         .select("*, plan:payment_plans(*)")
         .eq("id", order.entity_id)
-        .single();
-      if (subError || !sub) {
-        console.error("[Instamojo Verify] Subscription activation failed:", subError?.message);
-        return NextResponse.json({ error: "Payment verified but subscription activation failed" }, { status: 500 });
+        .maybeSingle();
+
+      if (subById) {
+        sub = subById;
+        plan = Array.isArray(subById.plan) ? subById.plan[0] : subById.plan;
+      } else {
+        // 2. Fallback: order.entity_id is a plan_id or sub is keyed by astrologer_id
+        const orderMetadata = (order.metadata && typeof order.metadata === "object") ? order.metadata as Record<string, unknown> : {};
+        const planId = (typeof orderMetadata.plan_id === "string" ? orderMetadata.plan_id : null) || order.entity_id;
+        const { data: planData } = await supabase
+          .from("payment_plans")
+          .select("*")
+          .eq("id", planId)
+          .maybeSingle();
+        plan = planData;
+
+        if (order.astrologer_id) {
+          const { data: subByAstro } = await supabase
+            .from("astrologer_subscriptions")
+            .select("*, plan:payment_plans(*)")
+            .eq("astrologer_id", order.astrologer_id)
+            .maybeSingle();
+
+          if (subByAstro) {
+            sub = subByAstro;
+            if (!plan) {
+              plan = Array.isArray(subByAstro.plan) ? subByAstro.plan[0] : subByAstro.plan;
+            }
+          }
+        }
       }
 
-      const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
-      if (sub.last_payment_id !== payRecord.id) {
-        const { error: subscriptionUpdateError } = await supabase
+      if (!plan) {
+        const { data: defaultPro } = await supabase
+          .from("payment_plans")
+          .select("*")
+          .eq("slug", "professional")
+          .maybeSingle();
+        plan = defaultPro;
+      }
+
+      if (!sub && order.astrologer_id && plan?.id) {
+        const { data: newSub } = await supabase
           .from("astrologer_subscriptions")
-          .update({
-            status: "active",
-            current_period_start: now.toISOString(),
-            current_period_end: periodEnd.toISOString(),
-            leads_allocated: (sub.leads_allocated || 0) + (plan?.lead_quota || 0),
-            last_payment_id: payRecord.id,
-            updated_at: now.toISOString(),
-          })
-          .eq("id", order.entity_id);
-        if (subscriptionUpdateError) {
-          console.error("[Instamojo Verify] Subscription activation failed:", subscriptionUpdateError.message);
-          return NextResponse.json({ error: "Payment verified but subscription activation failed" }, { status: 500 });
+          .upsert(
+            {
+              astrologer_id: order.astrologer_id,
+              plan_id: plan.id,
+              status: "active",
+              current_period_start: now.toISOString(),
+              current_period_end: periodEnd.toISOString(),
+              leads_allocated: plan?.lead_quota || 10,
+              leads_consumed: 0,
+              last_payment_id: payRecord.id,
+              updated_at: now.toISOString(),
+            },
+            { onConflict: "astrologer_id" }
+          )
+          .select("*, plan:payment_plans(*)")
+          .single();
+        sub = newSub;
+      } else if (sub) {
+        if (sub.last_payment_id !== payRecord.id) {
+          const { error: subscriptionUpdateError } = await supabase
+            .from("astrologer_subscriptions")
+            .update({
+              status: "active",
+              plan_id: plan?.id || sub.plan_id,
+              current_period_start: now.toISOString(),
+              current_period_end: periodEnd.toISOString(),
+              leads_allocated: (Number(sub.leads_allocated) || 0) + (plan?.lead_quota || 0),
+              last_payment_id: payRecord.id,
+              updated_at: now.toISOString(),
+            })
+            .eq("id", sub.id);
+          if (subscriptionUpdateError) {
+            console.error("[Instamojo Verify] Subscription activation failed:", subscriptionUpdateError.message);
+            return NextResponse.json({ error: "Payment verified but subscription activation failed" }, { status: 500 });
+          }
         }
+      } else {
+        return NextResponse.json({ error: "Payment verified but subscription record could not be resolved" }, { status: 500 });
       }
 
       await recordSubscriptionPaymentInLedger({
@@ -296,6 +386,10 @@ export async function POST(req: NextRequest) {
         description: `Consultation confirmed for booking ${order.entity_id} via verify endpoint`,
       });
     }
+
+    await supabase.rpc("complete_payment_settlement", {
+      p_claim_id: settlementClaimRow.claim_id,
+    });
 
     return NextResponse.json({
       success: true,
