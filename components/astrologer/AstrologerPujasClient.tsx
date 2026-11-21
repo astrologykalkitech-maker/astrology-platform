@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -71,6 +72,40 @@ export function AstrologerPujasClient({
   const [photoInput, setPhotoInput] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [completionNotes, setCompletionNotes] = useState("");
+  const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Background scroll locking with scrollbar width compensation & ESC dismissal
+  useEffect(() => {
+    if (!selectedBooking) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedBooking(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedBooking]);
 
   const handleRespond = async (bookingId: string, action: "accept" | "reject") => {
     setLoadingId(bookingId);
@@ -271,130 +306,147 @@ export function AstrologerPujasClient({
       )}
 
       {/* MODAL: UPDATE FULFILMENT & EVIDENCE */}
-      {selectedBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 p-4 backdrop-blur-xs">
-          <div className="relative w-full max-w-lg rounded-2xl border border-gold/40 bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-gold/20">
-              <h3 className="text-base font-bold text-midnight">Ritual Fulfilment Console</h3>
+      {selectedBooking && mounted && typeof document !== "undefined" && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ritual-fulfilment-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedBooking(null);
+            }
+          }}
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 p-3 sm:p-4 md:p-6 backdrop-blur-md overflow-hidden animate-in fade-in duration-200"
+        >
+          <div
+            ref={dialogRef}
+            className="relative w-full max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-gold/40 bg-white p-5 sm:p-6 shadow-2xl space-y-4 overflow-hidden"
+          >
+            <div className="flex shrink-0 items-center justify-between pb-3 border-b border-gold/20">
+              <h3 id="ritual-fulfilment-modal-title" className="text-base font-bold text-midnight">
+                Ritual Fulfilment Console
+              </h3>
               <button
                 type="button"
                 onClick={() => setSelectedBooking(null)}
-                className="text-xs text-muted hover:text-midnight cursor-pointer"
+                className="rounded-lg p-1 text-xs text-muted hover:text-midnight hover:bg-parchment/60 cursor-pointer transition"
               >
                 Close
               </button>
             </div>
 
-            <div>
-              <p className="text-xs text-muted">Puja Ritual</p>
-              <h4 className="font-bold text-sm text-midnight">{selectedBooking.puja?.title}</h4>
-              <p className="text-xs text-gold-deep mt-0.5">Devotee: {selectedBooking.sankalp_name}</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-800">Progress Stage</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleStageUpdate("preparation")}
-                  className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
-                    selectedBooking.fulfilment_status === "preparation"
-                      ? "border-amber-500 bg-amber-50 text-amber-800"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  Preparation
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStageUpdate("in_progress")}
-                  className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
-                    selectedBooking.fulfilment_status === "in_progress"
-                      ? "border-blue-500 bg-blue-50 text-blue-800"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  In Progress
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStageUpdate("completed")}
-                  className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
-                    selectedBooking.fulfilment_status === "completed"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  Complete Ritual
-                </button>
-              </div>
-            </div>
-
-            {/* Evidence & Completion Notes */}
-            <div className="space-y-3 pt-2 border-t border-gold/15">
-              <h4 className="text-xs font-bold text-slate-800">Darshan Photographs & Evidence</h4>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="Paste photo URL (e.g. Supabase Storage / CDN)..."
-                  value={photoInput}
-                  onChange={(e) => setPhotoInput(e.target.value)}
-                  className="flex-1 p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPhoto}
-                  className="bg-gold px-3 py-2 rounded-xl text-xs font-bold text-midnight cursor-pointer hover:bg-gold-light"
-                >
-                  Add Photo
-                </button>
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 py-1 space-y-4">
+              <div>
+                <p className="text-xs text-muted">Puja Ritual</p>
+                <h4 className="font-bold text-sm text-midnight">{selectedBooking.puja?.title}</h4>
+                <p className="text-xs text-gold-deep mt-0.5">Devotee: {selectedBooking.sankalp_name}</p>
               </div>
 
-              {evidencePhotos.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {evidencePhotos.map((url, i) => (
-                    <div key={i} className="relative h-14 w-14 rounded-lg overflow-hidden border border-gold/30">
-                      <Image src={url} alt={`Evidence ${i + 1}`} fill className="object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setEvidencePhotos((p) => p.filter((_, idx) => idx !== i))}
-                        className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px]"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-800">Progress Stage</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleStageUpdate("preparation")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
+                      selectedBooking.fulfilment_status === "preparation"
+                        ? "border-amber-500 bg-amber-50 text-amber-800"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    Preparation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStageUpdate("in_progress")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
+                      selectedBooking.fulfilment_status === "in_progress"
+                        ? "border-blue-500 bg-blue-50 text-blue-800"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    In Progress
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStageUpdate("completed")}
+                    className={`p-2.5 rounded-xl border text-xs font-bold text-center cursor-pointer transition ${
+                      selectedBooking.fulfilment_status === "completed"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                        : "border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    Complete Ritual
+                  </button>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-800 mb-1">
-                  Video Recording URL (Optional)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
-                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-800 mb-1">
-                  Consecration & Completion Notes
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Recited specific stotras, completed 108 ahutis in yajna kunda, consecrated yantra..."
-                  value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
-                  className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
-                />
+              {/* Evidence & Completion Notes */}
+              <div className="space-y-3 pt-2 border-t border-gold/15">
+                <h4 className="text-xs font-bold text-slate-800">Darshan Photographs & Evidence</h4>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Paste photo URL (e.g. Supabase Storage / CDN)..."
+                    value={photoInput}
+                    onChange={(e) => setPhotoInput(e.target.value)}
+                    className="flex-1 p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddPhoto}
+                    className="bg-gold px-3 py-2 rounded-xl text-xs font-bold text-midnight cursor-pointer hover:bg-gold-light"
+                  >
+                    Add Photo
+                  </button>
+                </div>
+
+                {evidencePhotos.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {evidencePhotos.map((url, i) => (
+                      <div key={i} className="relative h-14 w-14 rounded-lg overflow-hidden border border-gold/30">
+                        <Image src={url} alt={`Evidence ${i + 1}`} fill className="object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setEvidencePhotos((p) => p.filter((_, idx) => idx !== i))}
+                          className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Video Recording URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Consecration & Completion Notes
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Recited specific stotras, completed 108 ahutis in yajna kunda, consecrated yantra..."
+                    value={completionNotes}
+                    onChange={(e) => setCompletionNotes(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-gold/30 text-xs outline-none focus:border-gold"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end gap-2">
+            <div className="pt-2 shrink-0 flex justify-end gap-2 border-t border-gold/15">
               <button
                 type="button"
                 onClick={() => setSelectedBooking(null)}
@@ -417,7 +469,8 @@ export function AstrologerPujasClient({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

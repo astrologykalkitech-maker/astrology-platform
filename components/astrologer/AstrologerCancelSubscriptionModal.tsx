@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, X, ShieldAlert, ArrowRight, CheckCircle2 } from "lucide-react";
 
 export interface CancelSubscriptionModalProps {
@@ -33,8 +34,42 @@ export function AstrologerCancelSubscriptionModal({
   const [customFeedback, setCustomFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock background scroll with scrollbar width compensation & support ESC close
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isSubmitting) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, isSubmitting, onClose]);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,18 +90,34 @@ export function AstrologerCancelSubscriptionModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-midnight/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-red-200 bg-white shadow-2xl">
+  const modalContent = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cancel-subscription-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 bg-midnight/80 backdrop-blur-sm animate-in fade-in duration-200"
+    >
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden rounded-2xl border border-red-200 bg-white shadow-2xl"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-red-100 bg-red-50/60 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-red-100 bg-red-50/60 px-6 py-4">
           <div className="flex items-center gap-2 text-red-700">
             <ShieldAlert className="h-5 w-5" />
-            <h3 className="font-bold text-base">Cancel {planName} Subscription</h3>
+            <h3 id="cancel-subscription-modal-title" className="font-bold text-base">
+              Cancel {planName} Subscription
+            </h3>
           </div>
           <button
             onClick={onClose}
             disabled={isSubmitting}
+            aria-label="Close dialog"
             className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700 transition"
           >
             <X className="h-5 w-5" />
@@ -74,7 +125,7 @@ export function AstrologerCancelSubscriptionModal({
         </div>
 
         {/* Body Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-4">
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 leading-relaxed">
             <p className="font-bold mb-1 flex items-center gap-1.5">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -146,5 +197,7 @@ export function AstrologerCancelSubscriptionModal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : null;
 }
 

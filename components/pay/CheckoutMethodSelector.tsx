@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import { QrCode, CreditCard, Send, ShieldCheck } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { QrCode, CreditCard, Send, ShieldCheck, X } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
 import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
@@ -24,8 +25,42 @@ export function UnifiedCheckoutModal({
   const [isJyotishPayOpen, setIsJyotishPayOpen] = useState(false);
   const [instamojoLoading, setInstamojoLoading] = useState(false);
   const [instamojoError, setInstamojoError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Background scroll locking with scrollbar width compensation & ESC dismissal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !instamojoLoading) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, instamojoLoading, onClose]);
+
+  if (!isOpen || !mounted) return null;
 
   const amountPaise = rupeesToPaise(booking.price);
   const formattedAmount = formatPaiseToInr(amountPaise);
@@ -58,25 +93,44 @@ export function UnifiedCheckoutModal({
     }
   };
 
-  return (
+  const modalOverlay = (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/70 backdrop-blur-sm p-4">
-        <div className="relative w-full max-w-lg rounded-2xl border border-gold/30 bg-white p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="consultation-checkout-modal-title"
+        onClick={(e) => {
+          if (e.target === e.currentTarget && !instamojoLoading) {
+            onClose();
+          }
+        }}
+        className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+      >
+        <div
+          ref={dialogRef}
+          className="relative w-full max-w-lg rounded-2xl border border-gold/30 bg-white p-5 sm:p-6 shadow-2xl flex flex-col max-h-[calc(100dvh-2rem)] overflow-hidden"
+        >
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-gold/15">
+          <div className="flex shrink-0 items-center justify-between pb-4 border-b border-gold/15">
             <div>
-              <h3 className="text-lg font-bold text-midnight">Consultation Checkout</h3>
+              <h3 id="consultation-checkout-modal-title" className="text-lg font-bold text-midnight">
+                Consultation Checkout
+              </h3>
               <p className="text-xs text-muted">
                 {booking.service_type} with {booking.astrologer_name || "Vedic Astrologer"}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-muted hover:text-midnight text-lg font-bold p-1"
+              disabled={instamojoLoading}
+              aria-label="Close checkout"
+              className="rounded-lg p-1 text-muted hover:text-midnight hover:bg-parchment/60 transition"
             >
-              ✕
+              <X className="h-5 w-5" />
             </button>
           </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 py-1 space-y-4">
 
           {/* Amount Summary */}
           <div className="my-4 rounded-xl bg-parchment/40 p-4 border border-gold/20 flex items-center justify-between">
@@ -203,9 +257,10 @@ export function UnifiedCheckoutModal({
               </div>
             )}
           </div>
+          </div>
 
           {/* Trust Footer */}
-          <div className="mt-4 flex items-center justify-center gap-1.5 text-[10px] text-muted">
+          <div className="mt-4 shrink-0 flex items-center justify-center gap-1.5 text-[10px] text-muted">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
             <span>256-bit Encrypted Checkout • RBI/NPCI Compliant • Karmic Ascension Platform Trust</span>
           </div>
@@ -234,4 +289,6 @@ export function UnifiedCheckoutModal({
       )}
     </>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalOverlay, document.body) : null;
 }

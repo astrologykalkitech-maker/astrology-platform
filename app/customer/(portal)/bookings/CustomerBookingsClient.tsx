@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -41,6 +42,39 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
   const [activeCheckoutBooking, setActiveCheckoutBooking] = useState<CustomerBooking | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Background scroll lock when activeJoinBooking is open
+  React.useEffect(() => {
+    if (!activeJoinBooking) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveJoinBooking(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeJoinBooking]);
 
   // Sync state whenever initialBookings prop updates
   React.useEffect(() => {
@@ -447,26 +481,32 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
       )}
 
       {/* Join Consultation Session Modal */}
-      {activeJoinBooking && (
+      {activeJoinBooking && mounted && typeof document !== "undefined" && createPortal(
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/70 p-4 backdrop-blur-xs"
+          aria-labelledby="join-consultation-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setActiveJoinBooking(null);
+            }
+          }}
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 p-3 sm:p-4 md:p-6 backdrop-blur-md overflow-hidden animate-in fade-in duration-200"
         >
-          <div className={`${CARD} w-full max-w-lg p-6 sm:p-7 space-y-4`}>
+          <div className={`${CARD} w-full max-w-lg p-5 sm:p-6 md:p-7 space-y-4 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain`}>
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-gold-deep">
                   Live Consultation Entry
                 </span>
-                <h3 className="text-lg font-bold text-midnight font-display mt-0.5">
+                <h3 id="join-consultation-modal-title" className="text-lg font-bold text-midnight font-display mt-0.5">
                   {activeJoinBooking.consultation_mode} Consultation with {activeJoinBooking.astrologer_name || "Vedic Astrologer"}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveJoinBooking(null)}
-                className="text-gray-400 hover:text-midnight text-xl font-bold px-2"
+                className="rounded-lg p-1 text-gray-400 hover:text-midnight hover:bg-parchment/60 transition"
                 aria-label="Close dialog"
               >
                 ✕
@@ -541,7 +581,8 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Unified Checkout Modal */}

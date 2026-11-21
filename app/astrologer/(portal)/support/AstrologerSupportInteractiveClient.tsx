@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   LifeBuoy,
   Send,
@@ -68,6 +69,40 @@ export default function AstrologerSupportInteractiveClient() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Background scroll locking with scrollbar width compensation & ESC dismissal
+  useEffect(() => {
+    if (!selectedTicket) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !sendingReply) {
+        setSelectedTicket(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedTicket, sendingReply]);
 
   // New Ticket Form State
   const [subject, setSubject] = useState("");
@@ -540,30 +575,46 @@ export default function AstrologerSupportInteractiveClient() {
           )}
 
           {/* Ticket Detail Modal */}
-          {selectedTicket && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-2xl border border-gold/30 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          {selectedTicket && mounted && typeof document !== "undefined" && createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="astrologer-ticket-detail-modal-title"
+              onClick={(e) => {
+                if (e.target === e.currentTarget && !sendingReply) {
+                  setSelectedTicket(null);
+                }
+              }}
+              className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+            >
+              <div
+                ref={dialogRef}
+                className="bg-white rounded-2xl border border-gold/30 shadow-2xl max-w-2xl w-full max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden"
+              >
                 {/* Header */}
-                <div className="p-4 border-b border-line flex items-center justify-between bg-parchment/30">
+                <div className="p-4 border-b border-line flex items-center justify-between bg-parchment/30 shrink-0">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs font-bold text-midnight bg-white px-2 py-0.5 rounded border border-line">
                         {selectedTicket.ticket_number}
                       </span>
-                      <span className="text-xs font-semibold text-midnight">{selectedTicket.subject}</span>
+                      <span id="astrologer-ticket-detail-modal-title" className="text-xs font-semibold text-midnight">
+                        {selectedTicket.subject}
+                      </span>
                     </div>
                     <p className="text-[11px] text-muted mt-0.5">Status: <strong className="uppercase">{selectedTicket.status.replace(/_/g, " ")}</strong></p>
                   </div>
                   <button
                     onClick={() => setSelectedTicket(null)}
-                    className="p-1.5 rounded-lg text-muted hover:bg-parchment"
+                    aria-label="Close modal"
+                    className="p-1.5 rounded-lg text-muted hover:bg-parchment transition"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
 
                 {/* Conversation Body */}
-                <div className="p-4 flex-1 overflow-y-auto space-y-3">
+                <div className="p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-3">
                   {loadingDetails ? (
                     <div className="py-8 text-center text-xs text-muted">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto text-gold mb-2" />
@@ -597,7 +648,7 @@ export default function AstrologerSupportInteractiveClient() {
                 </div>
 
                 {/* Reply Footer */}
-                <form onSubmit={handleSendReply} className="p-3 border-t border-line bg-parchment/20 flex gap-2">
+                <form onSubmit={handleSendReply} className="p-3 border-t border-line bg-parchment/20 flex gap-2 shrink-0">
                   <input
                     type="text"
                     value={replyText}
@@ -614,7 +665,8 @@ export default function AstrologerSupportInteractiveClient() {
                   </button>
                 </form>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}

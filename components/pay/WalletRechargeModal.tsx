@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Wallet,
@@ -56,6 +57,57 @@ export function WalletRechargeModal({
 
   // Active order tracking for status polling
   const [activeOrderNumber, setActiveOrderNumber] = useState<string | null>(null);
+  const [testingModeEnabled, setTestingModeEnabled] = useState(false);
+  const [simulating, setSimulating] = useState(false);
+
+  // Portal mount & focus restoration state
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Capture trigger element and handle background scroll lock & escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    triggerRef.current = (document.activeElement as HTMLElement) || null;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    // Initial focus on dialog
+    const timer = setTimeout(() => {
+      dialogRef.current?.focus();
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      if (triggerRef.current && typeof triggerRef.current.focus === "function") {
+        triggerRef.current.focus();
+      }
+    };
+  }, [isOpen, onClose]);
 
   // Status polling for QR view
   useEffect(() => {
@@ -94,7 +146,7 @@ export function WalletRechargeModal({
     return () => clearInterval(interval);
   }, [showQRView, secondsRemaining]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const effectiveAmount = customAmount ? parseInt(customAmount, 10) || 0 : selectedAmount;
   const minutes = Math.floor(secondsRemaining / 60);
@@ -148,6 +200,7 @@ export function WalletRechargeModal({
           setUpiUri(data.qrSession.upiUri);
           setSessionCode(data.qrSession.sessionCode);
           setActiveOrderNumber(data.orderNumber || null);
+          setTestingModeEnabled(Boolean(data.testingModeEnabled));
           if (data.qrSession.merchantVpa) setMerchantVpa(data.qrSession.merchantVpa);
           setSecondsRemaining(600);
           setShowQRView(true);
@@ -232,9 +285,57 @@ export function WalletRechargeModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-md">
-      <div className="relative w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden rounded-2xl border border-amber-500/35 bg-slate-900 text-slate-100 shadow-2xl">
+  const handleSimulatePayment = async () => {
+    if (!activeOrderNumber && !sessionCode) return;
+    setSimulating(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/payments/wallet/recharge/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_number: activeOrderNumber,
+          session_code: sessionCode,
+          utr: `SIM${Date.now().toString().slice(-9)}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Zero-Cost test simulation failed.");
+      }
+
+      setSuccessMsg("Zero-Cost Test: Payment simulated and wallet credited successfully!");
+      setShowQRView(false);
+      setTimeout(() => {
+        onClose();
+        if (onSuccess) onSuccess();
+        else window.location.reload();
+      }, 1500);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Simulation failed.");
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-md overflow-hidden"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="wallet-recharge-modal-title"
+        tabIndex={-1}
+        className="relative w-full max-w-md max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-36px)] flex flex-col overflow-hidden rounded-2xl border border-amber-500/35 bg-slate-900 text-slate-100 shadow-2xl shadow-amber-500/10 my-auto focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-slate-950/80 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -242,7 +343,7 @@ export function WalletRechargeModal({
               <Wallet className="h-5 w-5" />
             </span>
             <div>
-              <h3 className="font-display text-base font-bold text-white">
+              <h3 id="wallet-recharge-modal-title" className="font-display text-base font-bold text-white">
                 {userRole === "astrologer" ? "Astrologer Operating Wallet" : "Customer Consultation Wallet"}
               </h3>
               <p className="text-[11px] text-slate-400">
@@ -253,6 +354,7 @@ export function WalletRechargeModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close modal"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
           >
             <X className="h-4 w-4" />
@@ -260,7 +362,7 @@ export function WalletRechargeModal({
         </div>
 
         {/* Scrollable Body */}
-        <div className="p-5 space-y-4 overflow-y-auto overscroll-contain">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4">
           {!showQRView ? (
             <>
               {/* Preset Buttons */}
@@ -465,6 +567,24 @@ export function WalletRechargeModal({
               >
                 ← Back to payment methods
               </button>
+
+              {/* Zero-Cost Testing Mode Simulation Action */}
+              {(testingModeEnabled || process.env.NODE_ENV !== "production") && (
+                <div className="w-full pt-2 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={handleSimulatePayment}
+                    disabled={simulating}
+                    className="w-full py-2 bg-emerald-950/70 hover:bg-emerald-900/90 border border-emerald-500/50 text-emerald-300 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-colors disabled:opacity-50 shadow-md cursor-pointer"
+                  >
+                    {simulating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 text-emerald-400" />}
+                    <span>Test Sandbox: Simulate Successful Payment & Credit</span>
+                  </button>
+                  <p className="text-[10px] text-center text-slate-400 mt-1">
+                    Super Admin Zero-Cost Testing Mode Active: Instantly simulate payment clearing and credit your wallet without real bank charges.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -513,4 +633,6 @@ export function WalletRechargeModal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : null;
 }

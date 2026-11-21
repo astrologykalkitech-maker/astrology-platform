@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2, X } from "lucide-react";
 import type { CustomerBillingRecord } from "@/lib/types/database.types";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
@@ -32,6 +33,49 @@ export function CustomerBillingClient({
   const [walletPaymentSuccess, setWalletPaymentSuccess] = useState<{ bookingId: string; orderNumber: string; receiptNumber: string } | null>(null);
   const [walletPaymentError, setWalletPaymentError] = useState<{ bookingId: string; message: string } | null>(null);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const refundTriggerRef = useRef<HTMLElement | null>(null);
+  const refundDialogRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!refundModalRecord) return;
+
+    refundTriggerRef.current = (document.activeElement as HTMLElement) || null;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setRefundModalRecord(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const timer = setTimeout(() => {
+      refundDialogRef.current?.focus();
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      if (refundTriggerRef.current && typeof refundTriggerRef.current.focus === "function") {
+        refundTriggerRef.current.focus();
+      }
+    };
+  }, [refundModalRecord]);
 
   useEffect(() => {
     let mounted = true;
@@ -361,59 +405,93 @@ export function CustomerBillingClient({
       )}
 
       {/* Refund Request Modal */}
-      {refundModalRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 backdrop-blur-sm p-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-gold/30 bg-white p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-midnight">Request Consultation Refund</h3>
-            <p className="text-xs text-muted mt-1">
-              Transaction: {refundModalRecord.transaction_ref} ({formatPaiseToInr(rupeesToPaise(refundModalRecord.amount))})
-            </p>
-
-            {refundStatusMsg && (
-              <div
-                className={`mt-4 flex items-center gap-2 rounded-xl p-3 text-xs ${
-                  refundStatusMsg.type === "success"
-                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                    : "bg-red-50 text-red-800 border border-red-200"
-                }`}
-              >
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{refundStatusMsg.text}</span>
+      {refundModalRecord && mounted && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submittingRefund) {
+              setRefundModalRecord(null);
+            }
+          }}
+        >
+          <div
+            ref={refundDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="refund-modal-title"
+            tabIndex={-1}
+            className="relative w-full max-w-md max-h-[calc(100dvh-24px)] sm:max-h-[calc(100dvh-36px)] flex flex-col rounded-2xl border border-gold/40 bg-white shadow-2xl overflow-hidden my-auto focus:outline-none"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gold/15 bg-parchment/60 px-5 py-4 shrink-0">
+              <div>
+                <h3 id="refund-modal-title" className="text-base font-bold text-midnight">Request Consultation Refund</h3>
+                <p className="text-xs text-muted mt-0.5">
+                  Transaction: {refundModalRecord.transaction_ref} ({formatPaiseToInr(rupeesToPaise(refundModalRecord.amount))})
+                </p>
               </div>
-            )}
-
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-ink">
-                Reason for Refund Request <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={refundReason}
-                onChange={(e) => setRefundReason(e.target.value)}
-                placeholder="Please describe why you are requesting a refund (e.g. astrologer did not attend, technical issue)..."
-                rows={4}
-                className="mt-1 w-full rounded-xl border border-gold/30 p-2.5 text-xs focus:border-gold focus:outline-none"
-              />
+              <button
+                type="button"
+                onClick={() => setRefundModalRecord(null)}
+                aria-label="Close refund dialog"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
+            {/* Scrollable Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-5 space-y-4">
+              {refundStatusMsg && (
+                <div
+                  className={`flex items-center gap-2 rounded-xl p-3 text-xs ${
+                    refundStatusMsg.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{refundStatusMsg.text}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-ink">
+                  Reason for Refund Request <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Please describe why you are requesting a refund (e.g. astrologer did not attend, technical issue)..."
+                  rows={4}
+                  className="mt-1 w-full rounded-xl border border-gold/30 p-2.5 text-xs focus:border-gold focus:outline-none text-ink bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gold/15 bg-parchment/30 shrink-0">
               <button
+                type="button"
                 disabled={submittingRefund}
                 onClick={() => setRefundModalRecord(null)}
-                className="rounded-xl border border-gold/30 px-3 py-1.5 text-xs font-medium text-ink hover:bg-parchment"
+                className="rounded-xl border border-gold/30 px-3.5 py-2 text-xs font-medium text-ink hover:bg-parchment transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 disabled={submittingRefund || !refundReason.trim()}
                 onClick={handleSubmitRefund}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white shadow hover:bg-red-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
               >
                 {submittingRefund && <RefreshCw className="h-3 w-3 animate-spin" />}
                 Submit Request
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

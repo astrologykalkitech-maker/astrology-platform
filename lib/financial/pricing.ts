@@ -5,7 +5,128 @@
  */
 
 /**
+ * Authoritative financial limits for wallet recharges across both
+ * Customer Consultation Wallets and Astrologer Operating Wallets.
+ */
+export const WALLET_RECHARGE_LIMITS = {
+  MIN_RUPEES: 10,
+  MAX_RUPEES: 100000,
+  MIN_PAISE: 1000, // ₹10 = 1,000 paise
+  MAX_PAISE: 10000000, // ₹1,00,000 = 10,000,000 paise
+  CURRENCY: "INR" as const,
+} as const;
+
+export interface ValidationSuccess {
+  isValid: true;
+  amountPaise: number;
+  amountRupees: number;
+}
+
+export interface ValidationFailure {
+  isValid: false;
+  error: string;
+}
+
+export type AmountValidationResult = ValidationSuccess | ValidationFailure;
+
+/**
+ * Validates a wallet recharge input amount strictly against financial and business invariants:
+ * - Must be non-empty, finite numeric value or well-formed decimal string
+ * - At most 2 decimal places (exact paise resolution)
+ * - Must lie within [WALLET_RECHARGE_LIMITS.MIN_RUPEES, WALLET_RECHARGE_LIMITS.MAX_RUPEES]
+ * - Converts exactly to integer paise without floating-point inaccuracy
+ */
+export function validateRechargeAmount(input: unknown): AmountValidationResult {
+  if (input === null || input === undefined || input === "") {
+    return { isValid: false, error: "Recharge amount is required." };
+  }
+
+  // Reject unexpected complex types
+  if (typeof input !== "number" && typeof input !== "string") {
+    return { isValid: false, error: "Invalid amount format. Must be a numeric value." };
+  }
+
+  let strVal: string;
+  let numVal: number;
+
+  if (typeof input === "number") {
+    if (!Number.isFinite(input) || Number.isNaN(input)) {
+      return { isValid: false, error: "Amount must be a valid finite number." };
+    }
+    numVal = input;
+    // Format to string to inspect decimal places accurately
+    strVal = input.toString();
+  } else {
+    strVal = input.trim();
+    if (!/^-?\d+(\.\d+)?$/.test(strVal)) {
+      return { isValid: false, error: "Amount must be a valid numeric string." };
+    }
+    numVal = Number(strVal);
+    if (!Number.isFinite(numVal) || Number.isNaN(numVal)) {
+      return { isValid: false, error: "Amount must be a valid finite number." };
+    }
+  }
+
+  // Check positivity
+  if (numVal <= 0) {
+    return { isValid: false, error: "Recharge amount must be greater than zero." };
+  }
+
+  // Check decimal places: at most 2 decimal places allowed (rupees and paise)
+  const parts = strVal.split(".");
+  if (parts.length > 1 && parts[1].length > 2) {
+    return {
+      isValid: false,
+      error: "Amount cannot have more than 2 decimal places (fractional paise are not permitted).",
+    };
+  }
+
+  // Exact conversion to integer paise using BigInt intermediate arithmetic
+  let paiseBigInt: bigint;
+  try {
+    const rupeesBigInt = BigInt(parts[0]);
+    const fractionStr = parts.length > 1 ? parts[1].padEnd(2, "0") : "00";
+    const fractionBigInt = BigInt(fractionStr);
+    paiseBigInt = rupeesBigInt * BigInt(100) + fractionBigInt;
+  } catch {
+    return { isValid: false, error: "Amount contains invalid numeric characters." };
+  }
+
+  // Enforce configured range using BigInt comparisons
+  const minPaiseBigInt = BigInt(WALLET_RECHARGE_LIMITS.MIN_PAISE);
+  const maxPaiseBigInt = BigInt(WALLET_RECHARGE_LIMITS.MAX_PAISE);
+
+  if (paiseBigInt < minPaiseBigInt) {
+    return {
+      isValid: false,
+      error: `Minimum recharge amount is ₹${WALLET_RECHARGE_LIMITS.MIN_RUPEES}.`,
+    };
+  }
+
+  if (paiseBigInt > maxPaiseBigInt) {
+    return {
+      isValid: false,
+      error: `Maximum single recharge amount is ₹${WALLET_RECHARGE_LIMITS.MAX_RUPEES.toLocaleString("en-IN")}.`,
+    };
+  }
+
+  // Safe integer check before converting BigInt to JavaScript number
+  if (paiseBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+    return { isValid: false, error: "Calculated amount exceeds safe integer limits." };
+  }
+
+  const paise = Number(paiseBigInt);
+
+  return {
+    isValid: true,
+    amountPaise: paise,
+    amountRupees: paise / 100,
+  };
+}
+
+/**
  * Converts Indian Rupees (float or string) into integer paise.
+ * For strict validation, use validateRechargeAmount().
  */
 export function rupeesToPaise(rupees: number | string): number {
   const numeric = typeof rupees === "string" ? parseFloat(rupees) : rupees;

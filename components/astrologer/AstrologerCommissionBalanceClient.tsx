@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -54,6 +55,40 @@ export function AstrologerCommissionBalanceClient({
   const [isConfirming, setIsConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Background scroll locking with scrollbar width compensation & ESC dismissal
+  useEffect(() => {
+    if (!settlementData) return;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isConfirming) {
+        setSettlementData(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [settlementData, isConfirming]);
 
   const outstandingPaise = activeSummary.outstanding_commission_paise;
   const isNegativeBalance = outstandingPaise > 0;
@@ -230,93 +265,111 @@ export function AstrologerCommissionBalanceClient({
       )}
 
       {/* Settlement QR Modal */}
-      {settlementData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-gold/30 bg-white p-6 text-midnight shadow-2xl relative space-y-4">
-            <button
-              onClick={() => setSettlementData(null)}
-              className="absolute top-4 right-4 text-muted hover:text-midnight transition"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="text-center space-y-1">
-              <div className="mx-auto h-12 w-12 rounded-full bg-gold/15 flex items-center justify-center text-gold-deep">
-                <QrCode className="h-6 w-6" />
+      {settlementData && mounted && typeof document !== "undefined" && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settlement-qr-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isConfirming) {
+              setSettlementData(null);
+            }
+          }}
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+        >
+          <div
+            ref={dialogRef}
+            className="w-full max-w-md max-h-[calc(100dvh-2rem)] flex flex-col rounded-2xl border border-gold/30 bg-white p-5 sm:p-6 text-midnight shadow-2xl relative space-y-4 overflow-hidden"
+          >
+            <div className="flex shrink-0 items-center justify-between">
+              <div className="text-left space-y-0.5">
+                <h3 id="settlement-qr-modal-title" className="font-display text-lg font-bold text-midnight">
+                  Settle Commission Dues
+                </h3>
+                <p className="text-xs text-muted">
+                  Settlement ID: <span className="font-mono font-semibold text-gold-deep">{settlementData.settlementNumber}</span>
+                </p>
               </div>
-              <h3 className="font-display text-lg font-bold text-midnight">Settle Commission Dues</h3>
-              <p className="text-xs text-muted">
-                Settlement ID: <span className="font-mono font-semibold text-gold-deep">{settlementData.settlementNumber}</span>
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-parchment/60 border border-gold/20 text-center space-y-1">
-              <span className="text-xs text-muted font-medium">Payable Amount</span>
-              <div className="text-2xl font-bold text-midnight">
-                {formatPaiseToInr(settlementData.amountPaise)}
-              </div>
-              <p className="text-[11px] text-muted">
-                Pay Karmic Ascension using any UPI app. UTR submission is not verification.
-              </p>
-            </div>
-
-            {/* UPI QR Box */}
-            <div className="flex flex-col items-center justify-center p-4 bg-parchment/30 rounded-xl border border-gold/20 shadow-inner">
-              <Image
-                src={settlementData.qrDataUrl}
-                alt="UPI QR code for commission settlement"
-                width={192}
-                height={192}
-                unoptimized
-                className="rounded-lg border border-gold/30 bg-white p-2"
-              />
-              <a href={settlementData.upiUri} className="mt-2 text-xs font-semibold text-gold-deep underline">
-                Open UPI app
-              </a>
-            </div>
-
-            <form onSubmit={handleConfirmPayment} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-ink/80 mb-1">
-                  UTR / transaction reference
-                </label>
-                <input
-                  type="text"
-                  required
-                  minLength={8}
-                  maxLength={20}
-                  pattern="[A-Za-z0-9-]{8,20}"
-                  placeholder="8-20 letters or numbers"
-                  value={utrInput}
-                  onChange={(e) => setUtrInput(e.target.value.toUpperCase())}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold font-mono shadow-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink/80 mb-1">Payment date</label>
-                <input
-                  type="date"
-                  required
-                  max={localDateInputValue()}
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold shadow-xs"
-                />
-              </div>
-              <p className="text-[11px] text-amber-800">
-                Dues will remain outstanding until a Super Admin verifies this payment against bank records.
-              </p>
-
               <button
-                type="submit"
-                disabled={isConfirming || !utrInput.trim()}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition disabled:opacity-50 shadow-xs"
+                onClick={() => setSettlementData(null)}
+                disabled={isConfirming}
+                aria-label="Close dialog"
+                className="rounded-lg p-1.5 text-muted hover:text-midnight hover:bg-parchment/60 transition"
               >
-                {isConfirming ? "Submitting UTR..." : "Submit for Verification"}
+                <X className="h-5 w-5" />
               </button>
-            </form>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 py-1 space-y-4">
+              <div className="p-4 rounded-xl bg-parchment/60 border border-gold/20 text-center space-y-1">
+                <span className="text-xs text-muted font-medium">Payable Amount</span>
+                <div className="text-2xl font-bold text-midnight">
+                  {formatPaiseToInr(settlementData.amountPaise)}
+                </div>
+                <p className="text-[11px] text-muted">
+                  Pay Karmic Ascension using any UPI app. UTR submission is not verification.
+                </p>
+              </div>
+
+              {/* UPI QR Box */}
+              <div className="flex flex-col items-center justify-center p-4 bg-parchment/30 rounded-xl border border-gold/20 shadow-inner">
+                <Image
+                  src={settlementData.qrDataUrl}
+                  alt="UPI QR code for commission settlement"
+                  width={192}
+                  height={192}
+                  unoptimized
+                  className="rounded-lg border border-gold/30 bg-white p-2"
+                />
+                <a href={settlementData.upiUri} className="mt-2 text-xs font-semibold text-gold-deep underline">
+                  Open UPI app
+                </a>
+              </div>
+
+              <form onSubmit={handleConfirmPayment} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-ink/80 mb-1">
+                    UTR / transaction reference
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    minLength={8}
+                    maxLength={20}
+                    pattern="[A-Za-z0-9-]{8,20}"
+                    placeholder="8-20 letters or numbers"
+                    value={utrInput}
+                    onChange={(e) => setUtrInput(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold font-mono shadow-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-ink/80 mb-1">Payment date</label>
+                  <input
+                    type="date"
+                    required
+                    max={localDateInputValue()}
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-parchment/60 border border-gold/30 text-midnight outline-none focus:border-gold shadow-xs"
+                  />
+                </div>
+                <p className="text-[11px] text-amber-800">
+                  Dues will remain outstanding until a Super Admin verifies this payment against bank records.
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={isConfirming || !utrInput.trim()}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition disabled:opacity-50 shadow-xs"
+                >
+                  {isConfirming ? "Submitting UTR..." : "Submit for Verification"}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Commission Ledger Table */}

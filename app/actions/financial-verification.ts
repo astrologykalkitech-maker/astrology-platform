@@ -479,119 +479,37 @@ export async function reviewWalletRechargeOrderAction(payload: {
     });
 
     if (rpcErr) {
-      // Graceful fallback to application-layer transactional flow if RPC not yet deployed in remote schema cache
-      const { data: order, error: orderErr } = await admin
-        .from("payment_orders")
-        .select("id, order_number, entity_type, entity_id, astrologer_id, customer_id, amount_paise, status, metadata")
-        .eq("id", payload.orderId)
-        .maybeSingle();
-
-      if (orderErr || !order) {
-        return { success: false, error: orderErr?.message || "Payment order not found." };
-      }
-
-      if (order.status !== "pending") {
-        return { success: false, error: `Order is already in '${order.status}' status.` };
-      }
-
-      const currentMeta = (typeof order.metadata === "object" && order.metadata !== null)
-        ? (order.metadata as Record<string, any>)
-        : {};
-
-      if (payload.decision === "reject") {
-        const { error: rejectErr } = await admin
-          .from("payment_orders")
-          .update({
-            status: "failed",
-            updated_at: new Date().toISOString(),
-            metadata: {
-              ...currentMeta,
-              review_decision: "rejected",
-              reviewed_by: user.id,
-              reviewed_at: new Date().toISOString(),
-              review_notes: reviewNotes,
-              rejection_reason: rejectionReason,
-            },
-          })
-          .eq("id", order.id)
-          .eq("status", "pending");
-
-        if (rejectErr) return { success: false, error: rejectErr.message };
-
-        revalidateFinancialPaths();
-        return { success: true, status: "rejected" };
-      }
-
-      // Approve fallback
-      const { error: approveErr } = await admin
-        .from("payment_orders")
-        .update({
-          status: "successful",
-          updated_at: new Date().toISOString(),
-          metadata: {
-            ...currentMeta,
-            review_decision: "approved",
-            reviewed_by: user.id,
-            reviewed_at: new Date().toISOString(),
-            review_notes: reviewNotes,
-          },
-        })
-        .eq("id", order.id)
-        .eq("status", "pending");
-
-      if (approveErr) return { success: false, error: approveErr.message };
-
-      if (order.entity_type === "astrologer_wallet_recharge") {
-        const { creditAstrologerOperatingWallet } = await import("@/lib/financial/astrologer-wallet-engine");
-        const astrologerId = order.astrologer_id || order.entity_id;
-        const creditRes = await creditAstrologerOperatingWallet({
-          astrologerId,
-          amountPaise: Number(order.amount_paise),
-          creditType: "RECHARGE",
-          idempotencyKey: `admin_utr_astro_${order.id}`,
-          description: `Admin Verified Recharge #${order.order_number} [Ref: ${currentMeta.utr || "Direct"}]`,
-          paymentOrderId: order.id,
-        });
-
-        if (!creditRes.success) {
-          return { success: false, error: creditRes.error || "Failed to credit astrologer operating wallet." };
-        }
-      } else if (order.entity_type === "customer_wallet_recharge") {
-        const { creditCustomerWallet } = await import("@/lib/financial/wallet-engine");
-        const customerId = order.customer_id || order.entity_id;
-        const creditRes = await creditCustomerWallet({
-          customerId,
-          amountPaise: Number(order.amount_paise),
-          creditType: "RECHARGE",
-          idempotencyKey: `admin_utr_cust_${order.id}`,
-          description: `Admin Verified Recharge #${order.order_number} [Ref: ${currentMeta.utr || "Direct"}]`,
-          paymentOrderId: order.id,
-        });
-
-        if (!creditRes.success) {
-          return { success: false, error: creditRes.error || "Failed to credit customer consultation wallet." };
-        }
-      }
-
-      const { logAdminAction } = await import("@/lib/admin/audit");
-      await logAdminAction({
-        actorId: user.id,
-        actorRole: "super_admin",
-        action: "financial.wallet_recharge_verified",
-        targetType: "payment_order",
-        targetId: order.id,
-        reason: reviewNotes,
-        beforeState: { status: "pending", amount_paise: order.amount_paise },
-        afterState: { status: "successful", amount_paise: order.amount_paise },
-        outcome: "success",
+      console.error("[reviewWalletRechargeOrderAction] Atomic review RPC failed:", {
+        orderId: payload.orderId,
+        adminId: user.id,
+        decision: payload.decision,
+        errorCode: rpcErr.code,
+        errorMessage: rpcErr.message,
       });
 
-      revalidateFinancialPaths();
-      return { success: true, status: "approved" };
+      // Strictly fail-closed: Never execute application-level non-atomic fallbacks for financial mutations
+      return {
+        success: false,
+        error: rpcErr.message || "Failed to process wallet recharge review atomically.",
+      };
+    }
+
+    if (!rpcRes || typeof rpcRes !== "object" || (rpcRes as Record<string, unknown>).success !== true) {
+      const failureMessage =
+        (rpcRes && typeof rpcRes === "object" && typeof (rpcRes as Record<string, unknown>).error === "string")
+          ? String((rpcRes as Record<string, unknown>).error)
+          : "Wallet recharge review transaction was rejected by database.";
+      return { success: false, error: failureMessage };
     }
 
     revalidateFinancialPaths();
-    return { success: true, status: rpcRes?.status || "approved" };
+    const finalStatus =
+      typeof (rpcRes as Record<string, unknown>).status === "string"
+        ? String((rpcRes as Record<string, unknown>).status)
+        : payload.decision === "reject"
+          ? "rejected"
+          : "approved";
+    return { success: true, status: finalStatus };
   } catch (error) {
     return {
       success: false,
