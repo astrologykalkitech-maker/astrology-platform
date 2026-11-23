@@ -4,9 +4,11 @@
 // ADMIN CENTRAL LEADS MANAGEMENT SERVER ACTIONS
 // =====================================================
 
+import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPermission, requireAdminAccess } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
+import { createInAppNotification } from "@/lib/notifications";
 import { sanitizeFilterTerm } from "@/lib/security/postgrest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -360,6 +362,28 @@ export async function assignLead(
           astrologer_id: astrologerId,
           status: "assigned",
         }).eq("id", leadId);
+
+        // Notify assigned astrologer
+        try {
+          const { data: astroUser } = await db1Client
+            .from("astrologer_profiles")
+            .select("user_id, display_name")
+            .eq("id", astrologerId)
+            .maybeSingle();
+
+          if (astroUser?.user_id) {
+            await createInAppNotification({
+              recipientUserId: astroUser.user_id,
+              title: "New Lead Assigned",
+              message: "An enquiry has been assigned to you by central administration.",
+              linkUrl: `/astrologer/leads/${leadId}`,
+              eventType: "lead_assigned",
+              metadata: { lead_id: leadId },
+            });
+          }
+        } catch {
+          // Non-blocking notification
+        }
       } else {
         await db1Client.from("lead_assignments").delete().eq("lead_id", leadId);
         await db1Client.from("leads").update({
@@ -369,6 +393,23 @@ export async function assignLead(
       }
     } catch (syncErr) {
       console.warn("[Lead Assignment DB1 Sync Warning]", syncErr);
+    }
+
+    // Revalidate dashboard and lead caches across Customer, Astrologer, and Admin
+    try {
+      revalidatePath("/super-admin", "page");
+      revalidatePath("/super-admin/leads", "page");
+      revalidatePath(`/super-admin/leads/${leadId}`, "page");
+      revalidatePath("/admin", "page");
+      revalidatePath("/admin/leads", "page");
+      revalidatePath("/astrologer/leads", "page");
+      revalidatePath(`/astrologer/leads/${leadId}`, "page");
+      revalidatePath("/astrologer/dashboard", "page");
+      revalidatePath("/customer", "page");
+      revalidatePath("/customer/enquiries", "page");
+      revalidatePath(`/customer/enquiries/${leadId}`, "page");
+    } catch {
+      // Non-blocking revalidation
     }
 
     return {
@@ -538,6 +579,17 @@ export async function updateLeadQualification(
       return { success: false, error: error.message };
     }
 
+    // Mirror to DB1 (main application database) if target database differs
+    try {
+      const db1Client = await createAdminClient("main");
+      await db1Client
+        .from("leads")
+        .update(updatePayload)
+        .eq("id", leadId);
+    } catch (syncErr) {
+      console.warn("[updateLeadQualification DB1 Mirror Warning]", syncErr);
+    }
+
     await logAdminAction({
       actorId: user.id,
       actorRole: profile.role,
@@ -547,6 +599,18 @@ export async function updateLeadQualification(
       reason,
       outcome: "success",
     });
+
+    try {
+      revalidatePath("/super-admin/leads", "page");
+      revalidatePath(`/super-admin/leads/${leadId}`, "page");
+      revalidatePath("/super-admin", "page");
+      revalidatePath("/admin/leads", "page");
+      revalidatePath("/astrologer/leads", "page");
+      revalidatePath(`/astrologer/leads/${leadId}`, "page");
+      revalidatePath("/customer/enquiries", "page");
+    } catch {
+      // Non-blocking revalidation
+    }
 
     return { success: true, data: undefined };
   } catch (err) {

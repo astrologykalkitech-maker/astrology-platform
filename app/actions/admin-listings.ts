@@ -7,6 +7,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminPermission, requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { logAdminAction } from "@/lib/admin/audit";
+import { createInAppNotification } from "@/lib/notifications";
 import { sanitizeFilterTerm } from "@/lib/security/postgrest";
 import { revalidatePath } from "next/cache";
 import type {
@@ -195,6 +196,40 @@ export async function updateListingModerationStatus(
       }
     } catch (syncErr) {
       console.warn("[Listing Moderation Admin DB Sync Warning]", syncErr);
+    }
+
+    // Notify astrologer in-app of the moderation decision
+    if (updated?.user_id) {
+      try {
+        const notifTitle =
+          status === "approved"
+            ? "Profile & Listing Approved!"
+            : status === "rejected"
+            ? "Listing Application Rejected"
+            : status === "suspended"
+            ? "Astrologer Listing Suspended"
+            : "Listing Changes Requested";
+
+        const notifMsg =
+          status === "approved"
+            ? "Congratulations! Your astrologer profile listing has been approved and activated."
+            : status === "rejected"
+            ? `Your profile listing application was not approved. ${reviewNotes || reason || ""}`
+            : status === "suspended"
+            ? `Your listing has been suspended. Reason: ${reason || reviewNotes || "Administrative action."}`
+            : `Changes have been requested on your listing: ${reviewNotes || reason || "Please review your profile details."}`;
+
+        await createInAppNotification({
+          recipientUserId: updated.user_id,
+          title: notifTitle,
+          message: notifMsg.trim(),
+          linkUrl: "/astrologer/profile",
+          eventType: `listing_${status}`,
+          metadata: { listing_id: listingId, status },
+        });
+      } catch {
+        // Non-blocking notification
+      }
     }
 
     // Revalidate customer directory, astrologer views, and admin listings instantly

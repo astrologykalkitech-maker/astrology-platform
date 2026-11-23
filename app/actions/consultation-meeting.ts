@@ -105,7 +105,8 @@ export async function getOrCreateConsultationMeeting(
       return { success: false, error: "This consultation has not been confirmed yet." };
     }
 
-    if (booking.consultation_mode === "video" && booking.payment_mode !== "pay_at_drop") {
+    const isVideoConsultation = (booking.consultation_mode || "").toLowerCase() === "video";
+    if (isVideoConsultation && booking.payment_mode !== "pay_at_drop") {
       let hasVerifiedDirectPayment = false;
       let hasSuccessfulPlatformPayment = false;
 

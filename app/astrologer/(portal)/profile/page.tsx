@@ -22,6 +22,8 @@ import { Tags } from "@/components/astrologer/ui/Tags";
 import { formatDate, formatExperience, formatFee, formatLocation } from "@/lib/astrologer/format";
 import { getProfileCompletion } from "@/lib/astrologer/profile-completion";
 import { getOwnAstrologerProfile, requireAstrologerPage } from "@/lib/astrologer/guard";
+import { AstrologerVerificationStepperClient } from "@/components/astrologer/AstrologerVerificationStepperClient";
+import { BeneficiarySettingsCard } from "@/components/astrologer/BeneficiarySettingsCard";
 
 export const metadata: Metadata = { title: "My Profile" };
 
@@ -184,6 +186,12 @@ export default async function ProfilePage() {
           </Card>
         </div>
       </div>
+
+      {/* Multi-Stage Verification Stepper */}
+      <AstrologerVerificationStepperClient />
+
+      {/* Payout Beneficiary Management */}
+      <BeneficiarySettingsCard />
     </div>
   );
 }

@@ -20,8 +20,8 @@ describe("Sub-phase 2.3: Phone Number Validation & Formatting", () => {
   it("allows setting phone to null when empty or omitted", () => {
     assert.match(
       actionsContent,
-      /p_phone:\s*cleanPhone/,
-      "updateCustomerProfileAction must pass null or clean string"
+      /p_phone:\s*resolvedPhone/,
+      "updateCustomerProfileAction must pass resolvedPhone to RPC"
     );
   });
 

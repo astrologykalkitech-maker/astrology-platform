@@ -72,9 +72,9 @@ export async function loadAstrologerAvailability(astrologerId: string): Promise<
 }
 
 /**
- * Server-side booking guard. Returns {available:true} when the astrologer has not configured
- * availability, when the tables are not deployed, or when the slot fits their schedule.
- * Fails open only for "no data / no tables"; a database error is surfaced to the caller.
+ * Server-side booking guard.
+ * Hardened to fail closed when availability tables are missing or when an error occurs,
+ * and honors configured time-off even if recurring weekly rules are not yet specified.
  */
 export async function assertAstrologerAvailable(
   astrologerId: string,
@@ -82,6 +82,11 @@ export async function assertAstrologerAvailable(
   durationMinutes: number
 ): Promise<AvailabilityCheck> {
   const data = await loadAstrologerAvailability(astrologerId);
-  if (!data.tablesAvailable) return { available: true };
+  if (!data.tablesAvailable) {
+    return {
+      available: false,
+      reason: "Consultation scheduling is temporarily unavailable because availability services are offline.",
+    };
+  }
   return checkAvailability({ rules: data.rules, timeOff: data.timeOff, start, durationMinutes });
 }

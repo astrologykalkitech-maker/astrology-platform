@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdminAccess, requireSuperAdmin } from "@/lib/auth/admin-guard";
 
 export type NotificationChannel = "in_app" | "web_push" | "email" | "sms" | "whatsapp";
 export type NotificationDeliveryStatus =
@@ -28,6 +29,7 @@ export interface AstrologerRecipientItem {
 
 /**
  * Retrieves all registered astrologers for Super Admin notification targeting.
+ * Requires Super Admin or verified administrative authorization.
  */
 export async function getEligibleAstrologerRecipients(): Promise<{
   success: boolean;
@@ -35,6 +37,7 @@ export async function getEligibleAstrologerRecipients(): Promise<{
   error?: string;
 }> {
   try {
+    await requireAdminAccess();
     const admin = await createAdminClient("main");
 
     const { data: astros, error: aErr } = await admin
@@ -52,7 +55,7 @@ export async function getEligibleAstrologerRecipients(): Promise<{
 
     // Hydrate names & email handles from profiles
     const userIds = [...new Set(astros.map((a) => a.user_id).filter(Boolean))];
-    const profileMap = new Map<string, { full_name: string | null }>();
+    const profileMap = new Map<string, { full_name: string | null; email?: string | null }>();
 
     if (userIds.length > 0) {
       const { data: profiles } = await admin
@@ -68,12 +71,11 @@ export async function getEligibleAstrologerRecipients(): Promise<{
     const items: AstrologerRecipientItem[] = astros.map((a) => {
       const userProfile = profileMap.get(a.user_id);
       const name = a.display_name || userProfile?.full_name || "Vedic Astrologer";
-      const slug = a.slug || a.id.slice(0, 8);
       return {
         id: a.id,
         userId: a.user_id,
         name,
-        email: `${slug}@karmicascension.test`,
+        email: userProfile?.email || "Email not verified",
         profilePhotoUrl: a.profile_photo_url,
         approvalStatus: a.approval_status || "pending",
         experienceYears: a.experience_years,
@@ -89,6 +91,7 @@ export async function getEligibleAstrologerRecipients(): Promise<{
 
 /**
  * Dispatches bulk notifications to multiple resolved recipient profiles.
+ * Strictly requires Super Admin authorization.
  */
 export async function dispatchBulkMultiChannelNotification({
   recipientUserIds,
@@ -113,6 +116,8 @@ export async function dispatchBulkMultiChannelNotification({
   error?: string;
 }> {
   try {
+    await requireSuperAdmin();
+
     if (!recipientUserIds || recipientUserIds.length === 0) {
       return { success: false, totalRecipients: 0, totalDeliveries: 0, error: "No recipients selected." };
     }
@@ -166,6 +171,7 @@ export interface DispatchNotificationParams {
 /**
  * Dispatches an enterprise multi-channel notification.
  * Respects user preferences and records full delivery telemetry.
+ * Strictly checks caller authorization: Super Admin or verified system origin.
  */
 export async function dispatchMultiChannelNotification({
   recipientId,
@@ -177,7 +183,17 @@ export async function dispatchMultiChannelNotification({
   templateId,
 }: DispatchNotificationParams) {
   try {
+    const caller = await getCurrentUser();
+    if (!caller) {
+      return { success: false, error: "Authentication required" };
+    }
+
     const admin = await createAdminClient("main");
+
+    // If caller is not sending to themselves, verify administrative privilege
+    if (caller.id !== recipientId) {
+      await requireAdminAccess();
+    }
 
     // 1. Check user notification settings
     const { data: settings } = await admin
@@ -303,6 +319,7 @@ export interface NotificationDeliveryStats {
 
 /**
  * Super Admin metrics for multi-channel notification engine.
+ * Requires Super Admin authorization.
  */
 export async function getNotificationDeliveryMetrics(): Promise<{
   success: boolean;
@@ -310,6 +327,7 @@ export async function getNotificationDeliveryMetrics(): Promise<{
   error?: string;
 }> {
   try {
+    await requireSuperAdmin();
     const admin = await createAdminClient("main");
 
     // Fetch total summary, recent overall deliveries, and recent failed deliveries
@@ -383,6 +401,7 @@ export async function getNotificationDeliveryMetrics(): Promise<{
 
 /**
  * Updates user notification preferences.
+ * Hardened against IDOR: only explicitly allows defined boolean preference flags.
  */
 export async function updateNotificationPreferencesAction(settings: {
   in_app_enabled?: boolean;
@@ -399,13 +418,24 @@ export async function updateNotificationPreferencesAction(settings: {
 
     if (!user) return { success: false, error: "Authentication required" };
 
+    // Explicitly allowlist and sanitize preference fields to prevent caller IDOR
+    const sanitizedSettings: Record<string, boolean> = {};
+    if (typeof settings.in_app_enabled === "boolean") sanitizedSettings.in_app_enabled = settings.in_app_enabled;
+    if (typeof settings.push_enabled === "boolean") sanitizedSettings.push_enabled = settings.push_enabled;
+    if (typeof settings.email_enabled === "boolean") sanitizedSettings.email_enabled = settings.email_enabled;
+    if (typeof settings.sms_enabled === "boolean") sanitizedSettings.sms_enabled = settings.sms_enabled;
+    if (typeof settings.whatsapp_enabled === "boolean") sanitizedSettings.whatsapp_enabled = settings.whatsapp_enabled;
+    if (typeof settings.booking_reminders === "boolean") sanitizedSettings.booking_reminders = settings.booking_reminders;
+    if (typeof settings.broadcast_alerts === "boolean") sanitizedSettings.broadcast_alerts = settings.broadcast_alerts;
+    if (typeof settings.marketing_consent === "boolean") sanitizedSettings.marketing_consent = settings.marketing_consent;
+
     const admin = await createAdminClient("main");
     const { error } = await admin
       .from("user_notification_settings")
       .upsert(
         {
           user_id: user.id,
-          ...settings,
+          ...sanitizedSettings,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }

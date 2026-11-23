@@ -23,12 +23,12 @@ describe("Sub-phase 2.8: Place of Birth & Location Autocomplete Integration", ()
   it("encrypts birthplace with AES-256-GCM and suppresses plaintext on write", () => {
     assert.match(
       actionsContent,
-      /if \(cleanBirthplace\) \{\s*encryptedBirthplace = encryptCustomerBirthData\(user\.id, "birthplace", cleanBirthplace\)\.ciphertext;\s*\}/,
+      /if \(payload\.birthplace !== undefined\) \{\s*encryptedBirthplace = cleanBirthplace\s*\?\s*encryptCustomerBirthData\(user\.id, "birthplace", cleanBirthplace\)\.ciphertext/,
       "updateCustomerProfileAction must encrypt birthplace with customer UUID bound AAD"
     );
     assert.match(
       actionsContent,
-      /p_birthplace: isEncrypted \? null : cleanBirthplace/,
+      /p_birthplace: isEncrypted \? null : resolvedBirthplace/,
       "Must send null to RPC plaintext parameter when encryption is configured"
     );
   });

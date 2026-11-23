@@ -4,6 +4,7 @@ import { getPublicApprovedAstrologerBySlug } from "@/lib/astrologer/queries";
 import { getOptionalCustomerPage } from "@/lib/auth/customer-guard";
 import { Avatar } from "@/components/astrologer/ui/Avatar";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
+import { AstrologerProfileBookingCta } from "@/components/customer/AstrologerProfileBookingCta";
 import {
   ArrowLeft,
   Clock,
@@ -270,16 +271,14 @@ export default async function AstrologerProfilePage({
             </ul>
 
             <div className="mt-6">
-              <Link
-                href={consultationUrl}
-                className={buttonStyles({
-                  variant: "gold",
-                  size: "lg",
-                  className: "w-full shadow-md text-center justify-center py-3",
-                })}
-              >
-                <Send className="h-4 w-4 mr-2" /> Send Consultation Request
-              </Link>
+              <AstrologerProfileBookingCta
+                astrologerId={astro.id}
+                astrologerName={astro.display_name}
+                voicePrice={astro.voice_price_per_minute ?? 15}
+                chatPrice={astro.chat_price_per_minute ?? 10}
+                videoPrice={astro.video_price_per_minute ?? 25}
+                consultationUrl={consultationUrl}
+              />
             </div>
 
             <div className="mt-6 pt-5 border-t border-gold/15 space-y-3">

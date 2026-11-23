@@ -968,3 +968,102 @@ export async function scheduleAstrologerInterviewAction({
     return { success: false, error: errorMsg };
   }
 }
+
+/**
+ * Super Admin or Consultant Admin reviews and updates the verification status of an individual document.
+ */
+export async function updateVerificationDocumentReviewAction({
+  documentId,
+  verificationStatus,
+  rejectionReason,
+}: {
+  documentId: string;
+  verificationStatus: "verified" | "rejected" | "under_review";
+  rejectionReason?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const adminSession = await resolveAdminSession();
+    if (!adminSession) {
+      return {
+        success: false,
+        error: "Authentication required: Super Admin privileges are required to review documents.",
+      };
+    }
+
+    if (verificationStatus === "rejected" && (!rejectionReason || !rejectionReason.trim())) {
+      return {
+        success: false,
+        error: "Rejection reason is required when rejecting a document.",
+      };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: doc, error: fetchErr } = await admin
+      .from("astrologer_verification_documents")
+      .select("id, astrologer_id, document_type, title, verification_status")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (fetchErr || !doc) {
+      return { success: false, error: "Verification document not found." };
+    }
+
+    const { error: updateErr } = await admin
+      .from("astrologer_verification_documents")
+      .update({
+        verification_status: verificationStatus,
+        rejection_reason: verificationStatus === "rejected" ? rejectionReason?.trim() || null : null,
+        reviewed_by: adminSession.user.id,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", documentId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    // Notify astrologer of document decision
+    try {
+      await createInAppNotification({
+        recipientUserId: doc.astrologer_id,
+        title: verificationStatus === "verified" ? "KYC Document Verified" : "KYC Document Update",
+        message:
+          verificationStatus === "verified"
+            ? `Your document "${doc.title}" has been successfully verified.`
+            : `Your document "${doc.title}" was rejected: ${rejectionReason || "Please re-upload a clear copy."}`,
+        linkUrl: "/astrologer/profile",
+        eventType: `doc_${verificationStatus}`,
+        metadata: { document_id: documentId, document_type: doc.document_type },
+      });
+    } catch {
+      // Non-blocking notification
+    }
+
+    // Audit log document review
+    try {
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: `verification.document_${verificationStatus}`,
+        targetType: "astrologer_document",
+        targetId: documentId,
+        reason: rejectionReason || `Document marked as ${verificationStatus}`,
+        beforeState: { status: doc.verification_status },
+        afterState: { status: verificationStatus },
+        outcome: "success",
+      });
+    } catch {
+      // Non-blocking audit log
+    }
+
+    revalidatePath("/super-admin/verification", "page");
+    revalidatePath("/astrologer/profile", "page");
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to review document";
+    return { success: false, error: errorMsg };
+  }
+}
+

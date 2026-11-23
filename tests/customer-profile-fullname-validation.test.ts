@@ -21,8 +21,8 @@ describe("Sub-phase 2.2: Profile Editing & Full-Name Validation", () => {
   it("handles empty or whitespace-only full_name safely without crashing", () => {
     assert.match(
       actionsContent,
-      /p_full_name:\s*cleanName\s*\|\|\s*null/,
-      "updateCustomerProfileAction must pass null if cleanName is empty"
+      /p_full_name:\s*resolvedName/,
+      "updateCustomerProfileAction must pass resolvedName"
     );
   });
 

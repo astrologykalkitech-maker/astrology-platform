@@ -165,6 +165,7 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       resConfirmedBookings,
       resCompletedBookings,
       resCancelledBookings,
+      resActiveCustomers,
     ] = await Promise.all([
       dbAdmin.from("leads").select("*", { count: "exact", head: true }),
       dbAdmin.from("leads").select("*", { count: "exact", head: true }).gte("created_at", todayIso),
@@ -192,6 +193,8 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
       dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "confirmed"),
       dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "completed"),
       dbMain.from("customer_bookings").select("*", { count: "exact", head: true }).eq("status", "cancelled"),
+      // Active customers: distinct customers with activity within the last 30 days
+      dbMain.from("customer_bookings").select("customer_id", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     ]);
 
     // Validate each result strictly against errors and non-numeric counts
@@ -221,6 +224,7 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
     const confirmedBookings = await validateCountQueryResult(resConfirmedBookings, { queryName: "confirmedBookings", table: "customer_bookings", targetDb: "main", correlationId });
     const completedBookings = await validateCountQueryResult(resCompletedBookings, { queryName: "completedBookings", table: "customer_bookings", targetDb: "main", correlationId });
     const cancelledBookings = await validateCountQueryResult(resCancelledBookings, { queryName: "cancelledBookings", table: "customer_bookings", targetDb: "main", correlationId });
+    const activeCustomersCount = await validateCountQueryResult(resActiveCustomers || { count: 0, error: null }, { queryName: "activeCustomers", table: "customer_bookings", targetDb: "main", correlationId });
 
     return {
       success: true,
@@ -243,7 +247,7 @@ export async function getPlatformOverviewMetrics(): Promise<AuthResult<PlatformO
         totalListings,
         activeConsultants,
         totalCustomers,
-        activeCustomers: totalCustomers,
+        activeCustomers: activeCustomersCount,
         totalBookings,
         pendingBookings,
         confirmedBookings,

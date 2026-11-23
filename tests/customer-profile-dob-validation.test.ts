@@ -13,7 +13,7 @@ describe("Sub-phase 2.6: Date of Birth Input, Calendar Validation & Privacy Hand
   it("handles date_of_birth in updateCustomerProfileAction and performs AES-256-GCM encryption", () => {
     assert.match(
       actionsContent,
-      /if \(payload\.date_of_birth\) \{\s*encryptedDob = encryptCustomerBirthData\(user\.id, "date_of_birth", payload\.date_of_birth\)\.ciphertext;\s*\}/,
+      /if \(payload\.date_of_birth !== undefined\) \{\s*encryptedDob = payload\.date_of_birth\s*\?\s*encryptCustomerBirthData\(user\.id, "date_of_birth", payload\.date_of_birth\)\.ciphertext/,
       "updateCustomerProfileAction must encrypt date_of_birth with customer UUID bound AAD"
     );
   });
@@ -21,7 +21,7 @@ describe("Sub-phase 2.6: Date of Birth Input, Calendar Validation & Privacy Hand
   it("suppresses plaintext date_of_birth in RPC and database write paths", () => {
     assert.match(
       actionsContent,
-      /p_date_of_birth: isEncrypted \? null : \(payload\.date_of_birth \|\| null\)/,
+      /p_date_of_birth: isEncrypted \? null : resolvedDob/,
       "Must send null to RPC plaintext parameter when encryption is configured"
     );
   });

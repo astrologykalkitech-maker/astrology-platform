@@ -104,6 +104,7 @@ export async function updateAstrologerBookingStatusAction(params: {
   bookingId: string;
   status: BookingStatus;
   cancellationReason?: string;
+  notes?: string;
 }): Promise<AuthResult<CustomerBooking>> {
   try {
     const { profile } = await getAuthenticatedAstrologerProfile();
@@ -202,6 +203,41 @@ export async function updateAstrologerBookingStatusAction(params: {
       updatePayload.cancelled_at = new Date().toISOString();
     }
 
+    // If transitioning to completed, use the atomic RPC if available
+    if (params.status === "completed") {
+      const atomicRes = await admin.rpc("complete_astrologer_consultation_atomic", {
+        p_booking_id: params.bookingId,
+        p_astrologer_id: profile.id,
+        p_notes: params.notes || null,
+      });
+
+      if (!atomicRes.error && atomicRes.data) {
+        // Reconcile financial general ledgers
+        try {
+          const { reconcileCompletedConsultationLedgers } = await import("@/lib/financial/ledger");
+          await reconcileCompletedConsultationLedgers({
+            bookingId: beforeBooking.id,
+            astrologerId: profile.id,
+          });
+        } catch (ledgerReconcileErr) {
+          console.warn("[updateAstrologerBookingStatusAction] Ledger reconciliation notice:", ledgerReconcileErr);
+        }
+
+        revalidatePath("/astrologer/dashboard");
+        revalidatePath("/astrologer/bookings");
+        revalidatePath("/astrologer/earnings");
+        revalidatePath("/customer/bookings");
+        revalidatePath("/customer");
+        revalidatePath("/super-admin/bookings", "page");
+        revalidatePath("/super-admin", "page");
+
+        return {
+          success: true,
+          data: atomicRes.data as CustomerBooking,
+        };
+      }
+    }
+
     // Conditional on the status we validated against, so concurrent requests cannot both win
     const { data: updatedBooking, error: updateErr } = await admin
       .from("customer_bookings")
@@ -272,12 +308,14 @@ export async function updateAstrologerBookingStatusAction(params: {
       console.warn("[updateAstrologerBookingStatusAction] customer notification notice:", notifErr);
     }
 
-    // Invalidate caches across both astrologer and customer portals
+    // Invalidate caches across astrologer, customer, and admin portals
     revalidatePath("/astrologer/dashboard");
     revalidatePath("/astrologer/bookings");
     revalidatePath("/astrologer/earnings");
     revalidatePath("/customer/bookings");
     revalidatePath("/customer");
+    revalidatePath("/super-admin/bookings", "page");
+    revalidatePath("/super-admin", "page");
 
     if (params.status === "completed") {
       const { error: accrualError } = await admin.rpc("accrue_verified_booking_commissions", {
@@ -343,7 +381,7 @@ export async function getAstrologerReviewsAction(): Promise<
     const avg =
       totalReviews > 0
         ? Number((reviewList.reduce((acc, r) => acc + (r.rating || 5), 0) / totalReviews).toFixed(1))
-        : 5.0;
+        : 0.0;
 
     const enriched = reviewList.map((r) => ({
       ...r,
