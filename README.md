@@ -484,3 +484,5 @@ npx tsc --noEmit
 ## 📄 License & Attribution
 
 Copyright © 2026 Karmic Ascension. All rights reserved. Built for secure, authentic, and real-time Vedic astrology consultations.
+#   a s t r o l o g y - p l a t f o r m  
+ 
