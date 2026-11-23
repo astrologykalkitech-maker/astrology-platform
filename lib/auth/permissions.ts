@@ -34,6 +34,13 @@ export const ADMIN_PERMISSIONS: PermissionDefinition[] = [
     superAdminOnly: true,
   },
   {
+    key: "listing.suspend",
+    label: "Suspend Listings",
+    description: "Suspend active listings",
+    category: "listings",
+    superAdminOnly: true,
+  },
+  {
     key: "listing.rank.update",
     label: "Update Ranking & Placement",
     description: "Modify ranking priorities and featured placements",

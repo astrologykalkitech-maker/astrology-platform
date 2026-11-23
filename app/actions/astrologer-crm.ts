@@ -48,6 +48,22 @@ export async function getAstrologerCustomerNotesAction(
       return { success: false, error: "Astrologer profile not found" };
     }
 
+    // Customer Relationship Verification: Verify customer shares a lead or booking with this astrologer
+    const [leadCheck, bookingCheck, assignmentCheck] = await Promise.all([
+      admin.from("leads").select("id").eq("customer_id", customerId).eq("astrologer_id", astroProfile.id).limit(1),
+      admin.from("customer_bookings").select("id").eq("customer_id", customerId).eq("astrologer_id", astroProfile.id).limit(1),
+      admin.from("lead_assignments").select("id, leads!inner(customer_id)").eq("astrologer_id", astroProfile.id).eq("leads.customer_id", customerId).limit(1),
+    ]);
+
+    const hasRelationship =
+      (leadCheck.data?.length ?? 0) > 0 ||
+      (bookingCheck.data?.length ?? 0) > 0 ||
+      (assignmentCheck.data?.length ?? 0) > 0;
+
+    if (!hasRelationship) {
+      return { success: false, error: "Access denied: No active consultation or enquiry relationship with this customer." };
+    }
+
     const { data, error } = await admin
       .from("astrologer_customer_notes")
       .select("*")
@@ -110,6 +126,22 @@ export async function createAstrologerNoteAction(
 
     if (astroErr || !astroProfile) {
       return { success: false, error: "Astrologer profile not found" };
+    }
+
+    // Customer Relationship Verification: Verify customer shares a lead or booking with this astrologer
+    const [leadCheck, bookingCheck, assignmentCheck] = await Promise.all([
+      admin.from("leads").select("id").eq("customer_id", input.customerId).eq("astrologer_id", astroProfile.id).limit(1),
+      admin.from("customer_bookings").select("id").eq("customer_id", input.customerId).eq("astrologer_id", astroProfile.id).limit(1),
+      admin.from("lead_assignments").select("id, leads!inner(customer_id)").eq("astrologer_id", astroProfile.id).eq("leads.customer_id", input.customerId).limit(1),
+    ]);
+
+    const hasRelationship =
+      (leadCheck.data?.length ?? 0) > 0 ||
+      (bookingCheck.data?.length ?? 0) > 0 ||
+      (assignmentCheck.data?.length ?? 0) > 0;
+
+    if (!hasRelationship) {
+      return { success: false, error: "Access denied: Cannot create notes for customers without an active consultation or enquiry relationship." };
     }
 
     const { data, error } = await admin

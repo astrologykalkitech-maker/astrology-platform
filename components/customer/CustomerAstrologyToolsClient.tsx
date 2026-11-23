@@ -35,8 +35,8 @@ export function CustomerAstrologyToolsClient() {
   >("advanced_vedic");
 
   // Advanced Vedic Form
-  const [birthDate, setBirthDate] = useState("1995-05-15");
-  const [birthTime, setBirthTime] = useState("06:30");
+  const [birthDate, setBirthDate] = useState("");
+  const [birthTime, setBirthTime] = useState("");
   const [vedicLoading, setVedicLoading] = useState(false);
   const [vedicResult, setVedicResult] = useState<any | null>(null);
 

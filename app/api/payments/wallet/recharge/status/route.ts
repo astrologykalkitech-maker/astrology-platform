@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getAuthSession } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    const session = await getAuthSession();
+    if (!session || !session.user) {
       return NextResponse.json({ success: false, error: "Authentication required" }, { status: 401 });
     }
 
@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = await createAdminClient("main");
-    let query = admin.from("payment_orders").select("id, order_number, status, amount_paise, metadata");
+    let query = admin
+      .from("payment_orders")
+      .select("id, order_number, status, amount_paise, customer_id, astrologer_id, metadata");
 
     if (orderNumber) {
       query = query.eq("order_number", orderNumber);
@@ -33,6 +35,36 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, status: "pending" });
     }
 
+    // Role-based Ownership Authorization Guard:
+    // Only the order owner (matching customer_id or astrologer_id) or a Super Admin is authorized.
+    const isSuperAdmin = session.profile?.role === "super_admin" || session.profile?.role === "consultant_admin";
+    
+    // Resolve caller's astrologer_profile id if caller is an astrologer
+    let callerAstrologerId: string | null = null;
+    if (session.profile?.role === "astrologer") {
+      const { data: astroProfile } = await admin
+        .from("astrologer_profiles")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (astroProfile) {
+        callerAstrologerId = astroProfile.id;
+      }
+    }
+
+    const isCustomerOwner = Boolean(order.customer_id && order.customer_id === session.user.id);
+    const isAstrologerOwner = Boolean(
+      (order.astrologer_id && callerAstrologerId && order.astrologer_id === callerAstrologerId) ||
+      (order.customer_id && order.customer_id === session.user.id)
+    );
+
+    if (!isSuperAdmin && !isCustomerOwner && !isAstrologerOwner) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized access to order status" },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       orderNumber: order.order_number,
@@ -43,3 +75,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Failed to poll status" }, { status: 500 });
   }
 }
+

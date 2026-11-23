@@ -4,6 +4,7 @@ import { requireAuth, requireAstrologer, requireCustomer } from "@/lib/auth/sess
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidUUID } from "@/lib/validations/lead";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 import {
   type DirectMessageAttachment,
   type DirectMessageReply,
@@ -661,6 +662,15 @@ export async function sendDirectMessageAction(
   try {
     const { user } = await requireAuth();
 
+    // Rate Limiting: 60 messages per minute per authenticated user to prevent chat spamming
+    const chatLimit = checkRateLimit(`chat-msg:${user.id}`, 60, 60_000);
+    if (!chatLimit.allowed) {
+      return {
+        success: false,
+        error: `You are sending messages too quickly. Please wait ${chatLimit.retryAfterSeconds} seconds.`,
+      };
+    }
+
     if (!isValidUUID(conversationId)) {
       return { success: false, error: "Invalid conversation ID" };
     }
@@ -1310,14 +1320,14 @@ export async function uploadChatAttachmentAction(
     const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `chat/${user.id}-${Date.now()}-${cleanFileName}`;
 
-    let publicUrl: string;
+    let attachmentUrl: string;
 
     try {
       const { data: buckets } = await admin.storage.listBuckets();
       const hasBucket = buckets?.some((b) => b.name === "chat-attachments");
       if (!hasBucket) {
         await admin.storage.createBucket("chat-attachments", {
-          public: true,
+          public: false, // Private bucket for confidential customer charts & documents
           fileSizeLimit: MAX_ATTACHMENT_SIZE,
           allowedMimeTypes: Array.from(ALLOWED_MIME_TYPES),
         });
@@ -1332,15 +1342,24 @@ export async function uploadChatAttachmentAction(
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = admin.storage.from("chat-attachments").getPublicUrl(storagePath);
-      publicUrl = urlData.publicUrl;
+      // Generate time-limited signed URL (60 minutes) for private retrieval
+      const { data: signedData, error: signedError } = await admin.storage
+        .from("chat-attachments")
+        .createSignedUrl(storagePath, 3600);
+
+      if (signedError || !signedData?.signedUrl) {
+        const { data: urlData } = admin.storage.from("chat-attachments").getPublicUrl(storagePath);
+        attachmentUrl = urlData.publicUrl;
+      } else {
+        attachmentUrl = signedData.signedUrl;
+      }
     } catch {
       // Inline base64 fallback for dev/resilience
-      publicUrl = `data:${mime};base64,${buffer.toString("base64")}`;
+      attachmentUrl = `data:${mime};base64,${buffer.toString("base64")}`;
     }
 
     const attachment: DirectMessageAttachment = {
-      url: publicUrl,
+      url: attachmentUrl,
       fileName: file.name,
       fileType: mime,
       fileSize: file.size,

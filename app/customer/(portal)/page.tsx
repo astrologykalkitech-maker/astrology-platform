@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Customer portal root redirect:
- * Requires verified customer session, then routes to the astrologer directory.
+ * When any customer logs in or navigates to /customer, they are redirected to /customer/astrologers.
  */
 export default async function CustomerPortalRoot() {
   await requireCustomerPage();

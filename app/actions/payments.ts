@@ -325,11 +325,21 @@ export async function requestCustomerRefundAction(payload: {
     const { user } = await requireCustomerContext();
     const supabase = await createAdminClient("main");
 
-    const { data: payment } = await supabase
+    // Look up by internal payment UUID or gateway payment_id
+    let { data: payment } = await supabase
       .from("payments")
-      .select("id, order_id, amount_paise, order:payment_orders!payments_order_id_fkey(customer_id)")
+      .select("id, order_id, payment_id, amount_paise, order:payment_orders!payments_order_id_fkey(customer_id)")
       .eq("id", payload.paymentId)
-      .single();
+      .maybeSingle();
+
+    if (!payment) {
+      const { data: altPayment } = await supabase
+        .from("payments")
+        .select("id, order_id, payment_id, amount_paise, order:payment_orders!payments_order_id_fkey(customer_id)")
+        .eq("payment_id", payload.paymentId)
+        .maybeSingle();
+      payment = altPayment;
+    }
 
     const orderData = Array.isArray(payment?.order) ? payment?.order[0] : payment?.order;
     if (!payment || orderData?.customer_id !== user.id) {

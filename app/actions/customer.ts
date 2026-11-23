@@ -1550,12 +1550,15 @@ export async function updateCustomerProfileAction(payload: {
     }
 
     // Call update_customer_profile RPC
+    // When encryption is enabled, we pass null to plaintext birth data in the RPC so that
+    // plaintext PII is never stored in unencrypted database columns.
+    const isEncrypted = isBeneficiaryEncryptionConfigured();
     const { error: rpcErr } = await supabase.rpc("update_customer_profile", {
       p_full_name: cleanName || null,
       p_phone: cleanPhone,
-      p_date_of_birth: payload.date_of_birth || null,
-      p_time_of_birth: payload.time_of_birth || null,
-      p_birthplace: cleanBirthplace,
+      p_date_of_birth: isEncrypted ? null : (payload.date_of_birth || null),
+      p_time_of_birth: isEncrypted ? null : (payload.time_of_birth || null),
+      p_birthplace: isEncrypted ? null : cleanBirthplace,
       p_gender: payload.gender || null,
     });
 
@@ -1564,14 +1567,14 @@ export async function updateCustomerProfileAction(payload: {
       const updateData: Record<string, unknown> = {
         full_name: cleanName || undefined,
         phone: cleanPhone,
-        date_of_birth: payload.date_of_birth || null,
-        time_of_birth: payload.time_of_birth || null,
-        birthplace: cleanBirthplace,
+        date_of_birth: isEncrypted ? null : (payload.date_of_birth || null),
+        time_of_birth: isEncrypted ? null : (payload.time_of_birth || null),
+        birthplace: isEncrypted ? null : cleanBirthplace,
         gender: payload.gender || null,
         updated_at: new Date().toISOString(),
       };
 
-      if (isBeneficiaryEncryptionConfigured()) {
+      if (isEncrypted) {
         updateData.encrypted_date_of_birth = encryptedDob;
         updateData.encrypted_time_of_birth = encryptedTob;
         updateData.encrypted_birthplace = encryptedBirthplace;
@@ -1586,11 +1589,14 @@ export async function updateCustomerProfileAction(payload: {
       if (updateErr) {
         return { success: false, error: updateErr.message };
       }
-    } else if (isBeneficiaryEncryptionConfigured()) {
+    } else if (isEncrypted) {
       // Synchronize encrypted birth columns when RPC succeeds
       await supabase
         .from("profiles")
         .update({
+          date_of_birth: null,
+          time_of_birth: null,
+          birthplace: null,
           encrypted_date_of_birth: encryptedDob,
           encrypted_time_of_birth: encryptedTob,
           encrypted_birthplace: encryptedBirthplace,

@@ -203,6 +203,19 @@ export function KundliMilanResultView({ record, onBack }: KundliMilanResultViewP
               </span>
             </div>
           </div>
+
+          {doshas.cancellations && doshas.cancellations.length > 0 && (
+            <div className="mt-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs">
+              <span className="font-semibold text-emerald-800 block mb-1">
+                Classical Dosha Cancellations Applied:
+              </span>
+              <ul className="list-disc list-inside space-y-0.5 text-emerald-700">
+                {doshas.cancellations.map((cancellation, idx) => (
+                  <li key={idx}>{cancellation}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 

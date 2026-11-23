@@ -285,8 +285,8 @@ export function sanitizeLogMessage(message: string): string {
     .replace(/(basic\s+)[a-zA-Z0-9_\-\.=]+/gi, `$1${REDACTED_MARKER}`)
     // Postgres connection strings (postgres://user:pass@host)
     .replace(/(postgres(?:ql)?:\/\/[^:]+:)[^@]+(@)/gi, `$1${REDACTED_MARKER}$2`)
-    // Key-value secret assignments (e.g. auth_token=xyz, api_key=xyz, secret=xyz)
-    .replace(/((?:auth_token|token|secret|api_key|access_token|refresh_token|private_key|card_number|card|cvv)\s*[:=]\s*)[^\s&,;]+/gi, `$1${REDACTED_MARKER}`)
+    // Key-value secret assignments (e.g. auth_token=xyz, api_key=xyz, secret=xyz, password=xyz)
+    .replace(/((?:auth_token|token|secret|api_key|access_token|refresh_token|private_key|card_number|card|cvv|password|passphrase)\s*[:=]\s*)[^\s&,;]+/gi, `$1${REDACTED_MARKER}`)
     // Standard JWT pattern (header.payload.signature)
     .replace(/eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_\-]+/g, REDACTED_MARKER);
 }

@@ -198,9 +198,9 @@ export const getAuthSession = cache(async function getAuthSession(): Promise<Aut
           }
 
           // Safe recovery: if user is authenticated in auth.users but has no row in public.profiles,
-          // provision the baseline profile record from user metadata so they are not stranded
-          const userMetaRole = user.user_metadata?.role;
-          const assignedRole = userMetaRole === "astrologer" ? "astrologer" : "customer";
+          // strictly provision baseline role as 'customer' to prevent unauthorized role escalation
+          // via client-editable user_metadata
+          const assignedRole = "customer";
           const metaName = user.user_metadata?.full_name || user.user_metadata?.name || null;
 
           const { data: recoveredProfile } = await privileged

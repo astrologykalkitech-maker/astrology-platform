@@ -17,7 +17,7 @@ export default async function CustomerNumerologyPage() {
   const kundliRes = await getCustomerKundlisAction();
   const kundlis = kundliRes.success && kundliRes.data ? kundliRes.data : [];
 
-  const defaultDob = kundlis[0]?.date_of_birth || "1995-05-15";
+  const defaultDob = kundlis[0]?.date_of_birth || "";
   const defaultName = kundlis[0]?.name || profile?.full_name || "Seeker";
   const defaultTime = kundlis[0]?.time_of_birth || null;
   const defaultPlace = kundlis[0]?.birth_place || null;
@@ -25,15 +25,17 @@ export default async function CustomerNumerologyPage() {
   const defaultLng = kundlis[0]?.longitude ?? null;
   const defaultTz = kundlis[0]?.timezone ?? 5.5;
 
-  const initialReport = calculateComprehensiveNumerology({
-    fullName: defaultName,
-    dateOfBirth: defaultDob,
-    birthTime: defaultTime,
-    birthPlace: defaultPlace,
-    latitude: defaultLat,
-    longitude: defaultLng,
-    timezone: defaultTz,
-  });
+  const initialReport = defaultDob
+    ? calculateComprehensiveNumerology({
+        fullName: defaultName,
+        dateOfBirth: defaultDob,
+        birthTime: defaultTime,
+        birthPlace: defaultPlace,
+        latitude: defaultLat,
+        longitude: defaultLng,
+        timezone: defaultTz,
+      })
+    : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">

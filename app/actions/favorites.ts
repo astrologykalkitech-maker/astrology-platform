@@ -154,9 +154,37 @@ export async function getCustomerFavoriteAstrologers(): Promise<{
       return { success: false, error: error.message };
     }
 
+    // Fetch review aggregates for the astrologers
+    const astrologerIds = (favs || []).map((f: any) => f.astrologer_id);
+    const reviewStatsMap: Record<string, { rating: number; total_reviews: number }> = {};
+
+    if (astrologerIds.length > 0) {
+      const { data: reviews } = await admin
+        .from("consultation_reviews")
+        .select("astrologer_id, rating")
+        .in("astrologer_id", astrologerIds)
+        .eq("is_published", true);
+
+      if (reviews) {
+        const counts: Record<string, { sum: number; count: number }> = {};
+        for (const r of reviews) {
+          if (!counts[r.astrologer_id]) counts[r.astrologer_id] = { sum: 0, count: 0 };
+          counts[r.astrologer_id].sum += Number(r.rating) || 0;
+          counts[r.astrologer_id].count += 1;
+        }
+        for (const [id, stats] of Object.entries(counts)) {
+          reviewStatsMap[id] = {
+            rating: Math.round((stats.sum / stats.count) * 10) / 10,
+            total_reviews: stats.count,
+          };
+        }
+      }
+    }
+
     // Defensive sanitization transform layer
     const sanitized: PublicFavoriteAstrologer[] = (favs || []).map((f: any) => {
       const a = f.astrologer;
+      const stats = reviewStatsMap[f.astrologer_id] || { rating: 5.0, total_reviews: 0 };
       return {
         id: f.id,
         astrologer_id: f.astrologer_id,
@@ -171,8 +199,8 @@ export async function getCustomerFavoriteAstrologers(): Promise<{
           specializations: Array.isArray(a.specializations) ? a.specializations : [],
           languages: Array.isArray(a.languages) ? a.languages : [],
           consultation_fee: a.consultation_fee ?? 500,
-          rating: 4.9,
-          total_reviews: 42,
+          rating: stats.rating,
+          total_reviews: stats.total_reviews,
         },
       };
     });

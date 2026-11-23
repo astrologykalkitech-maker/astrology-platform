@@ -32,7 +32,7 @@ import type {
 import { generateNumerologyPdf } from "@/lib/pdf/numerology-pdf";
 
 interface NumerologyClientProps {
-  initialReport: ComprehensiveNumerologyReport;
+  initialReport: ComprehensiveNumerologyReport | null;
   userDefaultName: string;
   userDefaultDob: string;
 }
@@ -43,16 +43,16 @@ export function NumerologyClient({
   userDefaultDob,
 }: NumerologyClientProps) {
   // Form input state
-  const [fullName, setFullName] = useState(initialReport.input.fullName || userDefaultName);
-  const [birthDate, setBirthDate] = useState(initialReport.input.dateOfBirth || userDefaultDob);
-  const [birthTime, setBirthTime] = useState(initialReport.input.birthTime || "");
-  const [birthPlace, setBirthPlace] = useState(initialReport.input.birthPlace || "");
-  const [latitude, setLatitude] = useState<number | null>(initialReport.input.latitude ?? null);
-  const [longitude, setLongitude] = useState<number | null>(initialReport.input.longitude ?? null);
-  const [timezone, setTimezone] = useState<number>(initialReport.input.timezone ?? 5.5);
+  const [fullName, setFullName] = useState(initialReport?.input?.fullName || userDefaultName);
+  const [birthDate, setBirthDate] = useState(initialReport?.input?.dateOfBirth || userDefaultDob);
+  const [birthTime, setBirthTime] = useState(initialReport?.input?.birthTime || "");
+  const [birthPlace, setBirthPlace] = useState(initialReport?.input?.birthPlace || "");
+  const [latitude, setLatitude] = useState<number | null>(initialReport?.input?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initialReport?.input?.longitude ?? null);
+  const [timezone, setTimezone] = useState<number>(initialReport?.input?.timezone ?? 5.5);
 
   // Active Report state
-  const [report, setReport] = useState<ComprehensiveNumerologyReport>(initialReport);
+  const [report, setReport] = useState<ComprehensiveNumerologyReport | null>(initialReport);
   const [isOutdated, setIsOutdated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -108,6 +108,7 @@ export function NumerologyClient({
   };
 
   const handleCompareSpellings = async () => {
+    if (!report) return;
     const list = [fullName, ...altSpellings].filter((s) => s.trim().length > 0);
     if (list.length === 0) return;
 
@@ -142,13 +143,15 @@ export function NumerologyClient({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => generateNumerologyPdf(report)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-midnight text-ivory px-4 py-2.5 text-xs font-bold hover:bg-midnight/90 shadow transition cursor-pointer"
-        >
-          <Download className="h-4 w-4 text-gold" /> Download Official PDF Report
-        </button>
+        {report && (
+          <button
+            type="button"
+            onClick={() => generateNumerologyPdf(report)}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-midnight text-ivory px-4 py-2.5 text-xs font-bold hover:bg-midnight/90 shadow transition cursor-pointer"
+          >
+            <Download className="h-4 w-4 text-gold" /> Download Official PDF Report
+          </button>
+        )}
       </div>
 
       {/* Outdated State Notice */}
@@ -272,6 +275,12 @@ export function NumerologyClient({
       </form>
 
       {/* Core Numbers Overview */}
+      {!report ? (
+        <div className="rounded-2xl border border-gold/25 bg-white p-8 text-center text-sm text-muted">
+          Please enter your date of birth above to calculate your personalized Vedic & Chaldean Numerology reading.
+        </div>
+      ) : (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Moolank Card */}
         <div className="rounded-2xl border border-gold/25 bg-white p-6 text-midnight shadow-[0_14px_30px_-22px_rgba(60,35,90,0.25)] flex flex-col justify-between">
@@ -583,6 +592,8 @@ export function NumerologyClient({
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
