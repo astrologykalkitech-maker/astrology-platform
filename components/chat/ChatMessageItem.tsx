@@ -35,6 +35,7 @@ interface ChatMessageItemProps {
   onDelete: (msgId: string, type: "for_me" | "for_everyone") => void;
   onReport: (msgId: string) => void;
   onOpenLightbox: (url: string) => void;
+  onRetry?: (msg: DirectMessage) => void;
 }
 
 export const ChatMessageItem = memo(function ChatMessageItem({
@@ -52,6 +53,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   onDelete,
   onReport,
   onOpenLightbox,
+  onRetry,
 }: ChatMessageItemProps) {
   const isDropdownOpen = activeDropdownMsgId === message.id;
 
@@ -260,7 +262,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 ) : message.status === "delivered" ? (
                   <CheckCheck className="h-3 w-3 text-muted" />
                 ) : message.status === "failed" ? (
-                  <AlertCircle className="h-3 w-3 text-rose-500" />
+                  <span className="inline-flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 text-rose-500" />
+                    {onRetry && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRetry(message);
+                        }}
+                        className="text-[9px] font-semibold text-rose-400 hover:text-white underline cursor-pointer"
+                        title="Retry sending"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </span>
                 ) : (
                   <Check className="h-3 w-3 text-muted" />
                 )}

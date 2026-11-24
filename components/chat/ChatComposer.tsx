@@ -99,7 +99,13 @@ export const ChatComposer = memo(function ChatComposer({
     setText("");
     setPendingAttachments([]);
 
-    await onSendMessage(textToSend, attachmentsToSend);
+    try {
+      await onSendMessage(textToSend, attachmentsToSend);
+    } catch {
+      // Restore draft if top-level unhandled exception occurs
+      setText(textToSend);
+      setPendingAttachments(attachmentsToSend);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

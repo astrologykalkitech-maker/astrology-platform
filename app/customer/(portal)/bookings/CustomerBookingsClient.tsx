@@ -77,8 +77,20 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   }, [activeJoinBooking]);
 
   // Sync state whenever initialBookings prop updates
+  // Deterministic latest-first sort helper (created_at DESC, id DESC)
+  const sortBookingsLatestFirst = (list: CustomerBooking[]): CustomerBooking[] => {
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.created_at || a.scheduled_at || 0).getTime();
+      const timeB = new Date(b.created_at || b.scheduled_at || 0).getTime();
+      if (timeB !== timeA) {
+        return timeB - timeA; // Descending
+      }
+      return (b.id || "").localeCompare(a.id || "");
+    });
+  };
+
   React.useEffect(() => {
-    setBookings(initialBookings);
+    setBookings(sortBookingsLatestFirst(initialBookings));
   }, [initialBookings]);
 
   // Real-time synchronization: subscribe to customer_bookings changes & local events
@@ -100,13 +112,15 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
               const newBooking = payload.new as CustomerBooking;
               setBookings((prev) => {
                 if (prev.some((b) => b.id === newBooking.id)) return prev;
-                return [newBooking, ...prev];
+                return sortBookingsLatestFirst([newBooking, ...prev]);
               });
               router.refresh();
             } else if (payload.eventType === "UPDATE") {
               const updated = payload.new as CustomerBooking;
               setBookings((prev) =>
-                prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+                sortBookingsLatestFirst(
+                  prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+                )
               );
               router.refresh();
             } else if (payload.eventType === "DELETE") {
@@ -266,17 +280,23 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       </span>
                     )}
 
-                    {/* Join button in mobile card view (F-08 fix) */}
-                    {isConfirmed && booking.consultation_mode !== "Chat" && (
+                    {/* Join button in mobile card view (Mode-Aware Routing) */}
+                    {isConfirmed && (
                       isJoinWindowActive(booking.scheduled_at, booking.duration_minutes) ? (
                         <Link
-                          href={`/consultation/${booking.id}`}
+                          href={
+                            booking.consultation_mode === "Chat"
+                              ? `/customer/chat?bookingId=${booking.id}`
+                              : `/consultation/${booking.id}`
+                          }
                           className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors"
                         >
                           {booking.consultation_mode === "Video" ? (
                             <Video className="h-3.5 w-3.5" />
-                          ) : (
+                          ) : booking.consultation_mode === "Call" ? (
                             <PhoneCall className="h-3.5 w-3.5" />
+                          ) : (
+                            <MessageSquare className="h-3.5 w-3.5" />
                           )}
                           <span>Join {booking.consultation_mode}</span>
                         </Link>
@@ -288,8 +308,10 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                         >
                           {booking.consultation_mode === "Video" ? (
                             <Video className="h-3.5 w-3.5" />
-                          ) : (
+                          ) : booking.consultation_mode === "Call" ? (
                             <PhoneCall className="h-3.5 w-3.5" />
+                          ) : (
+                            <MessageSquare className="h-3.5 w-3.5" />
                           )}
                           <span>{booking.consultation_mode} Details</span>
                         </button>
@@ -408,7 +430,11 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                           {isConfirmed && (
                             isJoinWindowActive(booking.scheduled_at, booking.duration_minutes) ? (
                               <Link
-                                href={`/consultation/${booking.id}`}
+                                href={
+                                  booking.consultation_mode === "Chat"
+                                    ? `/customer/chat?bookingId=${booking.id}`
+                                    : `/consultation/${booking.id}`
+                                }
                                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors"
                               >
                                 {booking.consultation_mode === "Video" ? (
@@ -542,7 +568,11 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={`/consultation/${activeJoinBooking.id}`}
+                    href={
+                      activeJoinBooking.consultation_mode === "Chat"
+                        ? `/customer/chat?bookingId=${activeJoinBooking.id}`
+                        : `/consultation/${activeJoinBooking.id}`
+                    }
                     className={buttonStyles({
                       variant: "gold",
                       size: "md",
@@ -550,10 +580,21 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       className: "justify-center shadow-md font-semibold gap-2",
                     })}
                   >
-                    <Video className="h-4 w-4 text-midnight" /> Join Consultation
+                    {activeJoinBooking.consultation_mode === "Video" ? (
+                      <Video className="h-4 w-4 text-midnight" />
+                    ) : activeJoinBooking.consultation_mode === "Call" ? (
+                      <PhoneCall className="h-4 w-4 text-midnight" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4 text-midnight" />
+                    )}
+                    <span>Join {activeJoinBooking.consultation_mode} Consultation</span>
                   </Link>
                   <p className="text-[11px] text-muted text-center">
-                    Private, encrypted in-house WebRTC session with real-time video, audio, and consultation notes.
+                    {activeJoinBooking.consultation_mode === "Chat"
+                      ? "Dedicated, real-time consultation messaging with encrypted chat history and live presence."
+                      : activeJoinBooking.consultation_mode === "Call"
+                      ? "Direct, secure voice consultation with real-time audio and duration tracking."
+                      : "Private, encrypted in-house WebRTC session with real-time video, audio, and consultation notes."}
                   </p>
                 </div>
               </div>

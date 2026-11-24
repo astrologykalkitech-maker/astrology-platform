@@ -697,7 +697,8 @@ export async function getCustomerBookings(): Promise<
         astrologer:astrologer_id(display_name)
       `)
       .eq("customer_id", user.id)
-      .order("scheduled_at", { ascending: true });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
 
     if (error) {
       return {

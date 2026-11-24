@@ -71,21 +71,23 @@ interface AstrologerChatClientProps {
   initialConversations: ConversationSummary[];
   initialSeekers: EligibleSeeker[];
   currentUserId: string;
+  initialSelectedConversationId?: string | null;
 }
 
 export function AstrologerChatClient({
   initialConversations,
   initialSeekers,
   currentUserId,
+  initialSelectedConversationId,
 }: AstrologerChatClientProps) {
   // Navigation & tabs
   const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
   const [seekers, setSeekers] = useState<EligibleSeeker[]>(initialSeekers);
   const [activeTab, setActiveTab] = useState<"seekers" | "chats">(
-    initialConversations.length > 0 ? "chats" : "seekers"
+    initialSelectedConversationId || initialConversations.length > 0 ? "chats" : "seekers"
   );
   const [selectedConvoId, setSelectedConvoId] = useState<string | null>(
-    initialConversations[0]?.id || null
+    initialSelectedConversationId || initialConversations[0]?.id || null
   );
   const [selectedSeeker, setSelectedSeeker] = useState<EligibleSeeker | null>(null);
 
@@ -773,8 +775,13 @@ export function AstrologerChatClient({
             replyToMessageId: replyContext?.id,
             attachments: attachments,
           });
-        } catch (actionErr) {
-          // Fallback to standard HTTP route if Server Action tunnel drops or is intercepted by hosting proxy
+        } catch {
+          // Fallback to standard HTTP route if Server Action tunnel drops or throws
+          res = null;
+        }
+
+        // Invoke fallback route if Server Action threw or returned an unsuccessful result
+        if (!res?.success) {
           const apiFetch = await fetch("/api/chat/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -788,11 +795,14 @@ export function AstrologerChatClient({
               },
             }),
           });
-          res = await apiFetch.json().catch(() => null);
+          const apiRes = await apiFetch.json().catch(() => null);
+          if (apiRes) {
+            res = apiRes;
+          }
         }
 
-        if (!res.success || !res.data) {
-          setError(res.error || "Failed to deliver message");
+        if (!res?.success || !res?.data) {
+          setError(res?.error || "Failed to deliver message");
           setMessages((prev) =>
             prev.map((m) =>
               m.client_message_id === clientMsgId ? { ...m, status: "failed" } : m
@@ -1570,6 +1580,12 @@ export function AstrologerChatClient({
                       onDelete={handleDeleteMessage}
                       onReport={setReportingMsgId}
                       onOpenLightbox={setLightboxUrl}
+                      onRetry={(failedMsg) => {
+                        void handleSendMessage(
+                          failedMsg.message,
+                          failedMsg.attachments || []
+                        );
+                      }}
                     />
                   );
                 })

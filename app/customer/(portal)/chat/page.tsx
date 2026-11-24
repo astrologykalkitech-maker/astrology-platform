@@ -4,6 +4,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import {
   getCustomerConversationsAction,
   getEligibleAstrologersAction,
+  getOrCreateBookingConversationAction,
 } from "@/app/actions/direct-chat";
 import { CustomerChatClient } from "@/components/customer/chat/CustomerChatClient";
 
@@ -14,8 +15,22 @@ export const metadata: Metadata = {
   description: "Direct real-time consultation messaging with your verified Vedic astrologers.",
 };
 
-export default async function CustomerChatPage() {
+export default async function CustomerChatPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ bookingId?: string; conversationId?: string }>;
+}) {
   const { user } = await requireCustomerPage();
+  const sp = searchParams ? await searchParams : {};
+  let targetConversationId = sp.conversationId || null;
+
+  if (sp.bookingId && !targetConversationId) {
+    const convoRes = await getOrCreateBookingConversationAction(sp.bookingId);
+    if (convoRes.success && convoRes.conversationId) {
+      targetConversationId = convoRes.conversationId;
+    }
+  }
+
   const [convosRes, astrosRes] = await Promise.all([
     getCustomerConversationsAction(),
     getEligibleAstrologersAction(),
@@ -36,6 +51,7 @@ export default async function CustomerChatPage() {
         initialConversations={convosRes.data || []}
         initialAstrologers={astrosRes.data || []}
         currentUserId={user.id}
+        initialSelectedConversationId={targetConversationId}
       />
     </div>
   );

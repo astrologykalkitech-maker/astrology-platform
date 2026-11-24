@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, Clock, ShieldAlert } from "lucide-react";
 import { getOrCreateConsultationMeeting } from "@/app/actions/consultation-meeting";
 import { ConsultationRoomClient } from "@/components/consultation/ConsultationRoomClient";
@@ -16,6 +17,15 @@ export default async function ConsultationPage({
 }) {
   const { id } = await params;
   const res = await getOrCreateConsultationMeeting(id);
+
+  // If the booking's consultation mode is Chat, route to the dedicated chat interface
+  if (res.consultationMode?.toLowerCase() === "chat") {
+    if (res.isHost) {
+      redirect(`/astrologer/chat?bookingId=${id}`);
+    } else {
+      redirect(`/customer/chat?bookingId=${id}`);
+    }
+  }
 
   if (!res.success || !res.meeting || !res.tokenResult) {
     return (

@@ -361,6 +361,93 @@ export async function startConversationWithAstrologerAction(
   }
 }
 
+export async function getOrCreateBookingConversationAction(
+  bookingId: string
+): Promise<{ success: boolean; conversationId?: string; error?: string }> {
+  try {
+    const { user, profile } = await requireAuth();
+
+    if (!isValidUUID(bookingId)) {
+      return { success: false, error: "Invalid booking ID" };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: booking, error: bookingErr } = await admin
+      .from("customer_bookings")
+      .select("id, customer_id, astrologer_id, status, consultation_mode")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (bookingErr || !booking) {
+      return { success: false, error: "Booking not found" };
+    }
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isCustomer = booking.customer_id === user.id;
+    const isAstrologer = Boolean(astroProfile && booking.astrologer_id === astroProfile.id);
+
+    if (!isCustomer && !isAstrologer && profile.role !== "super_admin") {
+      return { success: false, error: "Unauthorized access to this booking consultation" };
+    }
+
+    // 1. Check for conversation explicitly linked to this booking_id
+    const { data: bookingConvo } = await admin
+      .from("conversations")
+      .select("id")
+      .eq("booking_id", bookingId)
+      .maybeSingle();
+
+    if (bookingConvo) {
+      return { success: true, conversationId: bookingConvo.id };
+    }
+
+    // 2. Check for conversation between this customer and astrologer
+    const { data: participantConvo } = await admin
+      .from("conversations")
+      .select("id, booking_id")
+      .eq("customer_id", booking.customer_id)
+      .eq("astrologer_id", booking.astrologer_id)
+      .maybeSingle();
+
+    if (participantConvo) {
+      // If conversation exists without a booking_id, attach this booking_id
+      if (!participantConvo.booking_id) {
+        await admin
+          .from("conversations")
+          .update({ booking_id: bookingId })
+          .eq("id", participantConvo.id);
+      }
+      return { success: true, conversationId: participantConvo.id };
+    }
+
+    // 3. Create new conversation explicitly tied to this booking
+    const { data: created, error: createErr } = await admin
+      .from("conversations")
+      .insert({
+        customer_id: booking.customer_id,
+        astrologer_id: booking.astrologer_id,
+        booking_id: bookingId,
+      })
+      .select("id")
+      .single();
+
+    if (createErr || !created) {
+      return { success: false, error: createErr?.message || "Failed to initialize booking chat" };
+    }
+
+    return { success: true, conversationId: created.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Error resolving booking conversation";
+    return { success: false, error: msg };
+  }
+}
+
 export async function getAstrologerConversationsAction(): Promise<{
   success: boolean;
   data?: ConversationSummary[];

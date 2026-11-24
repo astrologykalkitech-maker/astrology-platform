@@ -192,7 +192,7 @@ export async function getOrCreateConsultationMeeting(
     }
 
     if (!meeting) {
-      const opaqueRoomName = `karmicascension_${crypto.randomBytes(12).toString("hex")}`;
+      const opaqueRoomName = `karmicascension_consultation_${crypto.randomBytes(12).toString("hex")}`;
       const { data: newMeeting, error: createErr } = await admin
         .from("consultation_meetings")
         .insert({

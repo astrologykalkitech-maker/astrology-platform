@@ -373,31 +373,47 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
                       </button>
                     )}
 
-                    {isConfirmed && booking.consultation_mode !== "Chat" && (
+                    {isConfirmed && (
                       joinActive ? (
                         <Link
-                          href={`/consultation/${booking.id}`}
+                          href={
+                            booking.consultation_mode === "Chat"
+                              ? `/astrologer/chat?bookingId=${booking.id}`
+                              : `/consultation/${booking.id}`
+                          }
                           className="inline-flex items-center gap-1.5 rounded-xl bg-gold-deep text-midnight hover:bg-gold px-3.5 py-1.5 text-xs font-semibold shadow transition-colors"
                         >
-                          <Video className="h-3.5 w-3.5" />
+                          {booking.consultation_mode === "Video" ? (
+                            <Video className="h-3.5 w-3.5" />
+                          ) : booking.consultation_mode === "Call" ? (
+                            <PhoneCall className="h-3.5 w-3.5" />
+                          ) : (
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          )}
                           Join {booking.consultation_mode}
                         </Link>
                       ) : (
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
-                            Scheduled
-                          </span>
-                          <span className="text-[10px] text-muted">
-                            Join opens 15m before
-                          </span>
+                          {booking.consultation_mode === "Chat" ? (
+                            <Link
+                              href={`/astrologer/chat?bookingId=${booking.id}`}
+                              className="rounded-xl bg-gold/15 text-gold-deep hover:bg-gold/25 px-3 py-1 text-xs font-semibold transition-colors flex items-center gap-1"
+                            >
+                              <MessageSquare className="h-3 w-3" />
+                              <span>Open Chat</span>
+                            </Link>
+                          ) : (
+                            <>
+                              <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
+                                Scheduled
+                              </span>
+                              <span className="text-[10px] text-muted">
+                                Join opens 15m before
+                              </span>
+                            </>
+                          )}
                         </div>
                       )
-                    )}
-
-                    {isConfirmed && booking.consultation_mode === "Chat" && (
-                      <span className="rounded-xl bg-gold/15 text-gold-deep px-3 py-1 text-xs font-semibold">
-                        Chat Consultation
-                      </span>
                     )}
                   </div>
                 </div>
