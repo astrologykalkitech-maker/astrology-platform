@@ -218,6 +218,9 @@ export async function updateSession(
   // Centralized Route Protection Strategy
   const pathname = request.nextUrl.pathname;
 
+  // Add x-pathname header for server components / layouts
+  supabaseResponse.headers.set("x-pathname", pathname);
+
   // 1. Customer Protected Routes
   const isCustomerAuthPage =
     pathname === "/customer/login" ||
@@ -257,7 +260,9 @@ export async function updateSession(
   }
 
   // 3. Super Admin & Admin Protected Routes
-  if (pathname.startsWith("/super-admin") || pathname.startsWith("/admin")) {
+  const isSuperAdminAuthPage = pathname === "/super-admin/login";
+
+  if ((pathname.startsWith("/super-admin") && !isSuperAdminAuthPage) || pathname.startsWith("/admin")) {
     if (!user && !adminUser) {
       const redirectUrl = new URL("/customer/login", request.url);
       redirectUrl.searchParams.set("reason", "admin_required");

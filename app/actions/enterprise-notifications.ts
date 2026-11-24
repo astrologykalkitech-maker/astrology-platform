@@ -116,11 +116,11 @@ export async function dispatchBulkMultiChannelNotification({
   error?: string;
 }> {
   try {
-    await requireSuperAdmin();
-
     if (!recipientUserIds || recipientUserIds.length === 0) {
       return { success: false, totalRecipients: 0, totalDeliveries: 0, error: "No recipients selected." };
     }
+
+    await requireSuperAdmin();
 
     const uniqueUserIds = [...new Set(recipientUserIds.filter(Boolean))];
     let totalCount = 0;

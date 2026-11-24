@@ -14,6 +14,9 @@ export async function POST(req: NextRequest) {
     if (!refundRequestId || !decision) {
       return NextResponse.json({ error: "Missing required parameters: refundRequestId, decision" }, { status: 400 });
     }
+    if (decision !== "approve" && decision !== "reject") {
+      return NextResponse.json({ error: "Invalid decision: must be 'approve' or 'reject'" }, { status: 400 });
+    }
 
     const supabase = await createAdminClient("main");
 
@@ -56,9 +59,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, status: "rejected" });
     }
 
-    // Approve: Call Instamojo API
+    // Approve: Atomically claim the refund request before calling Instamojo API
+    const { data: claimed, error: claimErr } = await supabase
+      .from("refund_requests")
+      .update({
+        status: "processing",
+        reviewed_by: admin.user.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", request.id)
+      .eq("status", "requested")
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr || !claimed) {
+      return NextResponse.json(
+        { error: "Refund request was already claimed or processed by another request." },
+        { status: 409 }
+      );
+    }
+
     const paymentData = Array.isArray(request.payment) ? request.payment[0] : request.payment;
     if (!paymentData?.payment_id) {
+      await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
       return NextResponse.json({ error: "Payment ID missing for refund" }, { status: 400 });
     }
 
@@ -70,13 +93,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (!mojoRefund.success || !mojoRefund.data) {
+      await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
       return NextResponse.json(
         { error: mojoRefund.error || "Failed to process refund with Instamojo API" },
         { status: 502 }
       );
     }
 
-    await supabase
+    const { error: updateErr } = await supabase
       .from("refund_requests")
       .update({
         status: "processed",
@@ -87,8 +111,15 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", request.id);
 
+    if (updateErr) {
+      return NextResponse.json(
+        { error: `Gateway refund succeeded (${mojoRefund.data.id}) but database update failed: ${updateErr.message}` },
+        { status: 500 }
+      );
+    }
+
     // Double-entry ledger entry
-    await createDoubleEntryJournal({
+    const journalRes = await createDoubleEntryJournal({
       referenceType: "refund",
       referenceId: request.id,
       description: `Refund approved for Payment ${paymentData.payment_id}`,

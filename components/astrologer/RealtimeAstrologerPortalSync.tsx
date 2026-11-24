@@ -156,6 +156,39 @@ export function RealtimeAstrologerPortalSync() {
             triggerRefresh();
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "astrologer_payouts",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "astrologer_wallet_transactions",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "commission_settlements",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
         .subscribe();
 
       // 3. Tab visibility listener: re-syncs if user was away for over 60 seconds

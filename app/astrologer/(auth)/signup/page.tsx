@@ -4,7 +4,7 @@ import { AuthShell } from "@/components/astrologer/auth/AuthShell";
 import { UnifiedAuthFlow } from "@/components/auth/UnifiedAuthFlow";
 import { getCurrentProfile } from "@/lib/auth/session";
 
-export const metadata: Metadata = { title: "Astrologer Account Access" };
+export const metadata: Metadata = { title: "Astrologer Practitioner Registration" };
 
 export default async function AstrologerSignupPage() {
   const profile = await getCurrentProfile();
@@ -14,7 +14,7 @@ export default async function AstrologerSignupPage() {
 
   return (
     <AuthShell mode="signup" role="astrologer">
-      <UnifiedAuthFlow initialRole="astrologer" initialStep="AUTHENTICATION" />
+      <UnifiedAuthFlow initialRole="astrologer" initialStep="ASTROLOGER_REGISTRATION" />
     </AuthShell>
   );
 }

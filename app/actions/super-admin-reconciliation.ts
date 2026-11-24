@@ -16,11 +16,19 @@ export async function getSuperAdminReconciliations() {
       .order("run_date", { ascending: false })
       .limit(30);
 
+    if (runsErr) {
+      return { success: false, error: runsErr.message, data: { runs: [], orders: [] } };
+    }
+
     const { data: orders, error: ordersErr } = await admin
       .from("payment_orders")
       .select("*, customer:profiles(full_name, email), payments(*)")
       .order("created_at", { ascending: false })
       .limit(100);
+
+    if (ordersErr) {
+      return { success: false, error: ordersErr.message, data: { runs: [], orders: [] } };
+    }
 
     return {
       success: true,

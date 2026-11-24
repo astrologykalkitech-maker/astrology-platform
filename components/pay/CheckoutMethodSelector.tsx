@@ -73,7 +73,7 @@ export function UnifiedCheckoutModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          entityType: "consultation",
+          purposeType: "consultation",
           entityId: booking.id,
           amount: booking.price,
           purpose: `Consultation: ${booking.service_type}`,
@@ -81,8 +81,9 @@ export function UnifiedCheckoutModal({
       });
 
       const data = await res.json();
-      if (res.ok && data.longurl) {
-        window.location.href = data.longurl;
+      const redirectUrl = data.checkoutUrl || data.longurl;
+      if (res.ok && redirectUrl) {
+        window.location.href = redirectUrl;
       } else {
         setInstamojoError(data.error || "Unable to initiate payment with Instamojo gateway.");
       }

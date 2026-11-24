@@ -22,7 +22,21 @@ set search_path = public
 as $$
 declare
   v_new_record public.astrologer_payout_beneficiaries;
+  v_is_service boolean := (auth.role() = 'service_role');
+  v_verification_status text := case when v_is_service and p_verified_by is not null then 'verified' else 'pending_verification' end;
+  v_verified_at timestamptz := case when v_is_service and p_verified_by is not null then now() else null end;
+  v_verified_by uuid := case when v_is_service then p_verified_by else null end;
 begin
+  -- 0. Security: Enforce caller ownership when invoked by an authenticated user
+  if auth.role() = 'authenticated' then
+    if not exists (
+      select 1 from public.astrologer_profiles
+      where id = p_astrologer_id and user_id = auth.uid()
+    ) then
+      raise exception 'FORBIDDEN: You can only update your own payout beneficiary.' using errcode = '42501';
+    end if;
+  end if;
+
   -- 1. Explicitly acquire advisory or row-level lock on astrologer
   perform 1
   from public.astrologer_profiles
@@ -67,9 +81,9 @@ begin
     p_beneficiary_name,
     p_masked_account_number,
     true,
-    'verified',
-    now(),
-    p_verified_by
+    v_verification_status,
+    v_verified_at,
+    v_verified_by
   )
   returning * into v_new_record;
 
@@ -78,4 +92,4 @@ end;
 $$;
 
 revoke all on function public.swap_astrologer_payout_beneficiary_atomic from public;
-grant execute on function public.swap_astrologer_payout_beneficiary_atomic to authenticated;
+grant execute on function public.swap_astrologer_payout_beneficiary_atomic to authenticated, service_role;

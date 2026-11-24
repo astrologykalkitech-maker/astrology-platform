@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createInAppNotification } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { requireAstrologer } from "@/lib/auth/session";
@@ -374,7 +375,22 @@ export async function requestCustomerRefundAction(payload: {
       return { success: false, error: error.message };
     }
 
+    // In-app notification to customer confirming receipt of refund request
+    try {
+      await createInAppNotification({
+        recipientUserId: user.id,
+        title: "Refund Request Submitted",
+        message: `Your refund request for payment (${(payment.amount_paise / 100).toFixed(2)} INR) has been registered and is under review.`,
+        linkUrl: "/customer/billing",
+        eventType: "refund_requested",
+        metadata: { payment_id: payment.id, reason: payload.reason },
+      });
+    } catch {
+      // Non-blocking notification
+    }
+
     revalidatePath("/customer/billing");
+    revalidatePath("/super-admin/financials");
     return { success: true, data: true };
   } catch (err) {
     return {
@@ -515,6 +531,21 @@ export async function payConsultationViaWalletAction({
     revalidatePath("/customer");
     revalidatePath("/astrologer/dashboard");
     revalidatePath("/astrologer/earnings");
+
+    // Send in-app notification to customer and astrologer
+    try {
+      const priceRupees = (Number(data.remaining_available_paise) >= 0 && Number(data.order_number)) ? "consultation" : "fee";
+      await createInAppNotification({
+        recipientUserId: user.id,
+        title: "Consultation Paid via Wallet",
+        message: `Your booking has been confirmed using your customer wallet balance.`,
+        linkUrl: "/customer/bookings",
+        eventType: "wallet_payment_success",
+        metadata: { booking_id: bookingId, order_number: data.order_number },
+      });
+    } catch {
+      // Non-blocking notification
+    }
 
     return {
       success: true,

@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { createInstamojoRefund } from "@/lib/financial/instamojo";
 import { createDoubleEntryJournal } from "@/lib/financial/ledger";
+import { createInAppNotification } from "@/lib/notifications";
 import { ACCOUNT_CODES } from "@/lib/financial/types";
 import { generateSettlementNumber } from "@/lib/financial/pricing";
 import type { AuthResult } from "@/lib/types/auth.types";
@@ -256,6 +257,20 @@ export async function processRefundDecisionAction(payload: {
         })
         .eq("id", request.id);
 
+      // In-app notification to customer
+      try {
+        await createInAppNotification({
+          recipientUserId: request.customer_id,
+          title: "Refund Request Declined",
+          message: `Your refund request was declined: ${payload.rejectionReason || "Declined by platform administration"}`,
+          linkUrl: "/customer/billing",
+          eventType: "refund_rejected",
+          metadata: { refund_request_id: request.id },
+        });
+      } catch {
+        // Non-blocking notification
+      }
+
       revalidatePath("/super-admin/financials");
       return { success: true, data: true };
     }
@@ -300,6 +315,20 @@ export async function processRefundDecisionAction(payload: {
         success: false,
         error: atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.",
       };
+    }
+
+    // In-app notification to customer on approved refund
+    try {
+      await createInAppNotification({
+        recipientUserId: request.customer_id,
+        title: "Refund Approved & Processed",
+        message: `Your refund request has been approved and processed successfully back to your original source.`,
+        linkUrl: "/customer/billing",
+        eventType: "refund_approved",
+        metadata: { refund_request_id: request.id },
+      });
+    } catch {
+      // Non-blocking notification
     }
 
     revalidatePath("/super-admin/financials");

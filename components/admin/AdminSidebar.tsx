@@ -71,6 +71,7 @@ function AdminSidebarComponent({
       items: [
         { href: "/super-admin/listings", label: "Astrologer Listings", icon: Users2 },
         { href: "/super-admin/verification", label: "Astrologer Verification & Stages", icon: Shield },
+        { href: "/super-admin/credentials", label: "Credential Verification", icon: Award },
         { href: "/super-admin/listings/ranking", label: "Ranking & Featured", icon: Award },
         { href: "/super-admin/reviews", label: "Review Moderation", icon: Star },
         { href: "/super-admin/customers", label: "Customer Directory", icon: Users },

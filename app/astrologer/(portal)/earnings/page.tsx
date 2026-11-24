@@ -6,6 +6,7 @@ import { getAstrologerEarningsAction } from "@/app/actions/astrologer-portal";
 import { getConsultantCommissionStatement } from "@/lib/financial/commission-engine";
 import { AstrologerCommissionBalanceClient } from "@/components/astrologer/AstrologerCommissionBalanceClient";
 import { AstrologerOperatingWalletCard } from "@/components/astrologer/AstrologerOperatingWalletCard";
+import { AstrologerWithdrawalCard } from "@/components/astrologer/AstrologerWithdrawalCard";
 import { CardTitle } from "@/components/astrologer/ui/CardTitle";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 
@@ -70,6 +71,9 @@ export default async function AstrologerEarningsPage() {
 
       {/* Astrologer Operating Recharge Wallet */}
       <AstrologerOperatingWalletCard />
+
+      {/* Astrologer Earnings Withdrawal & Payouts */}
+      <AstrologerWithdrawalCard />
 
       {summary ? (
         <>

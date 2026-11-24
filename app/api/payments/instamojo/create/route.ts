@@ -66,23 +66,31 @@ export async function POST(req: NextRequest) {
 
       const orderNumber = generateOrderNumber();
 
-      // 3. Create pending subscription record
-      const { data: subRecord, error: subErr } = await supabase
+      // 3. Preserve any existing active subscription; only create a pending record if none exists
+      const { data: existingSub } = await supabase
         .from("astrologer_subscriptions")
-        .upsert(
-          {
+        .select("id, status")
+        .eq("astrologer_id", profile.id)
+        .maybeSingle();
+
+      let subscriptionEntityId = existingSub?.id ?? null;
+
+      if (!subscriptionEntityId) {
+        const { data: subRecord, error: subErr } = await supabase
+          .from("astrologer_subscriptions")
+          .insert({
             astrologer_id: profile.id,
             plan_id: plan.id,
             status: "past_due", // Will ONLY become active after verified webhook/callback!
             auto_renew: false,
-          },
-          { onConflict: "astrologer_id" }
-        )
-        .select("id")
-        .single();
+          })
+          .select("id")
+          .single();
 
-      if (subErr || !subRecord) {
-        return NextResponse.json({ error: "Failed to initialize subscription" }, { status: 500 });
+        if (subErr || !subRecord) {
+          return NextResponse.json({ error: "Failed to initialize subscription" }, { status: 500 });
+        }
+        subscriptionEntityId = subRecord.id;
       }
 
       // 4. Create internal payment order
@@ -91,12 +99,13 @@ export async function POST(req: NextRequest) {
         .insert({
           order_number: orderNumber,
           entity_type: "subscription",
-          entity_id: subRecord.id,
+          entity_id: subscriptionEntityId,
           astrologer_id: profile.id,
           amount_paise: plan.price_paise,
           currency: "INR",
           status: "created",
           metadata: {
+            target_plan_id: plan.id,
             plan_name: plan.name,
             astrologer_name: profile.display_name,
             email: user.email,
