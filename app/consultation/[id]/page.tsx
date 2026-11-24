@@ -19,7 +19,8 @@ export default async function ConsultationPage({
   const res = await getOrCreateConsultationMeeting(id);
 
   // If the booking's consultation mode is Chat, route to the dedicated chat interface
-  if (res.consultationMode?.toLowerCase() === "chat") {
+  const normalizedMode = (res.consultationMode || "").trim().toLowerCase();
+  if (normalizedMode === "chat") {
     if (res.isHost) {
       redirect(`/astrologer/chat?bookingId=${id}`);
     } else {

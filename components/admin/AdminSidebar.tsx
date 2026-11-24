@@ -24,6 +24,7 @@ import {
   Star,
   Radio,
   Bell,
+  Video,
 } from "lucide-react";
 import type { AdminPermissionKey } from "@/lib/types/database.types";
 
@@ -93,6 +94,7 @@ function AdminSidebarComponent({
         { href: "/super-admin/leads", label: "Central Lead Pipeline", icon: Inbox },
         { href: "/super-admin/leads/distribution", label: "Lead Distribution", icon: GitBranch },
         { href: "/super-admin/bookings", label: "Consultation Bookings", icon: CalendarCheck2 },
+        { href: "/super-admin/consultations", label: "Consultation Control Center", icon: Video },
         { href: "/super-admin/puja-bookings", label: "Puja Ceremonies", icon: CalendarCheck2 },
         { href: "/super-admin/pujas", label: "Puja Catalogue", icon: Sparkles },
         { href: "/super-admin/broadcasts", label: "Live Broadcast Monitor", icon: Radio },
@@ -182,17 +184,15 @@ function AdminSidebarComponent({
                       href={item.href}
                       prefetch={true}
                       onClick={() => onClose?.()}
-                      className={`group flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all ${
-                        isActive
-                          ? "bg-gradient-to-r from-gold/25 via-gold/15 to-transparent border-l-2 border-gold text-champagne font-semibold shadow-sm"
-                          : "text-ivory/70 hover:bg-white/5 hover:text-white"
-                      }`}
+                      className={`group flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all ${isActive
+                        ? "bg-gradient-to-r from-gold/25 via-gold/15 to-transparent border-l-2 border-gold text-champagne font-semibold shadow-sm"
+                        : "text-ivory/70 hover:bg-white/5 hover:text-white"
+                        }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <Icon
-                          className={`h-4 w-4 shrink-0 transition-colors ${
-                            isActive ? "text-champagne" : "text-ivory/45 group-hover:text-gold"
-                          }`}
+                          className={`h-4 w-4 shrink-0 transition-colors ${isActive ? "text-champagne" : "text-ivory/45 group-hover:text-gold"
+                            }`}
                         />
                         <span className="truncate">{item.label}</span>
                       </div>
@@ -223,16 +223,14 @@ function AdminSidebarComponent({
                     href={item.href}
                     prefetch={true}
                     onClick={() => onClose?.()}
-                    className={`group flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all ${
-                      isActive
-                        ? "bg-gradient-to-r from-gold/25 via-gold/15 to-transparent border-l-2 border-gold text-champagne font-semibold"
-                        : "text-ivory/70 hover:bg-white/5 hover:text-white"
-                    }`}
+                    className={`group flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all ${isActive
+                      ? "bg-gradient-to-r from-gold/25 via-gold/15 to-transparent border-l-2 border-gold text-champagne font-semibold"
+                      : "text-ivory/70 hover:bg-white/5 hover:text-white"
+                      }`}
                   >
                     <Icon
-                      className={`h-4 w-4 shrink-0 transition-colors ${
-                        isActive ? "text-champagne" : "text-ivory/45 group-hover:text-gold"
-                      }`}
+                      className={`h-4 w-4 shrink-0 transition-colors ${isActive ? "text-champagne" : "text-ivory/45 group-hover:text-gold"
+                        }`}
                     />
                     <span className="truncate">{item.label}</span>
                   </Link>
@@ -267,9 +265,8 @@ function AdminSidebarComponent({
 
       {/* Mobile Slide-Over Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform bg-midnight shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] transform bg-midnight shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${open ? "translate-x-0" : "-translate-x-full"
+          }`}
         aria-hidden={!open}
       >
         {sidebarContent}

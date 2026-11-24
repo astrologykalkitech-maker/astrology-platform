@@ -996,7 +996,7 @@ export function ConsultationRoomClient({
         <div className="max-w-4xl mx-auto w-full my-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 flex flex-col items-center">
             <div className="relative w-full aspect-video bg-midnight/90 rounded-2xl border-2 border-gold/40 shadow-2xl overflow-hidden flex items-center justify-center">
-              {isVideoOn && consultationMode !== "Call" && cameraStatus === "ready" ? (
+              {isVideoOn && !isAudioOnlyMode && cameraStatus === "ready" ? (
                 <video
                   ref={(el) => {
                     localPreviewVideoRef.current = el;
@@ -1017,7 +1017,14 @@ export function ConsultationRoomClient({
                   <div className="h-20 w-20 rounded-full bg-gold/20 flex items-center justify-center text-2xl font-bold text-gold border border-gold/40 mb-3">
                     {partnerName.slice(0, 2).toUpperCase()}
                   </div>
-                  {cameraStatus === "requesting" ? (
+                  {isAudioOnlyMode ? (
+                    <>
+                      <p className="text-sm font-semibold text-white">Audio Consultation Ready</p>
+                      <p className="text-xs text-parchment/70 mt-1">
+                        High-definition voice call channel with {partnerName}. Camera is disabled for voice calls.
+                      </p>
+                    </>
+                  ) : cameraStatus === "requesting" ? (
                     <div className="flex items-center gap-2 text-gold-light text-xs">
                       <Loader2 className="h-4 w-4 animate-spin text-gold" />
                       <span>Requesting camera access…</span>
@@ -1078,7 +1085,7 @@ export function ConsultationRoomClient({
                   {isMicOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4 text-white" />}
                 </button>
 
-                {consultationMode !== "Call" && (
+                {!isAudioOnlyMode && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1176,7 +1183,7 @@ export function ConsultationRoomClient({
                 </select>
               </div>
 
-              {consultationMode !== "Call" && (
+              {!isAudioOnlyMode && (
                 <div>
                   <label className="text-[11px] font-semibold text-parchment/90 block mb-1">Camera</label>
                   <select

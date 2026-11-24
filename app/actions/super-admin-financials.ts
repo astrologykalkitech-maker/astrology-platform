@@ -40,6 +40,21 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       verified_at: string;
       entity_type: string;
     }>;
+    refundRequests: Array<{
+      id: string;
+      payment_id: string;
+      order_id: string;
+      customer_id: string;
+      customer_name: string;
+      amount_paise: number;
+      reason: string;
+      status: string;
+      instamojo_refund_id: string | null;
+      rejection_reason: string | null;
+      created_at: string;
+      reviewed_at: string | null;
+      payment_receipt_number?: string | null;
+    }>;
   }>
 > {
   try {
@@ -71,6 +86,27 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       .order("verified_at", { ascending: false })
       .limit(20);
 
+    // Fetch all refund requests with customer profile
+    const { data: refunds } = await supabase
+      .from("refund_requests")
+      .select(`
+        id,
+        payment_id,
+        order_id,
+        customer_id,
+        amount_paise,
+        reason,
+        status,
+        instamojo_refund_id,
+        rejection_reason,
+        created_at,
+        reviewed_at,
+        customer:profiles!refund_requests_customer_id_fkey(full_name),
+        payment:payments!refund_requests_payment_id_fkey(receipt_number)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
     interface PaymentRow {
       id: string;
       receipt_number: string;
@@ -96,6 +132,26 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       };
     });
 
+    const formattedRefunds = ((refunds || []) as any[]).map((r) => {
+      const customerData = Array.isArray(r.customer) ? r.customer[0] : r.customer;
+      const paymentData = Array.isArray(r.payment) ? r.payment[0] : r.payment;
+      return {
+        id: r.id,
+        payment_id: r.payment_id,
+        order_id: r.order_id,
+        customer_id: r.customer_id,
+        customer_name: customerData?.full_name || "Customer",
+        amount_paise: r.amount_paise,
+        reason: r.reason,
+        status: r.status,
+        instamojo_refund_id: r.instamojo_refund_id,
+        rejection_reason: r.rejection_reason,
+        created_at: r.created_at,
+        reviewed_at: r.reviewed_at,
+        payment_receipt_number: paymentData?.receipt_number || null,
+      };
+    });
+
     return {
       success: true,
       data: {
@@ -105,6 +161,7 @@ export async function getSuperAdminFinancialMetrics(): Promise<
         astrologerPayableLiabilityPaise: accMap.get(ACCOUNT_CODES.ASTROLOGER_PAYABLE) || 0,
         accounts: accList,
         recentPayments: formattedPayments,
+        refundRequests: formattedRefunds,
       },
     };
   } catch (err) {

@@ -24,6 +24,7 @@ export default async function SuperAdminFinancialsPage() {
           astrologerPayableLiabilityPaise: 0,
           accounts: [],
           recentPayments: [],
+          refundRequests: [],
         };
 
   return (
