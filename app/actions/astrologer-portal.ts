@@ -212,6 +212,86 @@ export async function updateAstrologerBookingStatusAction(params: {
       });
 
       if (!atomicRes.error && atomicRes.data) {
+        // Auto-deduct wallet for Chat/Call consultations (post-completion billing)
+        // Video requires upfront payment — wallet deduction not applicable here.
+        const isWalletPostBilling =
+          (beforeBooking.consultation_mode === "Chat" ||
+            beforeBooking.consultation_mode === "Call") &&
+          Number(beforeBooking.price) > 0 &&
+          beforeBooking.direct_payment_status !== "paid" &&
+          beforeBooking.direct_payment_status !== "confirmed";
+
+        if (isWalletPostBilling) {
+          try {
+            const { data: walletPayData, error: walletDebitErr } = await admin.rpc(
+              "pay_consultation_via_wallet_atomic",
+              {
+                p_customer_id: beforeBooking.customer_id,
+                p_booking_id: beforeBooking.id,
+              }
+            );
+
+            if (walletDebitErr || !walletPayData?.success) {
+              console.warn(
+                "[updateAstrologerBookingStatusAction] Post-completion wallet debit notice:",
+                walletDebitErr?.message || walletPayData?.error || "Insufficient balance or already debited"
+              );
+            } else {
+              // Credit astrologer's operating wallet (idempotent)
+              try {
+                const { creditAstrologerOperatingWallet } = await import(
+                  "@/lib/financial/astrologer-wallet-engine"
+                );
+                const amountPaise =
+                  walletPayData.amount_paise || Math.round(Number(beforeBooking.price) * 100);
+                if (amountPaise > 0) {
+                  await creditAstrologerOperatingWallet({
+                    astrologerId: profile.id,
+                    amountPaise,
+                    creditType: "RECHARGE",
+                    idempotencyKey: `wallet_pay_astro_credit_${beforeBooking.id}`,
+                    description: `Post-consultation fee via Customer Wallet for booking #${beforeBooking.id}`,
+                    metadata: {
+                      booking_id: beforeBooking.id,
+                      customer_id: beforeBooking.customer_id,
+                      order_number: walletPayData.order_number,
+                      receipt_number: walletPayData.receipt_number,
+                      trigger: "completion_auto_debit",
+                    },
+                  });
+                }
+              } catch (creditErr) {
+                console.warn(
+                  "[updateAstrologerBookingStatusAction] Astrologer wallet credit notice:",
+                  creditErr
+                );
+              }
+
+              // Notify customer about automatic wallet deduction
+              const { error: notifErr } = await admin.from("customer_notifications").insert({
+                customer_id: beforeBooking.customer_id,
+                title: "Consultation Fee Deducted",
+                message: `₹${Number(beforeBooking.price).toFixed(2)} has been deducted from your wallet for the completed ${beforeBooking.consultation_mode} consultation.`,
+                link_url: "/customer/bookings",
+                event_type: "booking_wallet_deducted",
+                is_read: false,
+                created_at: new Date().toISOString(),
+              });
+              if (notifErr) {
+                console.warn(
+                  "[updateAstrologerBookingStatusAction] deduction notification failed:",
+                  notifErr.message
+                );
+              }
+            }
+          } catch (walletAutoErr) {
+            console.warn(
+              "[updateAstrologerBookingStatusAction] Post-completion auto wallet debit error:",
+              walletAutoErr
+            );
+          }
+        }
+
         // Reconcile financial general ledgers
         try {
           const { reconcileCompletedConsultationLedgers } = await import("@/lib/financial/ledger");
@@ -228,6 +308,7 @@ export async function updateAstrologerBookingStatusAction(params: {
         revalidatePath("/astrologer/earnings");
         revalidatePath("/customer/bookings");
         revalidatePath("/customer");
+        revalidatePath("/customer/wallet");
         revalidatePath("/super-admin/bookings", "page");
         revalidatePath("/super-admin", "page");
 

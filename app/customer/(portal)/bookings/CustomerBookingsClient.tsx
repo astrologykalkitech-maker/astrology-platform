@@ -19,6 +19,8 @@ import {
   MessageSquare,
   ShieldAlert,
   CheckCircle2,
+  Wallet,
+  Info,
 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
@@ -29,6 +31,33 @@ import { formatExactDateTime } from "@/lib/astrologer/format";
 
 const CARD =
   "relative overflow-hidden rounded-2xl border border-gold/25 bg-white shadow-[0_14px_30px_-22px_rgba(60,35,90,0.5)] before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-gold/70 before:to-transparent";
+
+/** Returns true if this booking is already paid */
+function isBookingPaid(booking: CustomerBooking): boolean {
+  return (
+    booking.direct_payment_status === "paid" ||
+    booking.direct_payment_status === "confirmed" ||
+    booking.direct_payment?.status === "verified" ||
+    booking.payment_status === "paid"
+  );
+}
+
+/** Returns true if this booking uses post-completion billing (Chat/Call) */
+function isPostBillingMode(booking: CustomerBooking): boolean {
+  return (
+    (booking.consultation_mode === "Chat" || booking.consultation_mode === "Call") &&
+    !isBookingPaid(booking)
+  );
+}
+
+/** Returns true if payment is pending and customer can pay now (before or early) */
+function canPayNow(booking: CustomerBooking): boolean {
+  return (
+    Number(booking.price) > 0 &&
+    !isBookingPaid(booking) &&
+    booking.status !== "cancelled"
+  );
+}
 
 interface Props {
   initialBookings?: CustomerBooking[];
@@ -271,13 +300,28 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                   </div>
 
                   {/* Mobile actions row: Join + Cancel */}
-                  <div className="flex items-center justify-between pt-1 gap-2">
+                  <div className="flex flex-wrap items-center justify-between pt-1 gap-2">
                     {/* Completed indicator */}
                     {isCompleted && (
                       <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-emerald/10 text-emerald-700">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         <span>Completed</span>
                       </span>
+                    )}
+
+                    {/* Paid / Pay-after-consultation choice indicator */}
+                    {!isCancelled && Number(booking.price) > 0 && (
+                      isBookingPaid(booking) ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Paid
+                        </span>
+                      ) : isPostBillingMode(booking) ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700">
+                          <Info className="h-3 w-3" />
+                          Pay after consultation (or pay now)
+                        </span>
+                      ) : null
                     )}
 
                     {/* Join button in mobile card view (Mode-Aware Routing) */}
@@ -321,13 +365,14 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                       <span className="font-mono text-[10px] text-muted truncate max-w-[100px]">
                         {booking.id.slice(0, 8)}
                       </span>
-                      {booking.status === "pending" && Number(booking.price) > 0 && (
+                      {canPayNow(booking) && (
                         <button
                           type="button"
                           onClick={() => setActiveCheckoutBooking(booking)}
                           className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-sm hover:opacity-95 transition-opacity"
                         >
-                          Pay Now
+                          <Wallet className="h-3 w-3" />
+                          {isPostBillingMode(booking) ? "Pay Now (Wallet / UPI)" : "Pay Now"}
                         </button>
                       )}
                       {!isCancelled && !isCompleted && (
@@ -419,12 +464,29 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                         </span>
                       </td>
                       <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           {isCompleted && (
                             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald/10 text-emerald-700">
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               <span>Completed</span>
                             </span>
+                          )}
+
+                          {!isCancelled && Number(booking.price) > 0 && (
+                            isBookingPaid(booking) ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Paid
+                              </span>
+                            ) : isPostBillingMode(booking) ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700"
+                                title="Deducted automatically from your wallet after consultation ends, or pay early via Wallet / UPI"
+                              >
+                                <Info className="h-3 w-3" />
+                                Pay After
+                              </span>
+                            ) : null
                           )}
 
                           {isConfirmed && (
@@ -464,13 +526,14 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                             )
                           )}
 
-                          {booking.status === "pending" && Number(booking.price) > 0 && (
+                          {canPayNow(booking) && (
                             <button
                               type="button"
                               onClick={() => setActiveCheckoutBooking(booking)}
                               className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-sm hover:opacity-95 transition-opacity"
                             >
-                              Pay Now
+                              <Wallet className="h-3 w-3" />
+                              {isPostBillingMode(booking) ? "Pay Now (Wallet / UPI)" : "Pay Now"}
                             </button>
                           )}
 

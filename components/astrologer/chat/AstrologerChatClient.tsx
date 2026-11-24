@@ -435,7 +435,14 @@ export function AstrologerChatClient({
     }
   };
 
+  const typingResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
+    setIsSeekerTyping(false);
+    if (typingResetTimerRef.current) {
+      clearTimeout(typingResetTimerRef.current);
+      typingResetTimerRef.current = null;
+    }
     if (selectedConvoId) {
       void loadMessages(selectedConvoId);
     }
@@ -464,7 +471,17 @@ export function AstrologerChatClient({
         data.conversationId === selectedConvoIdRef.current &&
         data.role === "customer"
       ) {
+        if (typingResetTimerRef.current) {
+          clearTimeout(typingResetTimerRef.current);
+          typingResetTimerRef.current = null;
+        }
         setIsSeekerTyping(data.isTyping);
+        if (data.isTyping) {
+          typingResetTimerRef.current = setTimeout(() => {
+            setIsSeekerTyping(false);
+            typingResetTimerRef.current = null;
+          }, 3500);
+        }
       }
     });
 
@@ -1414,7 +1431,7 @@ export function AstrologerChatClient({
                     )}
                     {isSeekerTyping && (
                       <span className="text-gold-deep font-semibold italic ml-2 animate-pulse">
-                        Seeker is typing…
+                        Customer is typing…
                       </span>
                     )}
                   </p>
@@ -1589,6 +1606,18 @@ export function AstrologerChatClient({
                     />
                   );
                 })
+              )}
+              {isSeekerTyping && (
+                <div className="flex items-center gap-2 px-1 py-1.5 animate-in fade-in duration-150">
+                  <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-sm border border-gold/25 bg-parchment/70 px-3.5 py-2 text-xs text-midnight shadow-xs">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:300ms]" />
+                    </span>
+                    <span className="font-medium text-gold-deep">Customer is typing…</span>
+                  </div>
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>

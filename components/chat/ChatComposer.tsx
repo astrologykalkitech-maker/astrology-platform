@@ -47,6 +47,17 @@ export const ChatComposer = memo(function ChatComposer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingSentAtRef = useRef<number>(0);
+
+  // Clean up pending typing timer on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        onTyping(false);
+      }
+    };
+  }, [onTyping]);
 
   // Sync edit mode text
   useEffect(() => {
@@ -69,12 +80,23 @@ export const ChatComposer = memo(function ChatComposer({
     const val = e.target.value;
     setText(val);
 
-    // Debounced typing indicator (does not trigger parent re-renders)
-    onTyping(true);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
+    // Throttled typing indicator (at most once per 900ms, auto-clears 1500ms after last keystroke)
+    const now = Date.now();
+    if (val.trim().length > 0) {
+      if (now - lastTypingSentAtRef.current >= 900) {
+        lastTypingSentAtRef.current = now;
+        onTyping(true);
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        lastTypingSentAtRef.current = 0;
+        onTyping(false);
+      }, 1500);
+    } else {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      lastTypingSentAtRef.current = 0;
       onTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -90,6 +112,7 @@ export const ChatComposer = memo(function ChatComposer({
     if ((!trimmed && pendingAttachments.length === 0) || isSending || disabled) return;
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    lastTypingSentAtRef.current = 0;
     onTyping(false);
 
     const attachmentsToSend = [...pendingAttachments];

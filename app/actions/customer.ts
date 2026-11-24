@@ -689,6 +689,7 @@ export async function getCustomerBookings(): Promise<
         status,
         price,
         payment_mode,
+        direct_payment_status,
         notes,
         cancellation_reason,
         cancelled_at,
@@ -761,6 +762,7 @@ export async function getCustomerBookings(): Promise<
       status: b.status as BookingStatus,
       price: Number(b.price),
       payment_mode: b.payment_mode,
+      direct_payment_status: b.direct_payment_status,
       direct_payment: directPayments.get(b.id) || null,
       notes: b.notes,
       cancellation_reason: b.cancellation_reason,
@@ -2040,4 +2042,3 @@ export async function getCustomerBillingHistory(): Promise<
     };
   }
 }
-

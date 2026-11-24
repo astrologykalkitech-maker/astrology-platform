@@ -373,7 +373,14 @@ export function CustomerChatClient({
     }
   };
 
+  const typingResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
+    setIsAstrologerTyping(false);
+    if (typingResetTimerRef.current) {
+      clearTimeout(typingResetTimerRef.current);
+      typingResetTimerRef.current = null;
+    }
     if (selectedConvoId) {
       void loadMessages(selectedConvoId);
     }
@@ -412,7 +419,17 @@ export function CustomerChatClient({
         data.conversationId === selectedConvoIdRef.current &&
         data.role === "astrologer"
       ) {
+        if (typingResetTimerRef.current) {
+          clearTimeout(typingResetTimerRef.current);
+          typingResetTimerRef.current = null;
+        }
         setIsAstrologerTyping(data.isTyping);
+        if (data.isTyping) {
+          typingResetTimerRef.current = setTimeout(() => {
+            setIsAstrologerTyping(false);
+            typingResetTimerRef.current = null;
+          }, 3500);
+        }
       }
     });
 
@@ -1327,6 +1344,10 @@ export function CustomerChatClient({
                   type="button"
                   onClick={() => {
                     if (!selectedConvoId) return;
+                    const confirmed = window.confirm(
+                      "Important Notice: Additional per-minute voice call consultation charges will apply alongside your chat consultation charges once the call connects to the astrologer. Do you want to start the voice call?"
+                    );
+                    if (!confirmed) return;
                     void startCall(selectedConvoId).then((result) => {
                       if (!result.success) setError(result.error || "Unable to start voice call.");
                     });
@@ -1477,6 +1498,18 @@ export function CustomerChatClient({
                     />
                   );
                 })
+              )}
+              {isAstrologerTyping && (
+                <div className="flex items-center gap-2 px-1 py-1.5 animate-in fade-in duration-150">
+                  <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-sm border border-gold/25 bg-parchment/70 px-3.5 py-2 text-xs text-midnight shadow-xs">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:300ms]" />
+                    </span>
+                    <span className="font-medium text-gold-deep">Astrologer is typing…</span>
+                  </div>
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>

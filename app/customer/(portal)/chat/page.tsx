@@ -36,6 +36,21 @@ export default async function CustomerChatPage({
     getEligibleAstrologersAction(),
   ]);
 
+  const allConversations = convosRes.data || [];
+  const allAstrologers = astrosRes.data || [];
+
+  // When entering from a specific chat consultation booking, scope strictly to that astrologer's conversation
+  const scopedConversations =
+    sp.bookingId && targetConversationId
+      ? allConversations.filter((c) => c.id === targetConversationId)
+      : allConversations;
+
+  const scopedAstrologerIds = new Set(scopedConversations.map((c) => c.astrologer_id));
+  const scopedAstrologers =
+    sp.bookingId && targetConversationId
+      ? allAstrologers.filter((a) => scopedAstrologerIds.has(a.id))
+      : allAstrologers;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div>
@@ -48,8 +63,8 @@ export default async function CustomerChatPage({
       </div>
 
       <CustomerChatClient
-        initialConversations={convosRes.data || []}
-        initialAstrologers={astrosRes.data || []}
+        initialConversations={scopedConversations}
+        initialAstrologers={scopedAstrologers}
         currentUserId={user.id}
         initialSelectedConversationId={targetConversationId}
       />

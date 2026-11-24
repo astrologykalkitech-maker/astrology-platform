@@ -794,21 +794,24 @@ export async function sendDirectMessageAction(
     let senderRole: "customer" | "astrologer";
     if (convo.customer_id === user.id) {
       senderRole = "customer";
-    } else if (astroProfile && convo.astrologer_id === astroProfile.id) {
+    } else if ((astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id) {
       senderRole = "astrologer";
     } else {
       return { success: false, error: "Unauthorized to send message in this conversation" };
     }
 
-    // Payment verification guard: if customer is sending in a conversation tied to a paid consultation booking
+    // Payment verification guard:
+    // - Video consultations require upfront payment before messaging/joining.
+    // - Chat & Voice/Call consultations deduct from the customer's wallet after completion.
     if (senderRole === "customer" && convo.booking_id) {
       const { data: booking } = await admin
         .from("customer_bookings")
-        .select("id, price, payment_mode, payment_status")
+        .select("id, price, payment_mode, direct_payment_status, consultation_mode")
         .eq("id", convo.booking_id)
         .maybeSingle();
 
-      if (booking && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
+      const isVideoConsultation = booking?.consultation_mode === "Video";
+      if (booking && isVideoConsultation && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
         const [directPayRes, orderRes, intentRes] = await Promise.all([
           admin
             .from("direct_consultation_payments")
@@ -833,8 +836,8 @@ export async function sendDirectMessageAction(
         ]);
 
         const isPaid =
-          booking.payment_status === "completed" ||
-          booking.payment_status === "paid" ||
+          booking.direct_payment_status === "paid" ||
+          booking.direct_payment_status === "confirmed" ||
           !!directPayRes.data ||
           !!orderRes.data ||
           !!intentRes.data;

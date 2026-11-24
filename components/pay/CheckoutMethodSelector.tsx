@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { QrCode, CreditCard, Send, ShieldCheck, X } from "lucide-react";
+import { QrCode, CreditCard, Send, ShieldCheck, X, Wallet, Loader2, CheckCircle2 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
 import { JyotishPayModal } from "@/components/pay/JyotishPayModal";
 import { DirectBookingPaymentForm } from "@/components/customer/DirectBookingPaymentForm";
+import { payConsultationViaWalletAction } from "@/app/actions/payments";
 
 interface UnifiedCheckoutModalProps {
   isOpen: boolean;
@@ -21,7 +22,10 @@ export function UnifiedCheckoutModal({
   booking,
   onSuccess,
 }: UnifiedCheckoutModalProps) {
-  const [selectedMethod, setSelectedMethod] = useState<"jyotish_pay" | "instamojo" | "direct_upi">("jyotish_pay");
+  const [selectedMethod, setSelectedMethod] = useState<"jyotish_pay" | "instamojo" | "direct_upi" | "wallet">("jyotish_pay");
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletSuccess, setWalletSuccess] = useState(false);
   const [isJyotishPayOpen, setIsJyotishPayOpen] = useState(false);
   const [instamojoLoading, setInstamojoLoading] = useState(false);
   const [instamojoError, setInstamojoError] = useState<string | null>(null);
@@ -64,6 +68,27 @@ export function UnifiedCheckoutModal({
 
   const amountPaise = rupeesToPaise(booking.price);
   const formattedAmount = formatPaiseToInr(amountPaise);
+
+  const handleWalletPayment = async () => {
+    setWalletLoading(true);
+    setWalletError(null);
+    try {
+      const res = await payConsultationViaWalletAction({ bookingId: booking.id });
+      if (res.success) {
+        setWalletSuccess(true);
+        setTimeout(() => {
+          onSuccess?.();
+          onClose();
+        }, 1800);
+      } else {
+        setWalletError(res.error || "Wallet payment failed. Please try another method.");
+      }
+    } catch {
+      setWalletError("Network error. Please try again.");
+    } finally {
+      setWalletLoading(false);
+    }
+  };
 
   const handleInstamojoCheckout = async () => {
     setInstamojoLoading(true);
@@ -196,7 +221,32 @@ export function UnifiedCheckoutModal({
               </div>
             </div>
 
-            {/* Option 3: Direct Astrologer UPI (if VPA available) */}
+            {/* Option 3: Platform Wallet (Instant, Zero-fee) */}
+            <div
+              onClick={() => setSelectedMethod("wallet")}
+              className={`cursor-pointer rounded-xl border p-3.5 transition-all flex items-start gap-3 ${
+                selectedMethod === "wallet"
+                  ? "border-emerald-500 bg-emerald-50/50 shadow-sm"
+                  : "border-gold/20 hover:border-gold/40"
+              }`}
+            >
+              <div className="rounded-lg bg-emerald-100 p-2 text-emerald-800">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-midnight">Platform Wallet Balance</span>
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-800">
+                    Instant • Zero Fee
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted mt-0.5">
+                  Deduct directly from your Karmic Ascension wallet balance.
+                </p>
+              </div>
+            </div>
+
+            {/* Option 4: Direct Astrologer UPI (if VPA available) */}
             {booking.astrologer_upi_vpa && (
               <div
                 onClick={() => setSelectedMethod("direct_upi")}
@@ -234,6 +284,33 @@ export function UnifiedCheckoutModal({
                 <QrCode className="h-4 w-4" />
                 <span>Pay {formattedAmount} via Karmic Ascension Pay QR</span>
               </button>
+            )}
+
+            {selectedMethod === "wallet" && (
+              <div>
+                {walletError && (
+                  <p className="text-xs text-red-600 mb-2 font-medium">{walletError}</p>
+                )}
+                {walletSuccess ? (
+                  <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>Payment successful! Wallet debited ✓</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleWalletPayment}
+                    disabled={walletLoading}
+                    className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-xs font-bold text-white shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {walletLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wallet className="h-4 w-4" />
+                    )}
+                    <span>{walletLoading ? "Processing..." : `Pay ${formattedAmount} from Wallet`}</span>
+                  </button>
+                )}
+              </div>
             )}
 
             {selectedMethod === "instamojo" && (
