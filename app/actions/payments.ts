@@ -470,10 +470,51 @@ export async function payConsultationViaWalletAction({
       };
     }
 
+    // Credit the astrologer's wallet with the consultation fee
+    try {
+      const { data: bookingData } = await admin
+        .from("customer_bookings")
+        .select("astrologer_id, price")
+        .eq("id", bookingId)
+        .maybeSingle();
+
+      if (bookingData?.astrologer_id) {
+        const { creditAstrologerOperatingWallet } = await import("@/lib/financial/astrologer-wallet-engine");
+        const amountPaise = data.amount_paise || Math.round((bookingData.price || 0) * 100);
+
+        if (amountPaise > 0) {
+          const creditRes = await creditAstrologerOperatingWallet({
+            astrologerId: bookingData.astrologer_id,
+            amountPaise,
+            creditType: "RECHARGE",
+            idempotencyKey: `wallet_pay_astro_credit_${bookingId}`,
+            description: `Consultation fee received via Customer Wallet for booking #${bookingId}`,
+            metadata: {
+              booking_id: bookingId,
+              customer_id: user.id,
+              order_number: data.order_number,
+              receipt_number: data.receipt_number,
+            },
+          });
+
+          if (!creditRes.success) {
+            console.error(
+              `[payConsultationViaWalletAction] Warning: Failed to credit astrologer ${bookingData.astrologer_id} wallet:`,
+              creditRes.error
+            );
+          }
+        }
+      }
+    } catch (creditErr) {
+      console.error("[payConsultationViaWalletAction] Error crediting astrologer wallet:", creditErr);
+    }
+
     // Revalidate paths
     revalidatePath("/customer/billing");
     revalidatePath("/customer/bookings");
     revalidatePath("/customer");
+    revalidatePath("/astrologer/dashboard");
+    revalidatePath("/astrologer/earnings");
 
     return {
       success: true,
