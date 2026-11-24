@@ -240,6 +240,14 @@ export function AstrologerChatClient({
         isCurrentChat
       );
 
+      if (newMsg.sender_role === "customer") {
+        setIsSeekerTyping(false);
+        if (typingResetTimerRef.current) {
+          clearTimeout(typingResetTimerRef.current);
+          typingResetTimerRef.current = null;
+        }
+      }
+
       if (notificationSound === "chime") {
         if (!isMuted) {
           void soundNotificationService.playMessageSound(newMsg.id);
@@ -347,6 +355,11 @@ export function AstrologerChatClient({
     [isMuted, isUserNearBottom, resyncConversations, resyncSeekers, scrollToBottom]
   );
 
+  const handleIncomingMessageRef = useRef(handleIncomingMessage);
+  useEffect(() => {
+    handleIncomingMessageRef.current = handleIncomingMessage;
+  }, [handleIncomingMessage]);
+
   // --------------------------------------------------------------------------
   // LOAD MESSAGES WITH CURSOR PAGINATION
   // --------------------------------------------------------------------------
@@ -371,8 +384,19 @@ export function AstrologerChatClient({
 
       try {
         const res = await getConversationMessagesAction(convoId, null, 50);
+        if (selectedConvoIdRef.current !== convoId) return;
         if (res.success && res.data) {
-          setMessages(res.data);
+          setMessages((prev) => {
+            // Preserve any newer live messages that arrived while history was loading
+            const loadedIds = new Set(res.data!.map((m) => m.id));
+            const newerLive = prev.filter(
+              (m) =>
+                m.conversation_id === convoId &&
+                !m.id.startsWith("temp-") &&
+                !loadedIds.has(m.id)
+            );
+            return [...res.data!, ...newerLive];
+          });
           setHasMoreMessages(Boolean(res.hasMore));
           setOldestCursor(res.oldestCursor || null);
 
@@ -530,13 +554,20 @@ export function AstrologerChatClient({
       );
     });
 
+    channel.on("broadcast", { event: "direct_message_sync" }, ({ payload }) => {
+      const data = payload as { message?: DirectMessage };
+      if (data?.message && data.message.sender_id !== currentUserId) {
+        handleIncomingMessageRef.current(data.message);
+      }
+    });
+
     // 2. Database WAL Postgres Changes Listener
     channel.on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "direct_messages" },
       (payload) => {
         const message = parseDirectMessageRow(payload.new, currentUserId);
-        if (message) handleIncomingMessage(message);
+        if (message) handleIncomingMessageRef.current(message);
       }
     );
 
@@ -585,7 +616,24 @@ export function AstrologerChatClient({
 
     channel.subscribe((status) => {
       setIsRealtimeConnected(status === "SUBSCRIBED");
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      if (status === "SUBSCRIBED") {
+        // Recover any messages missed while disconnected / subscribing
+        const activeId = selectedConvoIdRef.current;
+        if (activeId) {
+          const cur = messagesRef.current;
+          const lastMsg = cur[cur.length - 1];
+          const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
+          getLatestMessagesDeltaAction(activeId, afterIso)
+            .then((res) => {
+              if (res?.success && res.data && res.data.length > 0) {
+                for (const m of res.data) {
+                  handleIncomingMessageRef.current(m);
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         void resyncSeekers();
         void resyncConversations();
       }
@@ -600,7 +648,7 @@ export function AstrologerChatClient({
       pendingRingingConversationIds.clear();
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, handleIncomingMessage, resyncConversations, resyncSeekers]);
+  }, [currentUserId, resyncConversations, resyncSeekers]);
 
   // --------------------------------------------------------------------------
   // BACKGROUND SYNC POLLING & VISIBILITY CATCH-UP
@@ -616,16 +664,8 @@ export function AstrologerChatClient({
 
         const res = await getLatestMessagesDeltaAction(selectedConvoId, afterIso);
         if (res?.success && res.data && res.data.length > 0) {
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
-            if (trulyNew.length === 0) return prev;
-            return [...prev, ...trulyNew];
-          });
-          if (isUserNearBottom()) {
-            setTimeout(() => scrollToBottom(true), 60);
-          } else {
-            setUnreadScrolledCount((prev) => prev + res.data!.length);
+          for (const m of res.data) {
+            handleIncomingMessageRef.current(m);
           }
         }
       } catch {
@@ -769,7 +809,7 @@ export function AstrologerChatClient({
         id: "temp-" + Date.now(),
         client_message_id: clientMsgId,
         conversation_id: selectedConvoId,
-        sender_id: "",
+        sender_id: currentUserId,
         sender_role: "astrologer",
         message: text || (attachments.length > 0 ? `Sent ${attachments.length} attachment(s)` : ""),
         attachment_url: attachments[0]?.url || null,
@@ -836,6 +876,13 @@ export function AstrologerChatClient({
             )
           );
 
+          // Instant WebSocket broadcast alongside postgres_changes for zero-latency delivery
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "direct_message_sync",
+            payload: { message: persistedMsg },
+          });
+
           // Update sidebar conversations preview
           setConversations((prev) =>
             prev.map((c) =>
@@ -873,7 +920,7 @@ export function AstrologerChatClient({
         setIsSending(false);
       }
     },
-    [editingMessage, isSending, replyingTo, scrollToBottom, selectedConvoId]
+    [currentUserId, editingMessage, isSending, replyingTo, scrollToBottom, selectedConvoId]
   );
 
   // --------------------------------------------------------------------------

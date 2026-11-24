@@ -401,6 +401,7 @@ export async function getOrCreateBookingConversationAction(
       .from("conversations")
       .select("id")
       .eq("booking_id", bookingId)
+      .limit(1)
       .maybeSingle();
 
     if (bookingConvo) {
@@ -413,6 +414,8 @@ export async function getOrCreateBookingConversationAction(
       .select("id, booking_id")
       .eq("customer_id", booking.customer_id)
       .eq("astrologer_id", booking.astrologer_id)
+      .order("last_message_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (participantConvo) {
@@ -438,6 +441,19 @@ export async function getOrCreateBookingConversationAction(
       .single();
 
     if (createErr || !created) {
+      // Handle concurrent creation race (unique_conversation_pair) idempotently
+      if (createErr?.code === "23505") {
+        const { data: raceWinner } = await admin
+          .from("conversations")
+          .select("id")
+          .eq("customer_id", booking.customer_id)
+          .eq("astrologer_id", booking.astrologer_id)
+          .limit(1)
+          .maybeSingle();
+        if (raceWinner) {
+          return { success: true, conversationId: raceWinner.id };
+        }
+      }
       return { success: false, error: createErr?.message || "Failed to initialize booking chat" };
     }
 
@@ -622,7 +638,9 @@ export async function getConversationMessagesAction(
       .maybeSingle();
 
     const isCustomer = convo.customer_id === user.id;
-    const isAstrologer = Boolean(astroProfile && convo.astrologer_id === astroProfile.id);
+    const isAstrologer = Boolean(
+      (astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id
+    );
 
     if (!isCustomer && !isAstrologer) {
       return { success: false, error: "Unauthorized access to this conversation" };
@@ -703,7 +721,9 @@ export async function getLatestMessagesDeltaAction(
       .maybeSingle();
 
     const isCustomer = convo.customer_id === user.id;
-    const isAstrologer = Boolean(astroProfile && convo.astrologer_id === astroProfile.id);
+    const isAstrologer = Boolean(
+      (astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id
+    );
 
     if (!isCustomer && !isAstrologer) {
       return { success: false, error: "Unauthorized access to this conversation" };
@@ -800,18 +820,32 @@ export async function sendDirectMessageAction(
       return { success: false, error: "Unauthorized to send message in this conversation" };
     }
 
-    // Payment verification guard:
+    // Consultation lifecycle & payment verification guard:
+    // - Cancelled bookings cannot accept new messages.
     // - Video consultations require upfront payment before messaging/joining.
     // - Chat & Voice/Call consultations deduct from the customer's wallet after completion.
-    if (senderRole === "customer" && convo.booking_id) {
+    if (convo.booking_id) {
       const { data: booking } = await admin
         .from("customer_bookings")
-        .select("id, price, payment_mode, direct_payment_status, consultation_mode")
+        .select("id, status, price, payment_mode, direct_payment_status, consultation_mode")
         .eq("id", convo.booking_id)
         .maybeSingle();
 
+      if (booking?.status === "cancelled") {
+        return {
+          success: false,
+          error: "This consultation booking has been cancelled.",
+        };
+      }
+
       const isVideoConsultation = booking?.consultation_mode === "Video";
-      if (booking && isVideoConsultation && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
+      if (
+        senderRole === "customer" &&
+        booking &&
+        isVideoConsultation &&
+        Number(booking.price) > 0 &&
+        booking.payment_mode !== "pay_at_drop"
+      ) {
         const [directPayRes, orderRes, intentRes] = await Promise.all([
           admin
             .from("direct_consultation_payments")
