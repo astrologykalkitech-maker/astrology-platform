@@ -482,6 +482,12 @@ export async function getAstrologerEarningsAction(): Promise<
       for (const intent of paymentIntents.data || []) {
         paymentStatusByBooking.set(intent.booking_id, "verified");
       }
+      // Direct booking payment status from wallet or gateway
+      for (const b of allBookings) {
+        if (b.direct_payment_status === "paid" || b.payment_status === "paid") {
+          paymentStatusByBooking.set(b.id, "verified");
+        }
+      }
     }
 
     const customerMap: Record<string, string> = {};
