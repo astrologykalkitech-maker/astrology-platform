@@ -19,11 +19,13 @@ import {
   MessageSquare,
   ShieldAlert,
   CheckCircle2,
+  CalendarPlus,
   Wallet,
   Info,
 } from "lucide-react";
 import type { CustomerBooking } from "@/lib/types/database.types";
 import { cancelCustomerBookingAction } from "@/app/actions/customer";
+import { RescheduleBookingModal } from "@/components/customer/RescheduleBookingModal";
 import { DirectBookingPaymentForm } from "@/components/customer/DirectBookingPaymentForm";
 import { UnifiedCheckoutModal } from "@/components/pay/CheckoutMethodSelector";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
@@ -68,6 +70,7 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
   const [bookings, setBookings] = useState<CustomerBooking[]>(initialBookings);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reschedulingBooking, setReschedulingBooking] = useState<CustomerBooking | null>(null);
   const [activeJoinBooking, setActiveJoinBooking] = useState<CustomerBooking | null>(null);
   const [activeCheckoutBooking, setActiveCheckoutBooking] = useState<CustomerBooking | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
@@ -376,19 +379,29 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                         </button>
                       )}
                       {!isCancelled && !isCompleted && (
-                        <button
-                          type="button"
-                          disabled={cancellingId === booking.id}
-                          onClick={() => handleCancelBooking(booking.id)}
-                          className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium py-1 px-2 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
-                        >
-                          {cancellingId === booking.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                          Cancel
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setReschedulingBooking(booking)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg border border-gold/30 bg-parchment/40 text-midnight hover:bg-parchment transition-colors"
+                          >
+                            <CalendarPlus className="h-3.5 w-3.5 text-gold-deep" />
+                            <span>Reschedule</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={cancellingId === booking.id}
+                            onClick={() => handleCancelBooking(booking.id)}
+                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium py-1 px-2 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            {cancellingId === booking.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                            Cancel
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -538,19 +551,29 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
                           )}
 
                           {!isCancelled && !isCompleted && (
-                            <button
-                              type="button"
-                              disabled={cancellingId === booking.id}
-                              onClick={() => handleCancelBooking(booking.id)}
-                              className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
-                            >
-                              {cancellingId === booking.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
-                              Cancel
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setReschedulingBooking(booking)}
+                                className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border border-gold/30 bg-parchment/40 text-midnight hover:bg-parchment transition-colors"
+                              >
+                                <CalendarPlus className="h-3.5 w-3.5 text-gold-deep" />
+                                <span>Reschedule</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={cancellingId === booking.id}
+                                onClick={() => handleCancelBooking(booking.id)}
+                                className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium p-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                              >
+                                {cancellingId === booking.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                                Cancel
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -697,6 +720,21 @@ export default function CustomerBookingsClient({ initialBookings = [] }: Props) 
           onClose={() => setActiveCheckoutBooking(null)}
           onSuccess={() => {
             setActiveCheckoutBooking(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* Reschedule Booking Modal */}
+      {reschedulingBooking && (
+        <RescheduleBookingModal
+          isOpen={!!reschedulingBooking}
+          booking={reschedulingBooking}
+          onClose={() => setReschedulingBooking(null)}
+          onSuccess={(updated) => {
+            setBookings((prev) =>
+              prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
+            );
             router.refresh();
           }}
         />

@@ -314,6 +314,11 @@ export default function AstrologerBookingsClient({ initialBookings }: Props) {
                           <Clock className="h-3 w-3" />
                           {formatExactDateTime(booking.scheduled_at)}
                         </span>
+                        {booking.reschedule_count && booking.reschedule_count > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.2 text-[10px] font-medium text-amber-800" title={booking.original_scheduled_at ? `Originally: ${formatExactDateTime(booking.original_scheduled_at)}` : undefined}>
+                            Rescheduled ({booking.reschedule_count}x)
+                          </span>
+                        ) : null}
                       </div>
 
                       <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-ink/80">

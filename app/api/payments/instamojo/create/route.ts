@@ -68,10 +68,14 @@ async function persistGatewayMappingOrRecover(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { purposeType, entityId } = body; // purposeType: 'consultation' | 'subscription'
+    const { purposeType, entityId, amount_rupees } = body; // purposeType: 'consultation' | 'subscription' | 'customer_wallet_recharge' | 'astrologer_wallet_recharge'
 
-    if (!purposeType || !entityId) {
-      return NextResponse.json({ error: "Missing required parameters: purposeType, entityId" }, { status: 400 });
+    if (!purposeType) {
+      return NextResponse.json({ error: "Missing required parameter: purposeType" }, { status: 400 });
+    }
+
+    if (["consultation", "subscription"].includes(purposeType) && !entityId) {
+      return NextResponse.json({ error: "Missing required parameter: entityId" }, { status: 400 });
     }
 
     const supabase = await createAdminClient("main");
@@ -376,6 +380,167 @@ export async function POST(req: NextRequest) {
       if (!persisted.ok) {
         return NextResponse.json({ error: persisted.error }, { status: 500 });
       }
+
+      return NextResponse.json({
+        success: true,
+        orderId: order.id,
+        checkoutUrl: mojoRes.data.longurl,
+        amountPaise,
+      });
+    } else if (purposeType === "customer_wallet_recharge") {
+      const { user } = await requireCustomerContext();
+
+      // Rate limit: 10 recharge payment requests per minute per customer
+      const rl = await checkRateLimitAsync(`pay:instamojo:cust_recharge:${user.id}`, 10, 60_000);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: "Too many payment requests. Please wait." },
+          { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+        );
+      }
+
+      const { validateRechargeAmount } = await import("@/lib/financial/pricing");
+      const validation = validateRechargeAmount(amount_rupees);
+      if (!validation.isValid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
+      const amountPaise = validation.amountPaise;
+      const { data: customerProfile } = await supabase
+        .from("profiles")
+        .select("full_name, phone_number")
+        .eq("id", user.id)
+        .single();
+
+      const buyerName = customerProfile?.full_name || user.email?.split("@")[0] || "Seeker";
+      const orderNumber = generateOrderNumber();
+
+      const { data: order, error: orderErr } = await supabase
+        .from("payment_orders")
+        .insert({
+          order_number: orderNumber,
+          entity_type: "customer_wallet_recharge",
+          entity_id: user.id,
+          customer_id: user.id,
+          amount_paise: amountPaise,
+          currency: "INR",
+          status: "created",
+          metadata: {
+            buyer_name: buyerName,
+            email: user.email,
+            phone: customerProfile?.phone_number || "",
+            recharge_type: "customer_consultation_wallet",
+          },
+        })
+        .select()
+        .single();
+
+      if (orderErr || !order) {
+        return NextResponse.json({ error: "Failed to create payment order" }, { status: 500 });
+      }
+
+      const mojoRes = await createInstamojoPaymentRequest({
+        amount: paiseToRupees(amountPaise),
+        purpose: `Wallet Recharge #${orderNumber}`.slice(0, 30),
+        buyerName,
+        email: user.email || "seeker@karmicascension.com",
+        phone: customerProfile?.phone_number || "",
+        redirectUrl,
+        webhookUrl,
+        sendEmail: true,
+      });
+
+      if (!mojoRes.success || !mojoRes.data) {
+        return NextResponse.json({ error: mojoRes.error || "Payment gateway communication failed" }, { status: 502 });
+      }
+
+      await supabase
+        .from("payment_orders")
+        .update({
+          payment_request_id: mojoRes.data.id,
+          payment_url: mojoRes.data.longurl,
+          status: "pending",
+        })
+        .eq("id", order.id);
+
+      return NextResponse.json({
+        success: true,
+        orderId: order.id,
+        checkoutUrl: mojoRes.data.longurl,
+        amountPaise,
+      });
+    } else if (purposeType === "astrologer_wallet_recharge") {
+      const { user } = await requireAstrologer();
+      const { profile, error: profErr } = await getOwnAstrologerProfile();
+      if (profErr || !profile) {
+        return NextResponse.json({ error: "Astrologer profile not found" }, { status: 403 });
+      }
+
+      // Rate limit: 10 recharge payment requests per minute per astrologer
+      const rl = await checkRateLimitAsync(`pay:instamojo:astro_recharge:${user.id}`, 10, 60_000);
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: "Too many payment requests. Please wait." },
+          { status: 429, headers: { "Retry-After": rl.retryAfterSeconds.toString() } }
+        );
+      }
+
+      const { validateRechargeAmount } = await import("@/lib/financial/pricing");
+      const validation = validateRechargeAmount(amount_rupees);
+      if (!validation.isValid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
+      const amountPaise = validation.amountPaise;
+      const orderNumber = generateOrderNumber();
+
+      const { data: order, error: orderErr } = await supabase
+        .from("payment_orders")
+        .insert({
+          order_number: orderNumber,
+          entity_type: "astrologer_wallet_recharge",
+          entity_id: profile.id,
+          astrologer_id: profile.id,
+          amount_paise: amountPaise,
+          currency: "INR",
+          status: "created",
+          metadata: {
+            buyer_name: profile.display_name,
+            email: user.email,
+            phone: (profile as unknown as { phone_number?: string }).phone_number || "",
+            recharge_type: "astrologer_operating_wallet",
+          },
+        })
+        .select()
+        .single();
+
+      if (orderErr || !order) {
+        return NextResponse.json({ error: "Failed to create payment order" }, { status: 500 });
+      }
+
+      const mojoRes = await createInstamojoPaymentRequest({
+        amount: paiseToRupees(amountPaise),
+        purpose: `Astro Recharge #${orderNumber}`.slice(0, 30),
+        buyerName: profile.display_name,
+        email: user.email || "astrologer@karmicascension.com",
+        phone: (profile as unknown as { phone_number?: string }).phone_number || "",
+        redirectUrl,
+        webhookUrl,
+        sendEmail: true,
+      });
+
+      if (!mojoRes.success || !mojoRes.data) {
+        return NextResponse.json({ error: mojoRes.error || "Payment gateway communication failed" }, { status: 502 });
+      }
+
+      await supabase
+        .from("payment_orders")
+        .update({
+          payment_request_id: mojoRes.data.id,
+          payment_url: mojoRes.data.longurl,
+          status: "pending",
+        })
+        .eq("id", order.id);
 
       return NextResponse.json({
         success: true,

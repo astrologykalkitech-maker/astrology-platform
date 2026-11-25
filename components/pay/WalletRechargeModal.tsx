@@ -234,12 +234,12 @@ export function WalletRechargeModal({
           throw new Error(data.error || "Failed to submit UTR reference.");
         }
 
-        setSuccessMsg("UTR reference submitted successfully. Balance will reflect upon instant verification.");
+        setSuccessMsg("UTR reference submitted for manual verification. Your balance will be credited once verified by admin.");
         setTimeout(() => {
           onClose();
           if (onSuccess) onSuccess();
           else window.location.reload();
-        }, 2000);
+        }, 2500);
       }
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Recharge failed. Please retry.");
@@ -264,20 +264,21 @@ export function WalletRechargeModal({
           utr: utrInput.trim(),
           user_role: userRole,
           session_code: sessionCode,
+          order_number: activeOrderNumber,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to verify UTR reference.");
+        throw new Error(data.error || "Failed to submit UTR reference.");
       }
 
-      setSuccessMsg("Payment verified! Balance updated in your wallet.");
+      setSuccessMsg("UTR reference submitted for manual verification. Your wallet balance will update once approved by admin.");
       setTimeout(() => {
         onClose();
         if (onSuccess) onSuccess();
         else window.location.reload();
-      }, 1500);
+      }, 2500);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Verification error. Please retry.");
     } finally {

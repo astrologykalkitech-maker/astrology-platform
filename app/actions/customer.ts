@@ -8,7 +8,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { checkRateLimit } from "@/lib/security/rate-limit";
-import { parseSchedulingDateTime } from "@/lib/astrologer/format";
+import { parseSchedulingDateTime, formatExactDateTime } from "@/lib/astrologer/format";
+import { isValidUUID } from "@/lib/validations/lead";
+import { isRpcNotInstalledError } from "@/lib/admin/audit";
+import { assertAstrologerAvailable, loadAstrologerAvailability } from "@/lib/availability/server";
+import { hasWorkingRules, generateSlots } from "@/lib/availability/slots";
 import type {
   LeadStatus,
   CustomerBooking,
@@ -22,7 +26,6 @@ import type {
 } from "@/lib/types/database.types";
 import type { AuthResult } from "@/lib/types/auth.types";
 import { createInAppNotification } from "@/lib/notifications";
-import { assertAstrologerAvailable } from "@/lib/availability/server";
 import { toUuidOrNull } from "@/lib/security/postgrest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -1017,7 +1020,309 @@ export async function cancelCustomerBookingAction(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to cancel booking.",
+      error:
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while cancelling your booking.",
+    };
+  }
+}
+
+/**
+ * Reschedules a customer's consultation booking to an available future slot.
+ * Concurrency-safe, validates astrologer weekly availability, prevents overlaps,
+ * and maintains immutable rescheduling audit history.
+ */
+export async function rescheduleCustomerBookingAction(params: {
+  bookingId: string;
+  newScheduledAt: string;
+  reason?: string;
+}): Promise<AuthResult<CustomerBooking>> {
+  try {
+    const { user, target } = await requireCustomerContext();
+    const { bookingId, newScheduledAt, reason } = params;
+
+    if (!isValidUUID(bookingId)) {
+      return { success: false, error: "Invalid booking ID format." };
+    }
+
+    const targetDate = new Date(newScheduledAt);
+    if (Number.isNaN(targetDate.getTime())) {
+      return { success: false, error: "Invalid date and time specified." };
+    }
+
+    const minAllowedTime = Date.now() + 10 * 60 * 1000; // 10 minutes in future
+    if (targetDate.getTime() < minAllowedTime) {
+      return { success: false, error: "Appointments must be scheduled at least 10 minutes in advance." };
+    }
+
+    const supabase = await createClient(target);
+    const admin = await createAdminClient("main");
+
+    // 1. Fetch current booking details and verify customer ownership
+    const { data: booking, error: fetchErr } = await supabase
+      .from("customer_bookings")
+      .select("*, astrologer:astrologer_profiles(id, display_name, user_id)")
+      .eq("id", bookingId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      return { success: false, error: "Booking record not found or access unauthorized." };
+    }
+
+    if (booking.status === "completed" || booking.status === "no_show") {
+      return { success: false, error: "Cannot reschedule a completed or no-show consultation." };
+    }
+
+    if (booking.status === "cancelled") {
+      return { success: false, error: "Cannot reschedule a cancelled consultation." };
+    }
+
+    if (new Date(booking.scheduled_at).getTime() === targetDate.getTime()) {
+      return { success: false, error: "Requested slot is identical to current appointment slot." };
+    }
+
+    // 2. Validate Astrologer Availability Rules (working hours & breaks)
+    const availabilityCheck = await assertAstrologerAvailable(
+      booking.astrologer_id,
+      targetDate,
+      booking.duration_minutes || 30
+    );
+    if (!availabilityCheck.available) {
+      return { success: false, error: availabilityCheck.reason };
+    }
+
+    // 3. Execute atomic rescheduling RPC or fallback to hardened transaction
+    let updatedBooking: CustomerBooking | null = null;
+    const rpcRes = await supabase.rpc("reschedule_customer_consultation_booking", {
+      p_booking_id: bookingId,
+      p_new_scheduled_at: targetDate.toISOString(),
+      p_reason: (reason || "").trim() || "Rescheduled by customer",
+    });
+
+    if (rpcRes.error) {
+      if (rpcRes.error.code === "23505") {
+        return { success: false, error: "The selected time slot is already booked. Please choose another slot." };
+      }
+      if (rpcRes.error.code === "P0002") {
+        return { success: false, error: "Astrologer is currently unavailable for this booking." };
+      }
+      // If RPC is missing from unapplied local migration, perform fallback atomic update
+      if (rpcRes.error.code === "42883" || isRpcNotInstalledError(rpcRes.error)) {
+        // Fallback: Check overlapping bookings directly
+        const newStart = targetDate.toISOString();
+        const newEnd = new Date(targetDate.getTime() + (booking.duration_minutes || 30) * 60_000).toISOString();
+
+        // Query precise overlap
+        const { count: overlapCount } = await admin
+          .from("customer_bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("astrologer_id", booking.astrologer_id)
+          .neq("id", bookingId)
+          .in("status", ["pending", "confirmed"])
+          .gte("scheduled_at", newStart)
+          .lt("scheduled_at", newEnd);
+
+        if ((overlapCount ?? 0) > 0) {
+          return { success: false, error: "The selected time slot is already booked. Please choose another slot." };
+        }
+
+        const now = new Date().toISOString();
+        const historyEntry = {
+          rescheduled_at: now,
+          rescheduled_by: user.id,
+          rescheduled_by_role: "customer",
+          previous_scheduled_at: booking.scheduled_at,
+          new_scheduled_at: targetDate.toISOString(),
+          reason: (reason || "").trim() || "Rescheduled by customer",
+        };
+
+        const existingHistory = Array.isArray(booking.reschedule_history) ? booking.reschedule_history : [];
+
+        const { data: updatedRows, error: updateErr } = await admin
+          .from("customer_bookings")
+          .update({
+            original_scheduled_at: booking.original_scheduled_at || booking.scheduled_at,
+            scheduled_at: targetDate.toISOString(),
+            reschedule_count: (booking.reschedule_count || 0) + 1,
+            last_rescheduled_at: now,
+            last_rescheduled_by: user.id,
+            reschedule_reason: (reason || "").trim() || booking.reschedule_reason || null,
+            reschedule_history: [...existingHistory, historyEntry],
+            updated_at: now,
+          })
+          .eq("id", bookingId)
+          .eq("customer_id", user.id)
+          .in("status", ["pending", "confirmed"])
+          .select("*");
+
+        if (updateErr || !updatedRows || updatedRows.length === 0) {
+          return { success: false, error: "Failed to reschedule booking. Please try again." };
+        }
+        updatedBooking = updatedRows[0] as CustomerBooking;
+      } else {
+        return { success: false, error: rpcRes.error.message || "Failed to reschedule booking." };
+      }
+    } else {
+      updatedBooking = rpcRes.data as CustomerBooking;
+    }
+
+    if (!updatedBooking) {
+      return { success: false, error: "Rescheduling was not completed." };
+    }
+
+    // 4. Synchronize Consultation Meeting record if one exists
+    try {
+      const now = new Date().toISOString();
+      await admin
+        .from("consultation_meetings")
+        .update({
+          scheduled_at: targetDate.toISOString(),
+          updated_at: now,
+        })
+        .eq("booking_id", bookingId)
+        .in("status", ["scheduled", "waiting"]);
+    } catch (meetingErr) {
+      console.warn("[rescheduleCustomerBookingAction] meeting sync notice:", meetingErr);
+    }
+
+    // 5. Send Realtime in-app notifications to Astrologer & Customer
+    try {
+      const formattedDate = formatExactDateTime(targetDate.toISOString());
+      const astroUserId = (booking.astrologer as { user_id?: string })?.user_id;
+
+      if (astroUserId) {
+        await createInAppNotification({
+          recipientUserId: astroUserId,
+          title: "Consultation Appointment Rescheduled",
+          message: `A customer rescheduled their ${booking.service_type} consultation to ${formattedDate}.`,
+          linkUrl: "/astrologer/bookings",
+          eventType: "booking_rescheduled",
+          metadata: {
+            booking_id: bookingId,
+            previous_scheduled_at: booking.scheduled_at,
+            new_scheduled_at: targetDate.toISOString(),
+          },
+        });
+      }
+
+      await createInAppNotification({
+        recipientUserId: user.id,
+        title: "Appointment Rescheduled",
+        message: `Your ${booking.service_type} consultation has been rescheduled to ${formattedDate}.`,
+        linkUrl: "/customer/bookings",
+        eventType: "booking_rescheduled",
+        metadata: {
+          booking_id: bookingId,
+          previous_scheduled_at: booking.scheduled_at,
+          new_scheduled_at: targetDate.toISOString(),
+        },
+      });
+    } catch (notifyErr) {
+      console.warn("[rescheduleCustomerBookingAction] notification notice:", notifyErr);
+    }
+
+    // 6. Revalidate relevant cache paths
+    revalidatePath("/customer/bookings", "page");
+    revalidatePath("/astrologer/bookings", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/super-admin/bookings", "page");
+
+    return {
+      success: true,
+      data: updatedBooking,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "An unexpected error occurred while rescheduling.",
+    };
+  }
+}
+
+/**
+ * Loads available bookable slots for an astrologer on a given date (YYYY-MM-DD),
+ * excluding existing bookings and respecting weekly working hours & breaks.
+ */
+export async function getAstrologerAvailableSlotsAction(params: {
+  astrologerId: string;
+  date: string; // YYYY-MM-DD
+  durationMinutes?: number;
+  excludeBookingId?: string;
+}): Promise<AuthResult<{ restricted: boolean; slots: string[] }>> {
+  try {
+    const { astrologerId, date, durationMinutes = 30, excludeBookingId } = params;
+
+    if (!isValidUUID(astrologerId)) {
+      return { success: false, error: "Invalid astrologer ID." };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { success: false, error: "Invalid date format. Expected YYYY-MM-DD." };
+    }
+
+    const duration = Math.min(Math.max(durationMinutes, 10), 180);
+    const dayStart = parseSchedulingDateTime(`${date}T00:00`);
+    if (!dayStart) return { success: false, error: "Invalid calendar date." };
+
+    const data = await loadAstrologerAvailability(astrologerId);
+    const admin = await createAdminClient("main");
+
+    let query = admin
+      .from("customer_bookings")
+      .select("id, scheduled_at, duration_minutes")
+      .eq("astrologer_id", astrologerId)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", new Date(dayStart.getTime() - 181 * 60_000).toISOString())
+      .lt("scheduled_at", new Date(dayStart.getTime() + 86_400_000).toISOString());
+
+    if (excludeBookingId && isValidUUID(excludeBookingId)) {
+      query = query.neq("id", excludeBookingId);
+    }
+
+    const { data: bookings, error } = await query;
+    if (error) {
+      console.warn("[getAstrologerAvailableSlotsAction] bookings lookup notice:", error.message);
+    }
+
+    // If astrologer hasn't configured availability rules, generate default working day slots
+    // (e.g. 09:00 - 21:00 in 30-min increments)
+    const effectiveRules = hasWorkingRules(data.rules)
+      ? data.rules
+      : [
+          { weekday: 0, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 1, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 2, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 3, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 4, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 5, start: "09:00", end: "21:00", kind: "working" as const },
+          { weekday: 6, start: "09:00", end: "21:00", kind: "working" as const },
+        ];
+
+    const result = generateSlots({
+      rules: effectiveRules,
+      timeOff: data.timeOff,
+      bookings: (bookings ?? []).map((b) => ({
+        scheduledAt: b.scheduled_at as string,
+        durationMinutes: (b.duration_minutes as number) || 30,
+      })),
+      date,
+      durationMinutes: duration,
+      stepMinutes: 30,
+      minLeadMinutes: 10,
+    });
+
+    return {
+      success: true,
+      data: {
+        restricted: true,
+        slots: result.slots,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load available slots.",
     };
   }
 }
@@ -1856,9 +2161,9 @@ export async function getCustomerBillingHistory(): Promise<
       }
     }
 
-    // Query payments across all 3 gateways: Instamojo, Jyotish Pay, and Direct UPI
+    // Query payments across all gateways: Instamojo, Wallet, Jyotish Pay, and Direct UPI
     const bookingIds = bookings.map((b) => b.id);
-    const paymentMap: Record<string, { receipt_number: string; payment_id: string; gateway: "instamojo" }> = {};
+    const paymentMap: Record<string, { receipt_number: string; payment_id: string; gateway: "instamojo" | "wallet" }> = {};
     const intentPaymentMap: Record<string, { receipt_number?: string; intent_id: string; gateway: "jyotish_pay" }> = {};
     const directPaymentMap: Record<string, { status: string; utr: string; gateway: "direct_upi" }> = {};
     const refundRequestMap: Record<string, { status: "requested" | "approved" | "processed" | "rejected"; reason: string; rejection_reason?: string }> = {};
@@ -1866,12 +2171,14 @@ export async function getCustomerBillingHistory(): Promise<
     if (bookingIds.length > 0) {
       const adminClient = await createAdminClient("main");
 
-      // 1. Instamojo payment orders + payments
+      // 1. Payment orders (Instamojo & Wallet) + payments
       const { data: orders, error: orderError } = await adminClient
         .from("payment_orders")
         .select(`
+          id,
           entity_id,
-          payments(receipt_number, payment_id, status)
+          metadata,
+          payments(receipt_number, payment_id, status, payment_method)
         `)
         .eq("entity_type", "consultation")
         .eq("status", "successful")
@@ -1883,13 +2190,27 @@ export async function getCustomerBillingHistory(): Promise<
 
       if (orders) {
         for (const o of orders) {
-          const pays = Array.isArray(o.payments) ? o.payments : (o.payments ? [o.payments] : []);
+          const pays: Array<Record<string, unknown>> = Array.isArray(o.payments)
+            ? (o.payments as Array<Record<string, unknown>>)
+            : o.payments
+            ? [o.payments as Record<string, unknown>]
+            : [];
           const successfulPayment = pays.find((payment) => payment.status === "successful");
+          const oMeta = (o.metadata && typeof o.metadata === "object") ? (o.metadata as Record<string, unknown>) : null;
+          const isWalletMethod = (oMeta && oMeta.payment_method === "wallet") ||
+                                 (successfulPayment && successfulPayment.payment_method === "wallet");
           if (successfulPayment) {
             paymentMap[o.entity_id] = {
-              receipt_number: successfulPayment.receipt_number,
-              payment_id: successfulPayment.payment_id,
-              gateway: "instamojo",
+              receipt_number: typeof successfulPayment.receipt_number === "string" ? successfulPayment.receipt_number : `RCP-${o.id.slice(0, 8)}`,
+              payment_id: typeof successfulPayment.payment_id === "string" ? successfulPayment.payment_id : `PAY-${o.id.slice(0, 8)}`,
+              gateway: isWalletMethod ? "wallet" : "instamojo",
+            };
+          } else if (isWalletMethod) {
+            const metaReceipt = (oMeta && typeof oMeta.receipt_number === "string") ? oMeta.receipt_number : `RCP-WLT-${o.entity_id.slice(0, 8).toUpperCase()}`;
+            paymentMap[o.entity_id] = {
+              receipt_number: metaReceipt,
+              payment_id: `PAY-WLT-${o.id.slice(0, 8)}`,
+              gateway: "wallet",
             };
           }
         }
@@ -1981,11 +2302,11 @@ export async function getCustomerBillingHistory(): Promise<
         !!jyotishPayment ||
         directPayment?.status === "verified";
 
-      const gateway: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary" =
+      const gateway: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary" | "wallet" =
         priceNum === 0
           ? "complimentary"
           : instamojoPayment
-          ? "instamojo"
+          ? instamojoPayment.gateway
           : jyotishPayment
           ? "jyotish_pay"
           : directPayment
@@ -2031,10 +2352,90 @@ export async function getCustomerBillingHistory(): Promise<
         refund_status: refundInfo?.status || null,
         refund_reason: refundInfo?.reason || null,
         refund_rejection_reason: refundInfo?.rejection_reason || null,
+        transaction_category: "consultation",
+        transaction_direction: "debit",
       };
     });
 
-    return { success: true, data: billingRecords };
+    // 5. Query wallet recharges and other direct payment orders for customer
+    const admin = await createAdminClient("main");
+    const { data: walletOrders } = await admin
+      .from("payment_orders")
+      .select(`
+        id,
+        order_number,
+        entity_type,
+        amount_paise,
+        status,
+        created_at,
+        metadata,
+        payments(receipt_number, payment_id, status)
+      `)
+      .eq("customer_id", user.id)
+      .eq("entity_type", "customer_wallet_recharge")
+      .order("created_at", { ascending: false });
+
+    interface WalletOrderRow {
+      id: string;
+      order_number: string;
+      amount_paise: number;
+      currency?: string;
+      status: string;
+      created_at: string;
+      metadata?: Record<string, unknown> | null;
+      payments?: Array<Record<string, unknown>> | Record<string, unknown> | null;
+    }
+
+    const rechargeRecords: CustomerBillingRecord[] = ((walletOrders || []) as unknown as WalletOrderRow[]).map((wo) => {
+      const pays: Array<Record<string, unknown>> = Array.isArray(wo.payments)
+        ? wo.payments
+        : wo.payments
+        ? [wo.payments]
+        : [];
+      const successfulPay = pays.find((p) => p.status === "successful");
+      const meta = typeof wo.metadata === "object" && wo.metadata !== null ? wo.metadata : {};
+      const utr = typeof meta.utr === "string" ? meta.utr : null;
+      const receiptNum = typeof successfulPay?.receipt_number === "string"
+        ? successfulPay.receipt_number
+        : wo.status === "successful"
+        ? `RCP-RCHG-${wo.order_number.slice(-6)}`
+        : undefined;
+      const isPaid = wo.status === "successful";
+      const isFailed = wo.status === "failed" || wo.status === "rejected";
+      const status: "paid" | "pending" | "complimentary" | "refunded" | "failed" =
+        isPaid ? "paid" : isFailed ? "failed" : "pending";
+
+      const gateway: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary" | "wallet" =
+        meta.payment_mode === "upi_manual" ? "direct_upi" : "instamojo";
+
+      return {
+        id: `tx-rchg-${wo.id.slice(0, 8)}`,
+        booking_id: `RECHARGE-${wo.order_number}`,
+        service_type: "Wallet Recharge",
+        consultation_mode: "Chat" as ConsultationMode,
+        astrologer_name: "Karmic Ascension Wallet",
+        amount: Number(wo.amount_paise) / 100,
+        currency: "INR",
+        payment_status: status,
+        transaction_ref: receiptNum || utr || wo.order_number,
+        receipt_number: receiptNum,
+        payment_id: typeof successfulPay?.payment_id === "string" ? successfulPay.payment_id : `ORD-${wo.order_number}`,
+        created_at: wo.created_at,
+        payment_gateway: gateway,
+        refund_status: null,
+        refund_reason: null,
+        refund_rejection_reason: null,
+        transaction_category: "wallet_recharge",
+        transaction_direction: "credit",
+      };
+    });
+
+    // Merge and sort chronologically descending
+    const allRecords: CustomerBillingRecord[] = [...billingRecords, ...rechargeRecords].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return { success: true, data: allRecords };
   } catch (err) {
     return {
       success: false,

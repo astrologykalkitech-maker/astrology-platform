@@ -309,6 +309,12 @@ export default function SuperAdminBookingsPage() {
                         <Clock className="h-3 w-3 text-gold" />
                         <span>{formatDateTime(booking.scheduled_at)}</span>
                       </div>
+                      {booking.reschedule_count && booking.reschedule_count > 0 ? (
+                        <div className="mt-1 text-[10px] text-amber-700 font-medium">
+                          Rescheduled {booking.reschedule_count}x
+                          {booking.original_scheduled_at && ` (Orig: ${formatDateTime(booking.original_scheduled_at)})`}
+                        </div>
+                      ) : null}
                     </td>
 
                     <td className="px-5 py-3.5 font-bold text-midnight">

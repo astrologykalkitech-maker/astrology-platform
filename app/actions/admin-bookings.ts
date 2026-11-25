@@ -252,3 +252,122 @@ export async function updateAdminBookingStatus(params: {
     };
   }
 }
+
+/**
+ * Super Admin override action to reschedule any platform booking.
+ */
+export async function rescheduleAdminBookingAction(params: {
+  bookingId: string;
+  newScheduledAt: string;
+  reason?: string;
+}): Promise<AuthResult<CustomerBooking>> {
+  try {
+    const { user, profile } = await requireSuperAdmin();
+    const { bookingId, newScheduledAt, reason } = params;
+
+    if (!isValidUUID(bookingId)) {
+      return { success: false, error: "Invalid booking ID." };
+    }
+
+    const targetDate = new Date(newScheduledAt);
+    if (Number.isNaN(targetDate.getTime())) {
+      return { success: false, error: "Invalid scheduled date." };
+    }
+
+    const supabase = await createAdminClient("main");
+
+    const { data: booking, error: fetchErr } = await supabase
+      .from("customer_bookings")
+      .select("*")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      return { success: false, error: "Booking not found." };
+    }
+
+    const newStart = targetDate.toISOString();
+    const newEnd = new Date(targetDate.getTime() + (booking.duration_minutes || 30) * 60_000).toISOString();
+
+    const { count: overlapCount } = await supabase
+      .from("customer_bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("astrologer_id", booking.astrologer_id)
+      .neq("id", bookingId)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", newStart)
+      .lt("scheduled_at", newEnd);
+
+    if ((overlapCount ?? 0) > 0) {
+      return { success: false, error: "Astrologer already has another booking during this time slot." };
+    }
+
+    const now = new Date().toISOString();
+    const historyEntry = {
+      rescheduled_at: now,
+      rescheduled_by: user.id,
+      rescheduled_by_role: profile.role,
+      previous_scheduled_at: booking.scheduled_at,
+      new_scheduled_at: targetDate.toISOString(),
+      reason: (reason || "").trim() || "Rescheduled by Administrator",
+    };
+
+    const existingHistory = Array.isArray(booking.reschedule_history) ? booking.reschedule_history : [];
+
+    const { data: updatedBooking, error: updateErr } = await supabase
+      .from("customer_bookings")
+      .update({
+        original_scheduled_at: booking.original_scheduled_at || booking.scheduled_at,
+        scheduled_at: targetDate.toISOString(),
+        reschedule_count: (booking.reschedule_count || 0) + 1,
+        last_rescheduled_at: now,
+        last_rescheduled_by: user.id,
+        reschedule_reason: (reason || "").trim() || "Rescheduled by Administrator",
+        reschedule_history: [...existingHistory, historyEntry],
+        updated_at: now,
+      })
+      .eq("id", bookingId)
+      .select("*")
+      .single();
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    // Meeting sync
+    try {
+      await supabase
+        .from("consultation_meetings")
+        .update({ scheduled_at: targetDate.toISOString(), updated_at: now })
+        .eq("booking_id", bookingId)
+        .in("status", ["scheduled", "waiting"]);
+    } catch {
+      // Non-blocking
+    }
+
+    // Audit log
+    await logAdminAction({
+      actorId: user.id,
+      actorRole: profile.role,
+      action: "booking.reschedule",
+      targetType: "booking",
+      targetId: bookingId,
+      reason: reason || "Admin booking reschedule",
+      beforeState: { scheduled_at: booking.scheduled_at },
+      afterState: { scheduled_at: targetDate.toISOString() },
+      outcome: "success",
+    });
+
+    revalidatePath("/super-admin/bookings", "page");
+    revalidatePath("/super-admin", "page");
+    revalidatePath("/customer/bookings", "page");
+    revalidatePath("/astrologer/bookings", "page");
+
+    return { success: true, data: updatedBooking as CustomerBooking };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to reschedule booking.",
+    };
+  }
+}

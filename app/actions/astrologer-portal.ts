@@ -508,6 +508,137 @@ export async function updateAstrologerBookingStatusAction(params: {
 }
 
 /**
+ * Allows an astrologer to reschedule an assigned booking to a new available slot.
+ */
+export async function rescheduleAstrologerBookingAction(params: {
+  bookingId: string;
+  newScheduledAt: string;
+  reason?: string;
+}): Promise<AuthResult<CustomerBooking>> {
+  try {
+    const { profile } = await getAuthenticatedAstrologerProfile();
+    const { bookingId, newScheduledAt, reason } = params;
+
+    const targetDate = new Date(newScheduledAt);
+    if (Number.isNaN(targetDate.getTime())) {
+      return { success: false, error: "Invalid appointment date/time." };
+    }
+
+    if (targetDate.getTime() < Date.now() + 10 * 60 * 1000) {
+      return { success: false, error: "Slot must be scheduled at least 10 minutes in the future." };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: booking, error: fetchErr } = await admin
+      .from("customer_bookings")
+      .select("*")
+      .eq("id", bookingId)
+      .eq("astrologer_id", profile.id)
+      .maybeSingle();
+
+    if (fetchErr || !booking) {
+      return { success: false, error: "Booking record not found or unauthorized." };
+    }
+
+    if (booking.status === "completed" || booking.status === "no_show") {
+      return { success: false, error: "Cannot reschedule a completed consultation." };
+    }
+
+    if (booking.status === "cancelled") {
+      return { success: false, error: "Cannot reschedule a cancelled consultation." };
+    }
+
+    const newStart = targetDate.toISOString();
+    const newEnd = new Date(targetDate.getTime() + (booking.duration_minutes || 30) * 60_000).toISOString();
+
+    const { count: overlapCount } = await admin
+      .from("customer_bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("astrologer_id", profile.id)
+      .neq("id", bookingId)
+      .in("status", ["pending", "confirmed"])
+      .gte("scheduled_at", newStart)
+      .lt("scheduled_at", newEnd);
+
+    if ((overlapCount ?? 0) > 0) {
+      return { success: false, error: "You already have another booking confirmed during this time slot." };
+    }
+
+    const now = new Date().toISOString();
+    const historyEntry = {
+      rescheduled_at: now,
+      rescheduled_by: profile.user_id,
+      rescheduled_by_role: "astrologer",
+      previous_scheduled_at: booking.scheduled_at,
+      new_scheduled_at: targetDate.toISOString(),
+      reason: (reason || "").trim() || "Rescheduled by astrologer",
+    };
+
+    const existingHistory = Array.isArray(booking.reschedule_history) ? booking.reschedule_history : [];
+
+    const { data: updatedRows, error: updateErr } = await admin
+      .from("customer_bookings")
+      .update({
+        original_scheduled_at: booking.original_scheduled_at || booking.scheduled_at,
+        scheduled_at: targetDate.toISOString(),
+        reschedule_count: (booking.reschedule_count || 0) + 1,
+        last_rescheduled_at: now,
+        last_rescheduled_by: profile.user_id,
+        reschedule_reason: (reason || "").trim() || "Rescheduled by astrologer",
+        reschedule_history: [...existingHistory, historyEntry],
+        updated_at: now,
+      })
+      .eq("id", bookingId)
+      .eq("astrologer_id", profile.id)
+      .select("*");
+
+    if (updateErr || !updatedRows || updatedRows.length === 0) {
+      return { success: false, error: "Failed to update booking schedule." };
+    }
+
+    // Sync meeting
+    try {
+      await admin
+        .from("consultation_meetings")
+        .update({ scheduled_at: targetDate.toISOString(), updated_at: now })
+        .eq("booking_id", bookingId)
+        .in("status", ["scheduled", "waiting"]);
+    } catch {
+      // Non-blocking
+    }
+
+    // In-app notifications
+    try {
+      const { formatExactDateTime } = await import("@/lib/astrologer/format");
+      await admin.from("customer_notifications").insert({
+        customer_id: booking.customer_id,
+        title: "Consultation Appointment Rescheduled",
+        message: `${profile.display_name} rescheduled your consultation to ${formatExactDateTime(targetDate.toISOString())}.`,
+        link_url: "/customer/bookings",
+        event_type: "booking_rescheduled",
+        is_read: false,
+        created_at: now,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    revalidatePath("/astrologer/dashboard");
+    revalidatePath("/astrologer/bookings");
+    revalidatePath("/customer/bookings");
+    revalidatePath("/super-admin/bookings");
+
+    return { success: true, data: updatedRows[0] as CustomerBooking };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to reschedule booking.",
+    };
+  }
+}
+
+/**
  * Loads customer reviews & ratings submitted for this astrologer.
  */
 export async function getAstrologerReviewsAction(): Promise<
