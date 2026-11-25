@@ -231,6 +231,19 @@ export interface CustomerBooking {
   notes: string | null;
   cancellation_reason?: string | null;
   cancelled_at?: string | null;
+  reschedule_count?: number;
+  original_scheduled_at?: string | null;
+  last_rescheduled_at?: string | null;
+  last_rescheduled_by?: string | null;
+  reschedule_reason?: string | null;
+  reschedule_history?: Array<{
+    rescheduled_at: string;
+    rescheduled_by: string;
+    rescheduled_by_role?: string;
+    previous_scheduled_at: string;
+    new_scheduled_at: string;
+    reason?: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
@@ -297,15 +310,17 @@ export interface CustomerBillingRecord {
   astrologer_name: string;
   amount: number;
   currency: string;
-  payment_status: "paid" | "pending" | "complimentary" | "refunded";
+  payment_status: "paid" | "pending" | "complimentary" | "refunded" | "failed";
   transaction_ref: string;
   receipt_number?: string;
   payment_id?: string;
   created_at: string;
-  payment_gateway?: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary";
+  payment_gateway?: "instamojo" | "jyotish_pay" | "direct_upi" | "complimentary" | "wallet";
   refund_status?: "requested" | "approved" | "processed" | "rejected" | null;
   refund_reason?: string | null;
   refund_rejection_reason?: string | null;
+  transaction_category?: "consultation" | "wallet_recharge" | "wallet_debit" | "puja" | "refund";
+  transaction_direction?: "credit" | "debit";
 }
 
 // =====================================================

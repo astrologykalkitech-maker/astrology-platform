@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2, X } from "lucide-react";
+import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2, X, Search, Filter } from "lucide-react";
 import type { CustomerBillingRecord } from "@/lib/types/database.types";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
@@ -25,6 +25,14 @@ export function CustomerBillingClient({
   const [refundReason, setRefundReason] = useState("");
   const [submittingRefund, setSubmittingRefund] = useState(false);
   const [refundStatusMsg, setRefundStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Filters & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedMethod, setSelectedMethod] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Customer Wallet State
   const [walletAvailablePaise, setWalletAvailablePaise] = useState<number | null>(null);
@@ -200,14 +208,118 @@ export function CustomerBillingClient({
     }
   };
 
+  // Filter and pagination computation
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      // Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesRef = r.transaction_ref.toLowerCase().includes(q);
+        const matchesService = r.service_type.toLowerCase().includes(q);
+        const matchesAstro = r.astrologer_name.toLowerCase().includes(q);
+        const matchesReceipt = r.receipt_number ? r.receipt_number.toLowerCase().includes(q) : false;
+        if (!matchesRef && !matchesService && !matchesAstro && !matchesReceipt) {
+          return false;
+        }
+      }
+
+      // Status Filter
+      if (selectedStatus !== "all") {
+        if (selectedStatus === "refunded") {
+          if (r.payment_status !== "refunded" && r.refund_status !== "approved" && r.refund_status !== "processed") {
+            return false;
+          }
+        } else if (r.payment_status !== selectedStatus) {
+          return false;
+        }
+      }
+
+      // Category Filter
+      if (selectedCategory !== "all") {
+        const cat = r.transaction_category || "consultation";
+        if (cat !== selectedCategory) return false;
+      }
+
+      // Payment Method Filter
+      if (selectedMethod !== "all") {
+        if (r.payment_gateway !== selectedMethod) return false;
+      }
+
+      return true;
+    });
+  }, [records, searchQuery, selectedStatus, selectedCategory, selectedMethod]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredRecords.slice(start, start + PAGE_SIZE);
+  }, [filteredRecords, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStatus, selectedCategory, selectedMethod]);
+
   return (
     <>
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3.5 rounded-xl border border-gold/20 bg-white shadow-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by transaction ref, astrologer, or receipt no..."
+            className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-gold/20 text-xs focus:border-gold focus:outline-none text-midnight bg-parchment/20"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status Filter */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="rounded-lg border border-gold/20 px-2.5 py-1.5 text-xs text-midnight bg-white focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="refunded">Refunded</option>
+            <option value="complimentary">Complimentary</option>
+          </select>
+
+          {/* Category Filter */}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="rounded-lg border border-gold/20 px-2.5 py-1.5 text-xs text-midnight bg-white focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Categories</option>
+            <option value="consultation">Consultations</option>
+            <option value="wallet_recharge">Wallet Recharges</option>
+          </select>
+
+          {/* Gateway Filter */}
+          <select
+            value={selectedMethod}
+            onChange={(e) => setSelectedMethod(e.target.value)}
+            className="rounded-lg border border-gold/20 px-2.5 py-1.5 text-xs text-midnight bg-white focus:outline-none cursor-pointer"
+          >
+            <option value="all">All Methods</option>
+            <option value="wallet">Wallet</option>
+            <option value="instamojo">Gateway</option>
+            <option value="jyotish_pay">UPI QR</option>
+            <option value="direct_upi">Direct UPI</option>
+          </select>
+        </div>
+      </div>
+
       <div className="overflow-x-auto table-scrollbar -mx-4 sm:mx-0">
         <table className="w-full min-w-[640px] text-left text-xs text-ink/80">
           <thead className="bg-parchment/60 text-[11px] uppercase tracking-wider text-muted">
             <tr>
-              <th className="px-4 py-3">Consultation Service</th>
-              <th className="px-4 py-3">Astrologer</th>
+              <th className="px-4 py-3">Service / Activity</th>
+              <th className="px-4 py-3">Provider / Source</th>
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Amount</th>
               <th className="px-4 py-3">Status</th>
@@ -215,125 +327,180 @@ export function CustomerBillingClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-gold/10">
-            {records.map((r) => (
-              <tr key={r.id} className="hover:bg-parchment/20 transition-colors">
-                <td className="px-4 py-3.5">
-                  <div className="font-semibold text-midnight">{r.service_type}</div>
-                  <div className="text-[11px] text-muted capitalize">{r.consultation_mode} Call</div>
-                </td>
-                <td className="px-4 py-3.5">
-                  <div className="font-medium text-midnight">{r.astrologer_name}</div>
-                  <div className="text-[10px] text-muted font-mono">{r.transaction_ref}</div>
-                </td>
-                <td className="px-4 py-3.5 text-[11px] text-muted">
-                  {formatExactDateTime(r.created_at)}
-                </td>
-                <td className="px-4 py-3.5 font-bold text-midnight">
-                  {formatPaiseToInr(rupeesToPaise(r.amount))}
-                </td>
-                <td className="px-4 py-3.5">
-                  <div className="flex flex-col gap-1 items-start">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        r.payment_status === "paid"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : r.payment_status === "refunded"
-                          ? "bg-purple-50 text-purple-700 border border-purple-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      {r.payment_status.toUpperCase()}
-                    </span>
-                    {r.payment_gateway && r.payment_gateway !== "complimentary" && (
-                      <span className="text-[9px] text-muted font-medium uppercase tracking-wider">
-                        {r.payment_gateway === "jyotish_pay" ? "UPI QR" : r.payment_gateway === "direct_upi" ? "DIRECT UPI" : "GATEWAY"}
-                      </span>
-                    )}
-                    {r.refund_status && (
-                      <span
-                        className={`inline-flex items-center rounded-full px-1.5 py-0.2 text-[9px] font-medium ${
-                          r.refund_status === "requested"
-                            ? "bg-amber-100 text-amber-800"
-                            : r.refund_status === "approved"
-                            ? "bg-blue-100 text-blue-800"
-                            : r.refund_status === "processed"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                        title={r.refund_rejection_reason || r.refund_reason || undefined}
-                      >
-                        Refund: {r.refund_status.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3.5 text-right space-x-2">
-                  {r.payment_status === "paid" ? (
-                    <>
-                      <button
-                        onClick={() => handleDownloadReceipt(r)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gold/30 bg-parchment/40 px-2 py-1 text-[10px] font-medium text-midnight hover:bg-parchment transition-colors"
-                      >
-                        <Download className="h-3 w-3" />
-                        Invoice
-                      </button>
-                      {r.refund_status === "requested" ? (
-                        <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700">
-                          Refund Pending
-                        </span>
-                      ) : r.refund_status === "approved" || r.refund_status === "processed" ? (
-                        <span className="inline-flex items-center rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[10px] font-medium text-purple-700">
-                          Refunded
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setRefundModalRecord(r);
-                            setRefundStatusMsg(null);
-                          }}
-                          className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
-                        >
-                          {r.refund_status === "rejected" ? "Re-apply Refund" : "Refund"}
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-1.5">
-                      {/* 1. Pay via Customer Wallet Button */}
-                      <button
-                        onClick={() => handlePayViaWallet(r)}
-                        disabled={payingWalletBookingId === r.booking_id}
-                        className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity disabled:opacity-50"
-                        title={
-                          walletAvailablePaise !== null && walletAvailablePaise < rupeesToPaise(r.amount)
-                            ? `Insufficient wallet funds (₹${(walletAvailablePaise / 100).toFixed(2)} available)`
-                            : "Pay instantly from your Karmic Ascension Wallet"
-                        }
-                      >
-                        {payingWalletBookingId === r.booking_id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Wallet className="h-3 w-3" />
-                        )}
-                        Pay via Wallet
-                      </button>
-
-                      {/* 2. Pay via UPI Button */}
-                      <button
-                        onClick={() => handlePayNow(r)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
-                      >
-                        <CreditCard className="h-3 w-3" />
-                        Pay via UPI
-                      </button>
-                    </div>
-                  )}
+            {paginatedRecords.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted text-xs">
+                  No transactions match your search and filter criteria.
                 </td>
               </tr>
-            ))}
+            ) : (
+              paginatedRecords.map((r) => (
+                <tr key={r.id} className="hover:bg-parchment/20 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <div className="font-semibold text-midnight">{r.service_type}</div>
+                    <div className="text-[11px] text-muted capitalize">
+                      {r.transaction_category === "wallet_recharge" ? "Wallet Top-up" : `${r.consultation_mode} Call`}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="font-medium text-midnight">{r.astrologer_name}</div>
+                    <div className="text-[10px] text-muted font-mono">{r.transaction_ref}</div>
+                  </td>
+                  <td className="px-4 py-3.5 text-[11px] text-muted">
+                    {formatExactDateTime(r.created_at)}
+                  </td>
+                  <td className="px-4 py-3.5 font-bold text-midnight">
+                    <span className={r.transaction_direction === "credit" ? "text-emerald-600" : "text-midnight"}>
+                      {r.transaction_direction === "credit" ? "+" : ""}
+                      {formatPaiseToInr(rupeesToPaise(r.amount))}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="flex flex-col gap-1 items-start">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          r.payment_status === "paid"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : r.payment_status === "refunded"
+                            ? "bg-purple-50 text-purple-700 border border-purple-200"
+                            : r.payment_status === "failed"
+                            ? "bg-red-50 text-red-700 border border-red-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}
+                      >
+                        {r.payment_status.toUpperCase()}
+                      </span>
+                      {r.payment_gateway && r.payment_gateway !== "complimentary" && (
+                        <span className="text-[9px] text-muted font-medium uppercase tracking-wider">
+                          {r.payment_gateway === "wallet"
+                            ? "WALLET"
+                            : r.payment_gateway === "jyotish_pay"
+                            ? "UPI QR"
+                            : r.payment_gateway === "direct_upi"
+                            ? "DIRECT UPI"
+                            : "GATEWAY"}
+                        </span>
+                      )}
+                      {r.refund_status && (
+                        <span
+                          className={`inline-flex items-center rounded-full px-1.5 py-0.2 text-[9px] font-medium ${
+                            r.refund_status === "requested"
+                              ? "bg-amber-100 text-amber-800"
+                              : r.refund_status === "approved"
+                              ? "bg-blue-100 text-blue-800"
+                              : r.refund_status === "processed"
+                              ? "bg-purple-100 text-purple-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                          title={r.refund_rejection_reason || r.refund_reason || undefined}
+                        >
+                          Refund: {r.refund_status.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 text-right space-x-2">
+                    {r.payment_status === "paid" ? (
+                      <>
+                        <button
+                          onClick={() => handleDownloadReceipt(r)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gold/30 bg-parchment/40 px-2 py-1 text-[10px] font-medium text-midnight hover:bg-parchment transition-colors"
+                        >
+                          <Download className="h-3 w-3" />
+                          Invoice
+                        </button>
+                        {r.transaction_category !== "wallet_recharge" && (
+                          r.refund_status === "requested" ? (
+                            <span className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700">
+                              Refund Pending
+                            </span>
+                          ) : r.refund_status === "approved" || r.refund_status === "processed" ? (
+                            <span className="inline-flex items-center rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-[10px] font-medium text-purple-700">
+                              Refunded
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setRefundModalRecord(r);
+                                setRefundStatusMsg(null);
+                              }}
+                              className="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-medium text-red-700 hover:bg-red-100 transition-colors"
+                            >
+                              {r.refund_status === "rejected" ? "Re-apply Refund" : "Refund"}
+                            </button>
+                          )
+                        )}
+                      </>
+                    ) : r.transaction_category === "wallet_recharge" ? (
+                      <span className="text-[11px] text-muted italic">
+                        {r.payment_status === "failed" ? "Failed" : "Awaiting Verification"}
+                      </span>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-1.5">
+                        {/* 1. Pay via Customer Wallet Button */}
+                        <button
+                          onClick={() => handlePayViaWallet(r)}
+                          disabled={payingWalletBookingId === r.booking_id}
+                          className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity disabled:opacity-50"
+                          title={
+                            walletAvailablePaise !== null && walletAvailablePaise < rupeesToPaise(r.amount)
+                              ? `Insufficient wallet funds (₹${(walletAvailablePaise / 100).toFixed(2)} available)`
+                              : "Pay instantly from your Karmic Ascension Wallet"
+                          }
+                        >
+                          {payingWalletBookingId === r.booking_id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Wallet className="h-3 w-3" />
+                          )}
+                          Pay via Wallet
+                        </button>
+
+                        {/* 2. Pay via UPI Button */}
+                        <button
+                          onClick={() => handlePayNow(r)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:opacity-95 transition-opacity"
+                        >
+                          <CreditCard className="h-3 w-3" />
+                          Pay via UPI
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-gold/15 pt-3 text-xs text-muted">
+          <span>
+            Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, filteredRecords.length)} of {filteredRecords.length} records
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-gold/20 px-2.5 py-1 text-[11px] font-medium text-midnight disabled:opacity-40 hover:bg-parchment/40 transition cursor-pointer"
+            >
+              Previous
+            </button>
+            <span className="px-2 text-[11px] font-semibold text-midnight">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-gold/20 px-2.5 py-1 text-[11px] font-medium text-midnight disabled:opacity-40 hover:bg-parchment/40 transition cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Karmic Ascension Pay Modal for Customer Consultations */}
       {selectedBookingForPay && (

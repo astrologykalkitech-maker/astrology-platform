@@ -26,14 +26,58 @@ export async function POST(req: NextRequest) {
 
     const utr = typeof body.utr === "string" ? body.utr.trim().toUpperCase() : "";
     const sessionCode = typeof body.session_code === "string" ? body.session_code.trim() : null;
+    const orderNumberParam = typeof body.order_number === "string" ? body.order_number.trim() : null;
 
     if (!utr || utr.length !== 12 || !/^[A-Za-z0-9]{12}$/.test(utr)) {
       return NextResponse.json({ success: false, error: "UTR must be a valid 12-character alphanumeric reference." }, { status: 400 });
     }
 
     const { amountPaise } = validation;
-    const orderNumber = generateOrderNumber();
     const admin = await createAdminClient("main");
+
+    // 1. Duplicate UTR check: Verify this UTR is not already submitted or approved in payment_orders or direct_consultation_payments
+    const { data: existingOrderWithUtr } = await admin
+      .from("payment_orders")
+      .select("id, order_number, status, metadata")
+      .eq("metadata->>utr", utr)
+      .in("status", ["pending", "successful"])
+      .maybeSingle();
+
+    if (existingOrderWithUtr) {
+      // If it's the exact same order being updated with the same UTR, permit idempotent submission
+      const isSameOrder =
+        (orderNumberParam && existingOrderWithUtr.order_number === orderNumberParam) ||
+        (sessionCode && existingOrderWithUtr.metadata?.session_code === sessionCode);
+
+      if (!isSameOrder) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "This UTR / Transaction Reference has already been submitted or processed. Duplicate submissions are not allowed.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const { data: existingDirectPayment } = await admin
+      .from("direct_consultation_payments")
+      .select("id, status")
+      .eq("utr", utr)
+      .in("status", ["pending", "verified"])
+      .maybeSingle();
+
+    if (existingDirectPayment) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This UTR / Transaction Reference is already registered for another payment verification.",
+        },
+        { status: 409 }
+      );
+    }
+
+    const orderNumber = orderNumberParam || generateOrderNumber();
 
     if (verifiedRole === "astrologer") {
       const { data: astroProfile } = await admin
@@ -46,11 +90,72 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "Astrologer profile not found" }, { status: 404 });
       }
 
+      // Check if there is an existing pending order for this astrologer matching order_number or session_code
+      let targetOrderId: string | null = null;
+      let finalOrderNumber = orderNumber;
+
+      if (orderNumberParam) {
+        const { data: existing } = await admin
+          .from("payment_orders")
+          .select("id, order_number, metadata")
+          .eq("order_number", orderNumberParam)
+          .eq("entity_type", "astrologer_wallet_recharge")
+          .eq("astrologer_id", astroProfile.id)
+          .eq("status", "pending")
+          .maybeSingle();
+        if (existing) {
+          targetOrderId = existing.id;
+          finalOrderNumber = existing.order_number;
+        }
+      } else if (sessionCode) {
+        const { data: existing } = await admin
+          .from("payment_orders")
+          .select("id, order_number, metadata")
+          .eq("entity_type", "astrologer_wallet_recharge")
+          .eq("astrologer_id", astroProfile.id)
+          .eq("metadata->>session_code", sessionCode)
+          .eq("status", "pending")
+          .maybeSingle();
+        if (existing) {
+          targetOrderId = existing.id;
+          finalOrderNumber = existing.order_number;
+        }
+      }
+
+      if (targetOrderId) {
+        // Update existing order with submitted UTR and mark for manual verification review
+        const { data: updatedOrder, error: updateErr } = await admin
+          .from("payment_orders")
+          .update({
+            metadata: {
+              utr,
+              session_code: sessionCode,
+              payment_mode: "upi_manual",
+              verification_status: "pending_review",
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetOrderId)
+          .select("id, order_number")
+          .single();
+
+        if (updateErr) {
+          return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({
+          success: true,
+          orderNumber: updatedOrder.order_number,
+          status: "pending_verification",
+          message: "Your 12-digit UTR has been submitted for verification. Wallet balance will be credited once verified.",
+        });
+      }
+
       // Record direct payment / UTR claim in 'pending' status — NEVER auto-credit!
       const { data: order, error: orderErr } = await admin
         .from("payment_orders")
         .insert({
-          order_number: orderNumber,
+          order_number: finalOrderNumber,
           entity_type: "astrologer_wallet_recharge",
           entity_id: astroProfile.id,
           astrologer_id: astroProfile.id,
@@ -78,10 +183,71 @@ export async function POST(req: NextRequest) {
         message: "Your 12-digit UTR has been submitted for verification. Wallet balance will be credited once verified.",
       });
     } else {
+      // Customer role
+      let targetOrderId: string | null = null;
+      let finalOrderNumber = orderNumber;
+
+      if (orderNumberParam) {
+        const { data: existing } = await admin
+          .from("payment_orders")
+          .select("id, order_number, metadata")
+          .eq("order_number", orderNumberParam)
+          .eq("entity_type", "customer_wallet_recharge")
+          .eq("customer_id", user.id)
+          .eq("status", "pending")
+          .maybeSingle();
+        if (existing) {
+          targetOrderId = existing.id;
+          finalOrderNumber = existing.order_number;
+        }
+      } else if (sessionCode) {
+        const { data: existing } = await admin
+          .from("payment_orders")
+          .select("id, order_number, metadata")
+          .eq("entity_type", "customer_wallet_recharge")
+          .eq("customer_id", user.id)
+          .eq("metadata->>session_code", sessionCode)
+          .eq("status", "pending")
+          .maybeSingle();
+        if (existing) {
+          targetOrderId = existing.id;
+          finalOrderNumber = existing.order_number;
+        }
+      }
+
+      if (targetOrderId) {
+        // Update existing order with submitted UTR and mark for manual verification review
+        const { data: updatedOrder, error: updateErr } = await admin
+          .from("payment_orders")
+          .update({
+            metadata: {
+              utr,
+              session_code: sessionCode,
+              payment_mode: "upi_manual",
+              verification_status: "pending_review",
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", targetOrderId)
+          .select("id, order_number")
+          .single();
+
+        if (updateErr) {
+          return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({
+          success: true,
+          orderNumber: updatedOrder.order_number,
+          status: "pending_verification",
+          message: "Your 12-digit UTR has been submitted for verification. Wallet balance will be credited once verified.",
+        });
+      }
+
       const { data: order, error: orderErr } = await admin
         .from("payment_orders")
         .insert({
-          order_number: orderNumber,
+          order_number: finalOrderNumber,
           entity_type: "customer_wallet_recharge",
           entity_id: user.id,
           customer_id: user.id,

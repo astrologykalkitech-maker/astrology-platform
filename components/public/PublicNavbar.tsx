@@ -84,7 +84,7 @@ export function PublicNavbar({ currentRole: initialRole, isLoggedIn: initialLogg
       ? "/admin"
       : currentRole === "astrologer"
       ? "/astrologer/dashboard"
-      : "/customer/dashboard";
+      : "/customer/astrologers";
 
   const talkToAstrologerUrl = "/customer/astrologers";
 
