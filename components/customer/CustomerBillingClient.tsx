@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2, X, Search, Filter } from "lucide-react";
+import { Download, CreditCard, RefreshCw, AlertCircle, Wallet, CheckCircle2, Loader2, X, Search } from "lucide-react";
 import type { CustomerBillingRecord } from "@/lib/types/database.types";
 import { formatExactDateTime } from "@/lib/astrologer/format";
 import { formatPaiseToInr, rupeesToPaise } from "@/lib/financial/pricing";
@@ -86,7 +86,7 @@ export function CustomerBillingClient({
   }, [refundModalRecord]);
 
   useEffect(() => {
-    let mounted = true;
+    const mounted = true;
     async function loadCustomerWallet() {
       try {
         const res = await fetch("/api/customer/wallet");

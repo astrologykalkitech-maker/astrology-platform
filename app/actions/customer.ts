@@ -2190,18 +2190,23 @@ export async function getCustomerBillingHistory(): Promise<
 
       if (orders) {
         for (const o of orders) {
-          const pays = Array.isArray(o.payments) ? o.payments : (o.payments ? [o.payments] : []);
+          const pays: Array<Record<string, unknown>> = Array.isArray(o.payments)
+            ? (o.payments as Array<Record<string, unknown>>)
+            : o.payments
+            ? [o.payments as Record<string, unknown>]
+            : [];
           const successfulPayment = pays.find((payment) => payment.status === "successful");
-          const isWalletMethod = (o.metadata && typeof o.metadata === "object" && (o.metadata as any).payment_method === "wallet") ||
-                                 (successfulPayment && (successfulPayment as any).payment_method === "wallet");
+          const oMeta = (o.metadata && typeof o.metadata === "object") ? (o.metadata as Record<string, unknown>) : null;
+          const isWalletMethod = (oMeta && oMeta.payment_method === "wallet") ||
+                                 (successfulPayment && successfulPayment.payment_method === "wallet");
           if (successfulPayment) {
             paymentMap[o.entity_id] = {
-              receipt_number: successfulPayment.receipt_number,
-              payment_id: successfulPayment.payment_id,
+              receipt_number: typeof successfulPayment.receipt_number === "string" ? successfulPayment.receipt_number : `RCP-${o.id.slice(0, 8)}`,
+              payment_id: typeof successfulPayment.payment_id === "string" ? successfulPayment.payment_id : `PAY-${o.id.slice(0, 8)}`,
               gateway: isWalletMethod ? "wallet" : "instamojo",
             };
           } else if (isWalletMethod) {
-            const metaReceipt = (o.metadata as any)?.receipt_number || `RCP-WLT-${o.entity_id.slice(0, 8).toUpperCase()}`;
+            const metaReceipt = (oMeta && typeof oMeta.receipt_number === "string") ? oMeta.receipt_number : `RCP-WLT-${o.entity_id.slice(0, 8).toUpperCase()}`;
             paymentMap[o.entity_id] = {
               receipt_number: metaReceipt,
               payment_id: `PAY-WLT-${o.id.slice(0, 8)}`,
@@ -2370,12 +2375,31 @@ export async function getCustomerBillingHistory(): Promise<
       .eq("entity_type", "customer_wallet_recharge")
       .order("created_at", { ascending: false });
 
-    const rechargeRecords: CustomerBillingRecord[] = ((walletOrders || []) as any[]).map((wo: any) => {
-      const pays = Array.isArray(wo.payments) ? wo.payments : (wo.payments ? [wo.payments] : []);
-      const successfulPay = pays.find((p: any) => p.status === "successful");
-      const meta = typeof wo.metadata === "object" && wo.metadata !== null ? (wo.metadata as any) : {};
-      const utr = meta.utr || null;
-      const receiptNum = successfulPay?.receipt_number || (wo.status === "successful" ? `RCP-RCHG-${wo.order_number.slice(-6)}` : undefined);
+    interface WalletOrderRow {
+      id: string;
+      order_number: string;
+      amount_paise: number;
+      currency?: string;
+      status: string;
+      created_at: string;
+      metadata?: Record<string, unknown> | null;
+      payments?: Array<Record<string, unknown>> | Record<string, unknown> | null;
+    }
+
+    const rechargeRecords: CustomerBillingRecord[] = ((walletOrders || []) as unknown as WalletOrderRow[]).map((wo) => {
+      const pays: Array<Record<string, unknown>> = Array.isArray(wo.payments)
+        ? wo.payments
+        : wo.payments
+        ? [wo.payments]
+        : [];
+      const successfulPay = pays.find((p) => p.status === "successful");
+      const meta = typeof wo.metadata === "object" && wo.metadata !== null ? wo.metadata : {};
+      const utr = typeof meta.utr === "string" ? meta.utr : null;
+      const receiptNum = typeof successfulPay?.receipt_number === "string"
+        ? successfulPay.receipt_number
+        : wo.status === "successful"
+        ? `RCP-RCHG-${wo.order_number.slice(-6)}`
+        : undefined;
       const isPaid = wo.status === "successful";
       const isFailed = wo.status === "failed" || wo.status === "rejected";
       const status: "paid" | "pending" | "complimentary" | "refunded" | "failed" =
@@ -2395,7 +2419,7 @@ export async function getCustomerBillingHistory(): Promise<
         payment_status: status,
         transaction_ref: receiptNum || utr || wo.order_number,
         receipt_number: receiptNum,
-        payment_id: successfulPay?.payment_id || `ORD-${wo.order_number}`,
+        payment_id: typeof successfulPay?.payment_id === "string" ? successfulPay.payment_id : `ORD-${wo.order_number}`,
         created_at: wo.created_at,
         payment_gateway: gateway,
         refund_status: null,
