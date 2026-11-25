@@ -8,6 +8,63 @@ import { createInstamojoPaymentRequest } from "@/lib/financial/instamojo";
 import { generateOrderNumber, paiseToRupees, rupeesToPaise } from "@/lib/financial/pricing";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 
+async function persistGatewayMappingOrRecover(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  params: {
+    orderId: string;
+    orderNumber: string;
+    paymentRequestId: string;
+    paymentUrl: string;
+  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { data: updated, error: updateErr } = await supabase
+      .from("payment_orders")
+      .update({
+        payment_request_id: params.paymentRequestId,
+        payment_url: params.paymentUrl,
+        status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.orderId)
+      .select("id, payment_request_id")
+      .maybeSingle();
+
+    if (!updateErr && updated?.payment_request_id === params.paymentRequestId) {
+      return { ok: true };
+    }
+    if (attempt === 2) {
+      console.error(
+        `[Instamojo Create Critical] Orphaned gateway request ${params.paymentRequestId} for order ${params.orderId}:`,
+        updateErr?.message || "Update returned no row"
+      );
+      await supabase
+        .from("payment_webhook_events")
+        .insert({
+          provider: "instamojo",
+          event_id: `orphan_${params.paymentRequestId}`,
+          event_type: "orphaned_gateway_request",
+          payment_request_id: params.paymentRequestId,
+          status: "pending",
+          payload: {
+            order_id: params.orderId,
+            order_number: params.orderNumber,
+            payment_url: params.paymentUrl,
+            reason: updateErr?.message || "Order update failed after gateway creation",
+          },
+        })
+        .select("id")
+        .maybeSingle();
+      return {
+        ok: false,
+        error: "Failed to link gateway payment request to internal order. Please retry.",
+      };
+    }
+  }
+  return { ok: false, error: "Failed to link gateway payment request." };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -22,7 +79,7 @@ export async function POST(req: NextRequest) {
     const redirectUrl = `${siteUrl}/api/payments/instamojo/callback`;
     const webhookUrl = `${siteUrl}/api/payments/instamojo/webhook`;
 
-    if (purposeType === "subscription") {
+    if (purposeType === "subscription" || purposeType === "astrologer_subscription") {
       // 1. Authenticate Astrologer
       const { user } = await requireAstrologer();
 
@@ -131,17 +188,22 @@ export async function POST(req: NextRequest) {
       });
 
       if (!mojoRes.success || !mojoRes.data) {
+        await supabase
+          .from("payment_orders")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", order.id);
         return NextResponse.json({ error: mojoRes.error || "Payment gateway communication failed" }, { status: 502 });
       }
 
-      await supabase
-        .from("payment_orders")
-        .update({
-          payment_request_id: mojoRes.data.id,
-          payment_url: mojoRes.data.longurl,
-          status: "pending",
-        })
-        .eq("id", order.id);
+      const persisted = await persistGatewayMappingOrRecover(supabase, {
+        orderId: order.id,
+        orderNumber,
+        paymentRequestId: mojoRes.data.id,
+        paymentUrl: mojoRes.data.longurl,
+      });
+      if (!persisted.ok) {
+        return NextResponse.json({ error: persisted.error }, { status: 500 });
+      }
 
       return NextResponse.json({
         success: true,
@@ -184,6 +246,66 @@ export async function POST(req: NextRequest) {
       if (bErr || !booking) {
         return NextResponse.json({ error: "Booking not found" }, { status: 404 });
       }
+      if (!["pending", "confirmed"].includes(booking.status)) {
+        return NextResponse.json(
+          { error: "This booking is not eligible for payment." },
+          { status: 409 }
+        );
+      }
+
+      const [existingOrderRes, existingIntentRes, existingDirectRes] = await Promise.all([
+        supabase
+          .from("payment_orders")
+          .select("id, status")
+          .eq("entity_type", "consultation")
+          .eq("entity_id", booking.id)
+          .in("status", ["created", "pending", "successful"])
+          .limit(1),
+        supabase
+          .from("payment_intents")
+          .select("id, status, expires_at")
+          .eq("booking_id", booking.id)
+          .eq("entity_type", "consultation")
+          .in("status", ["created", "pending", "processing", "succeeded"])
+          .limit(5),
+        supabase
+          .from("direct_consultation_payments")
+          .select("id, status")
+          .eq("booking_id", booking.id)
+          .in("status", ["pending", "verified"])
+          .limit(1),
+      ]);
+
+      if (existingOrderRes.error || existingIntentRes.error || existingDirectRes.error) {
+        return NextResponse.json({ error: "Unable to validate existing payment state" }, { status: 500 });
+      }
+
+      const activeOrder = existingOrderRes.data?.[0];
+      if (activeOrder) {
+        return NextResponse.json(
+          {
+            error:
+              activeOrder.status === "successful"
+                ? "This booking is already paid."
+                : "An active payment order already exists for this booking.",
+          },
+          { status: 409 }
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const blockingIntent = (existingIntentRes.data || []).find(
+        (intent: { status: string; expires_at?: string }) =>
+          intent.status === "succeeded" ||
+          intent.status === "processing" ||
+          (intent.expires_at ? intent.expires_at > nowIso : true)
+      );
+      if (blockingIntent || (existingDirectRes.data?.length ?? 0) > 0) {
+        return NextResponse.json(
+          { error: "A payment session or direct payment already exists for this booking." },
+          { status: 409 }
+        );
+      }
 
       const astrologerData = Array.isArray(booking.astrologer) ? booking.astrologer[0] : booking.astrologer;
       const fee = booking.price || astrologerData?.consultation_fee || 500;
@@ -219,7 +341,11 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (orderErr || !order) {
-        return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+        const isConflict = orderErr?.code === "23505";
+        return NextResponse.json(
+          { error: isConflict ? "An active payment order already exists for this booking." : "Failed to create order" },
+          { status: isConflict ? 409 : 500 }
+        );
       }
 
       const mojoRes = await createInstamojoPaymentRequest({
@@ -234,17 +360,22 @@ export async function POST(req: NextRequest) {
       });
 
       if (!mojoRes.success || !mojoRes.data) {
+        await supabase
+          .from("payment_orders")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", order.id);
         return NextResponse.json({ error: mojoRes.error || "Gateway error" }, { status: 502 });
       }
 
-      await supabase
-        .from("payment_orders")
-        .update({
-          payment_request_id: mojoRes.data.id,
-          payment_url: mojoRes.data.longurl,
-          status: "pending",
-        })
-        .eq("id", order.id);
+      const persisted = await persistGatewayMappingOrRecover(supabase, {
+        orderId: order.id,
+        orderNumber,
+        paymentRequestId: mojoRes.data.id,
+        paymentUrl: mojoRes.data.longurl,
+      });
+      if (!persisted.ok) {
+        return NextResponse.json({ error: persisted.error }, { status: 500 });
+      }
 
       return NextResponse.json({
         success: true,

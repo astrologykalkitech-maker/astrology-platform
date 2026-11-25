@@ -372,6 +372,12 @@ export async function addSupportTicketMessageAction(payload: {
     if (ticket.user_id !== user.id) {
       return { success: false, error: "Unauthorized to post on this ticket." };
     }
+    if (ticket.status === "closed") {
+      return {
+        success: false,
+        error: "This support ticket is closed. Please create a new ticket for further assistance.",
+      };
+    }
 
     // Insert user message
     const { data: newMsg, error: msgErr } = await adminSupabase
@@ -393,13 +399,17 @@ export async function addSupportTicketMessageAction(payload: {
     }
 
     // Update ticket status to waiting_for_support and touch updated_at
-    await adminSupabase
+    const { error: statusUpdateErr } = await adminSupabase
       .from("support_tickets")
       .update({
         status: "waiting_for_support",
         updated_at: new Date().toISOString(),
       })
       .eq("id", ticket.id);
+
+    if (statusUpdateErr) {
+      console.warn("[Support Ticket Status Update Warning]", statusUpdateErr.message);
+    }
 
     return { success: true, data: newMsg as SupportMessage };
   } catch (err: unknown) {

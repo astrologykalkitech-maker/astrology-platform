@@ -67,6 +67,11 @@ export async function getSuperAdminConsultationsAction(filters?: {
         consultation_mode,
         scheduled_at,
         duration_minutes,
+        actual_started_at,
+        actual_ended_at,
+        billable_minutes,
+        rate_per_minute,
+        payment_collected_amount,
         price,
         status,
         payment_mode,
@@ -132,11 +137,17 @@ export async function getSuperAdminConsultationsAction(filters?: {
       else if (meeting?.status === "active") activeCount++;
 
       // Connected duration calculation
+      const effectiveStart = meeting?.started_at || b.actual_started_at || null;
+      const effectiveEnd = meeting?.ended_at || b.actual_ended_at || null;
+
       let connectedSeconds = 0;
-      if (meeting?.started_at && meeting?.ended_at) {
-        connectedSeconds = Math.max(0, Math.floor((new Date(meeting.ended_at).getTime() - new Date(meeting.started_at).getTime()) / 1000));
+      if (effectiveStart && effectiveEnd) {
+        connectedSeconds = Math.max(
+          0,
+          Math.floor((new Date(effectiveEnd).getTime() - new Date(effectiveStart).getTime()) / 1000)
+        );
       } else if (b.status === "completed") {
-        connectedSeconds = (Number(b.duration_minutes) || 30) * 60;
+        connectedSeconds = (Number(b.billable_minutes) || Number(b.duration_minutes) || 30) * 60;
       }
 
       const rateInfo = resolveConsultationRate({
@@ -176,10 +187,10 @@ export async function getSuperAdminConsultationsAction(filters?: {
         consultation_mode: mode,
         service_type: b.service_type,
         scheduled_at: b.scheduled_at,
-        actual_start_at: meeting?.started_at || null,
-        actual_ended_at: meeting?.ended_at || null,
+        actual_start_at: effectiveStart,
+        actual_ended_at: effectiveEnd,
         connected_seconds: connectedSeconds,
-        billable_minutes: feeCalc.billableMinutes,
+        billable_minutes: Number(b.billable_minutes) || feeCalc.billableMinutes,
         rate_per_minute_inr: rateInfo.rateRupees,
         gross_amount_inr: Math.round(actualGrossPaise / 100),
         gross_amount_paise: actualGrossPaise,

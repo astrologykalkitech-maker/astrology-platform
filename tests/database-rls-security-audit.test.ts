@@ -39,8 +39,8 @@ test("Database RLS & Defense-in-Depth Catalog Security Suite", async (t) => {
     }
   });
 
-  await t.test("1. All 112 public tables have explicit ENABLE ROW LEVEL SECURITY", () => {
-    assert.strictEqual(tables.size, 112, "Should discover exactly 112 public tables");
+  await t.test("1. All 114 public tables have explicit ENABLE ROW LEVEL SECURITY", () => {
+    assert.strictEqual(tables.size, 114, "Should discover all 114 public tables");
     const missingRls: string[] = [];
     tables.forEach((data, tbl) => {
       if (!data.rls) missingRls.push(tbl);

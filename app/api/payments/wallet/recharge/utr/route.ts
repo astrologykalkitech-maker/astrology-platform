@@ -26,13 +26,14 @@ export async function POST(req: NextRequest) {
 
     const utr = typeof body.utr === "string" ? body.utr.trim().toUpperCase() : "";
     const sessionCode = typeof body.session_code === "string" ? body.session_code.trim() : null;
+    const existingOrderNumber = typeof body.order_number === "string" ? body.order_number.trim() : null;
 
     if (!utr || utr.length !== 12 || !/^[A-Za-z0-9]{12}$/.test(utr)) {
       return NextResponse.json({ success: false, error: "UTR must be a valid 12-character alphanumeric reference." }, { status: 400 });
     }
 
     const { amountPaise } = validation;
-    const orderNumber = generateOrderNumber();
+    const orderNumber = existingOrderNumber || generateOrderNumber();
     const admin = await createAdminClient("main");
 
     if (verifiedRole === "astrologer") {
@@ -44,6 +45,45 @@ export async function POST(req: NextRequest) {
 
       if (!astroProfile) {
         return NextResponse.json({ success: false, error: "Astrologer profile not found" }, { status: 404 });
+      }
+
+      if (existingOrderNumber) {
+        const { data: existingOrder } = await admin
+          .from("payment_orders")
+          .select("id, order_number, status, metadata")
+          .eq("order_number", existingOrderNumber)
+          .eq("astrologer_id", astroProfile.id)
+          .eq("entity_type", "astrologer_wallet_recharge")
+          .maybeSingle();
+
+        if (existingOrder) {
+          if (existingOrder.status === "successful") {
+            return NextResponse.json({ success: false, error: "This recharge order is already settled." }, { status: 409 });
+          }
+          const { error: updErr } = await admin
+            .from("payment_orders")
+            .update({
+              metadata: {
+                ...((existingOrder.metadata as Record<string, unknown>) || {}),
+                utr,
+                session_code: sessionCode,
+                payment_mode: "upi_manual",
+                verification_status: "pending_review",
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingOrder.id);
+
+          if (updErr) {
+            return NextResponse.json({ success: false, error: updErr.message }, { status: 500 });
+          }
+          return NextResponse.json({
+            success: true,
+            orderNumber: existingOrder.order_number,
+            status: "pending_verification",
+            message: "Your 12-digit UTR has been attached for verification. Wallet balance will be credited once verified.",
+          });
+        }
       }
 
       // Record direct payment / UTR claim in 'pending' status — NEVER auto-credit!

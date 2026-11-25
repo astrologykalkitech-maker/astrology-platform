@@ -3,6 +3,7 @@ import { getJyotishPayConfig } from "@/lib/pay/config";
 import { isValidJyotishWebhookSignature } from "@/lib/pay/webhook-signature";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completePaymentIntent } from "@/lib/pay/orchestrator";
+import { verifyJyotishProviderTransaction } from "@/lib/pay/provider-client";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 
 type NormalizedPayment = {
@@ -299,7 +300,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const completion = await completePaymentIntent(claimedIntent, payment.utr, { supabaseClient: supabase });
+    // Independent server-to-server provider lookup when JYOTISH_PAY_PROVIDER_STATUS_URL is configured
+    const providerCheck = await verifyJyotishProviderTransaction({
+      sessionCode: session.session_code,
+      utr: payment.utr,
+      expectedAmountPaise: claimedIntent.amount_paise,
+    });
+    if (providerCheck.configured && !providerCheck.verified) {
+      await supabase
+        .from("payment_intents")
+        .update({ status: "pending", updated_at: new Date().toISOString() })
+        .eq("id", intent.id)
+        .eq("status", "processing");
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: providerCheck.error || "Provider verification failed",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: webhookEventClaimRow.event_record_id,
+        p_error_message: providerCheck.error || "Provider verification failed",
+      });
+      return NextResponse.json(
+        { success: false, error: providerCheck.error || "Provider verification failed" },
+        { status: 400 }
+      );
+    }
+
+    const completion = await completePaymentIntent(claimedIntent, providerCheck.utr || payment.utr, { supabaseClient: supabase });
     if (!completion.success) {
       await supabase.rpc("fail_payment_settlement", {
         p_claim_id: settlementClaimRow.claim_id,

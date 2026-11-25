@@ -52,7 +52,7 @@ export async function getAstrologerWithdrawalOverviewAction(): Promise<
       return { success: false, error: "Astrologer profile not found." };
     }
 
-    const [beneficiaryRes, payoutsRes, bookingsRes] = await Promise.all([
+    const [beneficiaryRes, payoutsRes, balancesRes] = await Promise.all([
       admin
         .from("astrologer_payout_beneficiaries")
         .select("id, beneficiary_name, payout_method, masked_account, verification_status")
@@ -65,30 +65,25 @@ export async function getAstrologerWithdrawalOverviewAction(): Promise<
         .eq("astrologer_id", profile.id)
         .order("created_at", { ascending: false })
         .limit(25),
-      admin
-        .from("customer_bookings")
-        .select("total_amount_paise, amount_paid_paise, status, payment_status")
-        .eq("astrologer_id", profile.id)
-        .eq("status", "completed")
-        .eq("payment_status", "paid"),
+      admin.rpc("get_astrologer_authoritative_financial_balances", {
+        p_astrologer_id: profile.id,
+      }),
     ]);
 
-    const completedGrossPaise = (bookingsRes.data || []).reduce((sum, b) => {
-      const amt = Number(b.amount_paid_paise ?? b.total_amount_paise ?? 0);
-      return sum + (Number.isFinite(amt) && amt > 0 ? amt : 0);
-    }, 0);
+    if (balancesRes.error) {
+      return {
+        success: false,
+        error: `Failed to load authoritative financial balance: ${balancesRes.error.message}`,
+      };
+    }
 
-    // Deduct 10% standard platform commission for net withdrawable estimate
-    const netEarnedPaise = Math.round(completedGrossPaise * 0.9);
-
-    const reservedOrPaidPaise = (payoutsRes.data || []).reduce((sum, p) => {
-      if (p.status === "failed" || p.status === "cancelled" || p.status === "rejected") {
-        return sum;
-      }
-      return sum + Number(p.amount_paise || 0);
-    }, 0);
-
-    const availableForWithdrawalPaise = Math.max(0, netEarnedPaise - reservedOrPaidPaise);
+    const balanceRow = Array.isArray(balancesRes.data)
+      ? balancesRes.data[0]
+      : balancesRes.data;
+    const availableForWithdrawalPaise = Math.max(
+      0,
+      Number((balanceRow as { available_for_withdrawal_paise?: number } | null)?.available_for_withdrawal_paise || 0)
+    );
 
     return {
       success: true,
@@ -278,6 +273,178 @@ export async function disburseAstrologerPayoutAction(input: {
     return {
       success: false,
       error: err instanceof Error ? err.message : "Failed to disburse payout.",
+    };
+  }
+}
+
+export interface SuperAdminPayoutQueueItem {
+  id: string;
+  astrologer_id: string;
+  astrologer_name: string;
+  amount_paise: number;
+  tds_paise: number;
+  net_payable_paise: number;
+  status: string;
+  payout_method: string;
+  utr_number: string | null;
+  requested_at: string;
+  approved_at: string | null;
+  disbursed_at: string | null;
+  failure_reason: string | null;
+}
+
+/**
+ * Loads astrologer payout requests for Super Admin approval & UTR disbursement.
+ */
+export async function getSuperAdminPayoutRequestsAction(): Promise<
+  AuthResult<SuperAdminPayoutQueueItem[]>
+> {
+  try {
+    await requireSuperAdmin();
+    const admin = await createAdminClient("main");
+
+    const { data, error } = await admin
+      .from("astrologer_payouts")
+      .select(
+        "id, astrologer_id, amount_paise, tds_paise, net_payable_paise, status, payout_method, utr_number, requested_at, approved_at, disbursed_at, failure_reason, astrologer:astrologer_id(display_name)"
+      )
+      .order("requested_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const items: SuperAdminPayoutQueueItem[] = (data || []).map((row: Record<string, unknown>) => {
+      const astro = row.astrologer as { display_name?: string | null } | null;
+      return {
+        id: String(row.id),
+        astrologer_id: String(row.astrologer_id),
+        astrologer_name: astro?.display_name || "Astrologer",
+        amount_paise: Number(row.amount_paise || 0),
+        tds_paise: Number(row.tds_paise || 0),
+        net_payable_paise: Number(row.net_payable_paise || 0),
+        status: String(row.status || "requested"),
+        payout_method: String(row.payout_method || "bank_transfer"),
+        utr_number: row.utr_number ? String(row.utr_number) : null,
+        requested_at: String(row.requested_at),
+        approved_at: row.approved_at ? String(row.approved_at) : null,
+        disbursed_at: row.disbursed_at ? String(row.disbursed_at) : null,
+        failure_reason: row.failure_reason ? String(row.failure_reason) : null,
+      };
+    });
+
+    return { success: true, data: items };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to load payout queue.",
+    };
+  }
+}
+
+/**
+ * Automated IMPS / NEFT / UPI Payout Execution (Super Admin):
+ * Calls the configured payout provider with decrypted beneficiary details and,
+ * upon confirmed bank UTR, atomically settles `disburse_astrologer_payout`.
+ */
+export async function executeAutomatedAstrologerPayoutAction(
+  payoutId: string
+): Promise<AuthResult<{ utrNumber: string; providerReference: string }>> {
+  try {
+    const adminCtx = await requireSuperAdmin();
+    const admin = await createAdminClient("main");
+
+    const { data: payout, error: payoutErr } = await admin
+      .from("astrologer_payouts")
+      .select("id, payout_number, astrologer_id, beneficiary_id, net_payable_paise, amount_paise, status, payout_method")
+      .eq("id", payoutId)
+      .maybeSingle();
+
+    if (payoutErr || !payout) {
+      return { success: false, error: "Payout request not found." };
+    }
+    if (payout.status !== "approved" && payout.status !== "processing") {
+      return {
+        success: false,
+        error: `Payout must be approved before automated bank transfer (current status: ${payout.status}).`,
+      };
+    }
+
+    const { data: beneficiary } = await admin
+      .from("astrologer_payout_beneficiaries")
+      .select("*")
+      .eq("id", payout.beneficiary_id)
+      .maybeSingle();
+
+    if (!beneficiary) {
+      return { success: false, error: "Associated payout beneficiary not found." };
+    }
+
+    const { executeAutomatedBankPayout } = await import("@/lib/financial/payout-provider");
+    const rail =
+      beneficiary.payout_method === "upi"
+        ? "UPI"
+        : payout.payout_method === "neft"
+        ? "NEFT"
+        : "IMPS";
+
+    const transferRes = await executeAutomatedBankPayout({
+      payoutId: payout.id,
+      payoutNumber: payout.payout_number || payout.id.slice(0, 8),
+      amountPaise: Number(payout.net_payable_paise || payout.amount_paise),
+      rail,
+      beneficiaryName: beneficiary.beneficiary_name,
+      accountNumber: beneficiary.encrypted_account_number || null,
+      ifscCode: beneficiary.ifsc_code || null,
+      upiVpa: beneficiary.encrypted_upi_vpa || null,
+    });
+
+    if (!transferRes.success || !transferRes.utrNumber) {
+      return {
+        success: false,
+        error: transferRes.error || "Automated bank transfer failed.",
+      };
+    }
+
+    const { data: disburseData, error: disburseErr } = await admin.rpc(
+      "disburse_astrologer_payout",
+      {
+        p_payout_id: payout.id,
+        p_admin_id: adminCtx.user.id,
+        p_utr_number: transferRes.utrNumber,
+        p_provider_reference: transferRes.providerReference || transferRes.utrNumber,
+      }
+    );
+
+    if (disburseErr) {
+      return {
+        success: false,
+        error: `Bank transfer succeeded (UTR ${transferRes.utrNumber}) but ledger settlement failed: ${disburseErr.message}`,
+      };
+    }
+
+    const rpcRes = disburseData as { success?: boolean; error?: string } | null;
+    if (!rpcRes?.success) {
+      return {
+        success: false,
+        error: rpcRes?.error || "Failed to reconcile payout settlement.",
+      };
+    }
+
+    revalidatePath("/super-admin/financials");
+    revalidatePath("/astrologer/earnings");
+    return {
+      success: true,
+      data: {
+        utrNumber: transferRes.utrNumber,
+        providerReference: transferRes.providerReference || transferRes.utrNumber,
+      },
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Automated payout execution failed.",
     };
   }
 }

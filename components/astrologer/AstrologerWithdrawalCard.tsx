@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Banknote, CheckCircle2, AlertCircle, RefreshCw, Landmark } from "lucide-react";
+import { ArrowUpRight, Banknote, CheckCircle2, AlertCircle, RefreshCw, Landmark, Wallet } from "lucide-react";
 import {
   getAstrologerWithdrawalOverviewAction,
   requestAstrologerWithdrawalAction,
@@ -16,6 +16,15 @@ export function AstrologerWithdrawalCard() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Operating wallet recharge state
+  const [rechargeInr, setRechargeInr] = useState("500");
+  const [rechargeOrder, setRechargeOrder] = useState<{
+    orderNumber: string;
+    qrSvg?: string;
+  } | null>(null);
+  const [rechargeUtr, setRechargeUtr] = useState("");
+  const [rechargeLoading, setRechargeLoading] = useState(false);
 
   const loadOverview = async () => {
     setLoading(true);
@@ -60,6 +69,69 @@ export function AstrologerWithdrawalCard() {
         setErrorMsg(res.error || "Withdrawal request failed.");
       }
     });
+  };
+
+  const handleCreateWalletRecharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    const parsed = Number(rechargeInr);
+    if (!Number.isFinite(parsed) || parsed < 10) {
+      setErrorMsg("Minimum operating wallet recharge is ₹10.");
+      return;
+    }
+    setRechargeLoading(true);
+    try {
+      const res = await fetch("/api/payments/wallet/recharge/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount_rupees: parsed, wallet_type: "astrologer" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create wallet recharge order.");
+      }
+      setRechargeOrder({
+        orderNumber: data.orderNumber || data.order_number,
+        qrSvg: data.qrSvg || data.qr_svg,
+      });
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Wallet recharge initiation failed.");
+    } finally {
+      setRechargeLoading(false);
+    }
+  };
+
+  const handleSubmitRechargeUtr = async () => {
+    if (!rechargeOrder?.orderNumber || rechargeUtr.trim().length < 6) {
+      setErrorMsg("Please enter a valid 12-digit UPI UTR reference.");
+      return;
+    }
+    setRechargeLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/payments/wallet/recharge/utr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_number: rechargeOrder.orderNumber,
+          amount_rupees: Number(rechargeInr),
+          utr: rechargeUtr.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to submit UTR.");
+      }
+      setSuccessMsg(`Operating wallet recharge ${rechargeOrder.orderNumber} submitted for verification.`);
+      setRechargeOrder(null);
+      setRechargeUtr("");
+      await loadOverview();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to submit recharge UTR.");
+    } finally {
+      setRechargeLoading(false);
+    }
   };
 
   const availableInr = overview ? Math.floor(overview.availableForWithdrawalPaise / 100) : 0;
@@ -158,6 +230,66 @@ export function AstrologerWithdrawalCard() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* Operating Wallet Recharge (UPI) */}
+          <div className="rounded-xl border border-gold/25 bg-parchment/25 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-gold-deep" />
+              <h3 className="text-xs font-semibold text-midnight">
+                Recharge Operating Wallet (for Commission Dues & Auto-Renew)
+              </h3>
+            </div>
+            {!rechargeOrder ? (
+              <form onSubmit={handleCreateWalletRecharge} className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={10}
+                  step={1}
+                  value={rechargeInr}
+                  onChange={(e) => setRechargeInr(e.target.value)}
+                  placeholder="Amount ₹"
+                  className="w-36 rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink focus:border-gold focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={rechargeLoading}
+                  className="inline-flex items-center gap-1 rounded-xl border border-gold/40 bg-white px-3.5 py-1.5 text-xs font-semibold text-midnight hover:bg-gold/10 disabled:opacity-50"
+                >
+                  {rechargeLoading ? "Creating QR..." : "Generate UPI Recharge QR"}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-2.5 text-xs">
+                <p className="text-muted">
+                  Order <span className="font-mono font-semibold text-midnight">{rechargeOrder.orderNumber}</span> created. Pay via UPI and submit UTR:
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={rechargeUtr}
+                    onChange={(e) => setRechargeUtr(e.target.value)}
+                    placeholder="Enter 12-digit UPI UTR"
+                    className="w-48 rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-ink focus:border-gold focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={rechargeLoading}
+                    onClick={() => void handleSubmitRechargeUtr()}
+                    className="rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {rechargeLoading ? "Submitting..." : "Submit UTR"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRechargeOrder(null)}
+                    className="rounded-xl border border-line px-3 py-1.5 text-xs text-muted hover:text-midnight"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {overview && overview.withdrawals.length > 0 && (

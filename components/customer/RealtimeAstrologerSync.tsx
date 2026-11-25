@@ -150,6 +150,50 @@ export function RealtimeAstrologerSync() {
             triggerRefresh();
           }
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "customer_wallets",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "wallet_transactions",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "payment_orders",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "support_tickets",
+          },
+          () => {
+            triggerRefresh();
+          }
+        )
         .subscribe();
 
       // Window focus / reconnection listener: only re-syncs if user was away for over 5 minutes

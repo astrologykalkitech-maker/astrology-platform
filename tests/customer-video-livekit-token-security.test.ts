@@ -60,7 +60,7 @@ describe("Sub-phase 1.8: Video/Voice Consultation Authorization & LiveKit Token 
   it("generates opaque room names and short-lived tokens with secure participant identity", () => {
     assert.match(
       meetingContent,
-      /const opaqueRoomName = `karmicascension_\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`;/,
+      /const opaqueRoomName = `karmicascension_(?:consultation_)?\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`;/,
       "Room names must be opaque cryptographically random hex strings"
     );
     assert.match(

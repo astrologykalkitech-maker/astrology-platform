@@ -46,7 +46,7 @@ test("Sub-phase 8.3: Lead Quota & Commission Tier Synchronization", async (t) =>
       "Must check if subscription has expired past current_period_end"
     );
     assert.ok(
-      code.includes('["cancelled", "expired", "suspended", "payment_failed"].includes(sub.status)'),
+      code.includes('["cancelled", "expired", "suspended", "payment_failed", "past_due"].includes(sub.status)'),
       "Inactive statuses must strictly downgrade to Free tier features"
     );
   });

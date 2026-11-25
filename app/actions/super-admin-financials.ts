@@ -275,46 +275,78 @@ export async function processRefundDecisionAction(payload: {
       return { success: true, data: true };
     }
 
-    // Decision: Approve -> Call Instamojo Refund API
-    const paymentData = Array.isArray(request.payment) ? request.payment[0] : request.payment;
-    if (!paymentData?.payment_id) {
-      return { success: false, error: "Gateway payment ID not found for refund." };
-    }
-
-    const mojoRefund = await createInstamojoRefund({
-      paymentId: paymentData.payment_id,
-      type: "RFD",
-      body: request.reason || "Customer refund requested and approved",
-      refundAmount: request.amount_paise / 100,
-    });
-
-    if (!mojoRefund.success || !mojoRefund.data) {
+    // Decision: Approve -> Atomically claim refund request before calling Instamojo Refund API
+    const isRetryWithGatewayRef = request.status === "processing" && Boolean(request.instamojo_refund_id);
+    if (request.status !== "requested" && !isRetryWithGatewayRef) {
       return {
         success: false,
-        error: mojoRefund.error || "Failed to process refund with Instamojo API.",
+        error: `Refund request cannot be approved in status '${request.status}'.`,
       };
     }
 
+    if (!isRetryWithGatewayRef) {
+      const { data: claimed, error: claimErr } = await supabase
+        .from("refund_requests")
+        .update({
+          status: "processing",
+          reviewed_by: adminContext.user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id)
+        .eq("status", "requested")
+        .select("id")
+        .maybeSingle();
+
+      if (claimErr || !claimed) {
+        return {
+          success: false,
+          error: "Refund request was already claimed or processed by another request.",
+        };
+      }
+    }
+
+    const paymentData = Array.isArray(request.payment) ? request.payment[0] : request.payment;
+    if (!paymentData?.payment_id) {
+      await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
+      return { success: false, error: "Gateway payment ID not found for refund." };
+    }
+
+    let gatewayRefundId: string | null = request.instamojo_refund_id || null;
+    if (!gatewayRefundId) {
+      const mojoRefund = await createInstamojoRefund({
+        paymentId: paymentData.payment_id,
+        type: "RFD",
+        body: request.reason || "Customer refund requested and approved",
+        refundAmount: request.amount_paise / 100,
+      });
+
+      if (!mojoRefund.success || !mojoRefund.data) {
+        await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
+        return {
+          success: false,
+          error: mojoRefund.error || "Failed to process refund with Instamojo API.",
+        };
+      }
+      gatewayRefundId = mojoRefund.data.id;
+    }
+
     // Invoke atomic customer refund RPC (handles pre-release, post-release, deficits, and universal locking)
-    // Stage 2C.2: Identity is derived securely from auth.uid() inside the database function
     const { data: atomicResult, error: atomicErr } = await supabase.rpc(
       "process_customer_refund_atomic",
       {
         p_refund_request_id: request.id,
-        p_provider_refund_id: mojoRefund.data.id,
+        p_provider_refund_id: gatewayRefundId,
       }
     );
 
-    if (atomicErr) {
-      console.error("[processRefundDecisionAction] Atomic refund RPC error:", atomicErr.message);
-      return { success: false, error: atomicErr.message };
-    }
-
-    if (!atomicResult || !atomicResult.success) {
-      return {
-        success: false,
-        error: atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.",
-      };
+    if (atomicErr || !atomicResult?.success) {
+      const errMsg = atomicErr?.message || atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.";
+      console.error("[processRefundDecisionAction] Atomic refund RPC error:", errMsg);
+      await supabase
+        .from("refund_requests")
+        .update({ instamojo_refund_id: gatewayRefundId, updated_at: new Date().toISOString() })
+        .eq("id", request.id);
+      return { success: false, error: errMsg };
     }
 
     // In-app notification to customer on approved refund

@@ -212,76 +212,154 @@ export async function updateAstrologerBookingStatusAction(params: {
       });
 
       if (!atomicRes.error && atomicRes.data) {
-        // Auto-deduct wallet for Chat/Call consultations (post-completion billing)
+        // Post-chat / post-call wallet deduction (Chat first, wallet deduction after completion)
         // Video requires upfront payment — wallet deduction not applicable here.
         const isWalletPostBilling =
           (beforeBooking.consultation_mode === "Chat" ||
             beforeBooking.consultation_mode === "Call") &&
-          Number(beforeBooking.price) > 0 &&
           beforeBooking.direct_payment_status !== "paid" &&
           beforeBooking.direct_payment_status !== "confirmed";
 
         if (isWalletPostBilling) {
           try {
-            const { data: walletPayData, error: walletDebitErr } = await admin.rpc(
-              "pay_consultation_via_wallet_atomic",
-              {
-                p_customer_id: beforeBooking.customer_id,
-                p_booking_id: beforeBooking.id,
-              }
+            const { calculateConsultationFee, resolveConsultationRate } = await import(
+              "@/lib/consultation/billing-engine"
             );
+            const actualEndedAt = new Date();
+            const rateInfo = resolveConsultationRate({
+              mode: beforeBooking.consultation_mode as "Chat" | "Call" | "Video",
+              chatRate: profile.chat_price_per_minute,
+              voiceRate: profile.voice_price_per_minute,
+              videoRate: profile.video_price_per_minute,
+            });
 
-            if (walletDebitErr || !walletPayData?.success) {
-              console.warn(
-                "[updateAstrologerBookingStatusAction] Post-completion wallet debit notice:",
-                walletDebitErr?.message || walletPayData?.error || "Insufficient balance or already debited"
-              );
-            } else {
-              // Credit astrologer's operating wallet (idempotent)
-              try {
-                const { creditAstrologerOperatingWallet } = await import(
-                  "@/lib/financial/astrologer-wallet-engine"
-                );
-                const amountPaise =
-                  walletPayData.amount_paise || Math.round(Number(beforeBooking.price) * 100);
-                if (amountPaise > 0) {
-                  await creditAstrologerOperatingWallet({
-                    astrologerId: profile.id,
-                    amountPaise,
-                    creditType: "RECHARGE",
-                    idempotencyKey: `wallet_pay_astro_credit_${beforeBooking.id}`,
-                    description: `Post-consultation fee via Customer Wallet for booking #${beforeBooking.id}`,
-                    metadata: {
-                      booking_id: beforeBooking.id,
-                      customer_id: beforeBooking.customer_id,
-                      order_number: walletPayData.order_number,
-                      receipt_number: walletPayData.receipt_number,
-                      trigger: "completion_auto_debit",
-                    },
-                  });
+            const hasActualStart = Boolean(beforeBooking.actual_started_at);
+            const durationSeconds = hasActualStart
+              ? Math.max(
+                  1,
+                  Math.floor(
+                    (actualEndedAt.getTime() -
+                      new Date(beforeBooking.actual_started_at as string).getTime()) /
+                      1000
+                  )
+                )
+              : Number(beforeBooking.price) > 0
+              ? (Number(beforeBooking.duration_minutes) || 1) * 60
+              : 0;
+
+            const feeCalc = calculateConsultationFee({
+              durationSeconds,
+              ratePerMinutePaise: rateInfo.ratePaise,
+              commissionPercent: 10,
+            });
+
+            const computedRupees =
+              hasActualStart && feeCalc.grossAmountPaise > 0
+                ? feeCalc.grossAmountRupees
+                : Number(beforeBooking.price) > 0
+                ? Number(beforeBooking.price)
+                : feeCalc.grossAmountRupees;
+
+            // Persist authoritative duration, rate & computed price before atomic wallet RPC
+            await admin
+              .from("customer_bookings")
+              .update({
+                actual_ended_at: actualEndedAt.toISOString(),
+                billable_minutes: feeCalc.billableMinutes,
+                rate_per_minute: rateInfo.rateRupees,
+                price: computedRupees,
+                updated_at: actualEndedAt.toISOString(),
+              })
+              .eq("id", beforeBooking.id);
+
+            if (computedRupees > 0) {
+              const { data: walletPayData, error: walletDebitErr } = await admin.rpc(
+                "pay_consultation_via_wallet_atomic",
+                {
+                  p_customer_id: beforeBooking.customer_id,
+                  p_booking_id: beforeBooking.id,
                 }
-              } catch (creditErr) {
-                console.warn(
-                  "[updateAstrologerBookingStatusAction] Astrologer wallet credit notice:",
-                  creditErr
-                );
-              }
+              );
 
-              // Notify customer about automatic wallet deduction
-              const { error: notifErr } = await admin.from("customer_notifications").insert({
-                customer_id: beforeBooking.customer_id,
-                title: "Consultation Fee Deducted",
-                message: `₹${Number(beforeBooking.price).toFixed(2)} has been deducted from your wallet for the completed ${beforeBooking.consultation_mode} consultation.`,
-                link_url: "/customer/bookings",
-                event_type: "booking_wallet_deducted",
-                is_read: false,
-                created_at: new Date().toISOString(),
-              });
-              if (notifErr) {
+              if (walletDebitErr || !walletPayData?.success) {
+                const failReason =
+                  walletDebitErr?.message ||
+                  walletPayData?.error ||
+                  "Insufficient wallet balance";
                 console.warn(
-                  "[updateAstrologerBookingStatusAction] deduction notification failed:",
-                  notifErr.message
+                  "[updateAstrologerBookingStatusAction] Post-completion wallet debit failed:",
+                  failReason
                 );
+                // Notify customer so they can recharge/pay via Wallet or UPI without marking paid
+                await admin.from("customer_notifications").insert({
+                  customer_id: beforeBooking.customer_id,
+                  title: "Consultation Payment Pending",
+                  message: `Your ${beforeBooking.consultation_mode} consultation (${feeCalc.billableMinutes} min, ₹${computedRupees.toFixed(2)}) ended, but automatic wallet deduction could not complete (${failReason}). Please pay via Wallet or UPI in My Bookings.`,
+                  link_url: "/customer/bookings",
+                  event_type: "booking_wallet_debit_failed",
+                  is_read: false,
+                  created_at: actualEndedAt.toISOString(),
+                });
+              } else {
+                const collectedRupees = walletPayData.amount_paise
+                  ? Number(walletPayData.amount_paise) / 100
+                  : computedRupees;
+                await admin
+                  .from("customer_bookings")
+                  .update({
+                    payment_collected_amount: collectedRupees,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", beforeBooking.id);
+
+                // Credit astrologer's operating wallet (idempotent)
+                try {
+                  const { creditAstrologerOperatingWallet } = await import(
+                    "@/lib/financial/astrologer-wallet-engine"
+                  );
+                  const amountPaise =
+                    walletPayData.amount_paise || Math.round(computedRupees * 100);
+                  if (amountPaise > 0) {
+                    await creditAstrologerOperatingWallet({
+                      astrologerId: profile.id,
+                      amountPaise,
+                      creditType: "RECHARGE",
+                      idempotencyKey: `wallet_pay_astro_credit_${beforeBooking.id}`,
+                      description: `Post-consultation fee (${feeCalc.billableMinutes} min) via Customer Wallet for booking #${beforeBooking.id}`,
+                      metadata: {
+                        booking_id: beforeBooking.id,
+                        customer_id: beforeBooking.customer_id,
+                        billable_minutes: feeCalc.billableMinutes,
+                        rate_per_minute_inr: rateInfo.rateRupees,
+                        order_number: walletPayData.order_number,
+                        receipt_number: walletPayData.receipt_number,
+                        trigger: "completion_auto_debit",
+                      },
+                    });
+                  }
+                } catch (creditErr) {
+                  console.warn(
+                    "[updateAstrologerBookingStatusAction] Astrologer wallet credit notice:",
+                    creditErr
+                  );
+                }
+
+                // Notify customer about automatic wallet deduction
+                const { error: notifErr } = await admin.from("customer_notifications").insert({
+                  customer_id: beforeBooking.customer_id,
+                  title: "Consultation Fee Deducted",
+                  message: `₹${collectedRupees.toFixed(2)} (${feeCalc.billableMinutes} min @ ₹${rateInfo.rateRupees}/min) has been deducted from your wallet for the completed ${beforeBooking.consultation_mode} consultation.`,
+                  link_url: "/customer/bookings",
+                  event_type: "booking_wallet_deducted",
+                  is_read: false,
+                  created_at: new Date().toISOString(),
+                });
+                if (notifErr) {
+                  console.warn(
+                    "[updateAstrologerBookingStatusAction] deduction notification failed:",
+                    notifErr.message
+                  );
+                }
               }
             }
           } catch (walletAutoErr) {

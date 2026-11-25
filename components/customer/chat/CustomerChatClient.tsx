@@ -43,7 +43,12 @@ import {
   searchConversationMessagesAction,
 } from "@/app/actions/direct-chat";
 import { createClient } from "@/lib/supabase/client";
-import { parseDirectMessageRow } from "@/lib/chat/meta";
+import {
+  formatChatDateSeparator,
+  getChatCalendarDayKey,
+  mergeDirectMessages,
+  parseDirectMessageRow,
+} from "@/lib/chat/meta";
 import {
   playChatNotificationChime,
   unlockChatAudio,
@@ -132,6 +137,7 @@ export function CustomerChatClient({
   const selectedConvoIdRef = useRef<string | null>(selectedConvoId);
   const messagesRef = useRef<DirectMessage[]>(messages);
   const processedIncomingMessageIdsRef = useRef(new Set<string>());
+  const typingResetTimerRef = useRef<NodeJS.Timeout | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
   const [, startTransition] = useTransition();
@@ -229,20 +235,7 @@ export function CustomerChatClient({
       }
 
       if (isCurrentChat) {
-        setMessages((prev) => {
-          if (newMsg.client_message_id) {
-            const tempIndex = prev.findIndex(
-              (m) => m.client_message_id === newMsg.client_message_id
-            );
-            if (tempIndex !== -1) {
-              const updated = [...prev];
-              updated[tempIndex] = newMsg;
-              return updated;
-            }
-          }
-          if (prev.some((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
+        setMessages((prev) => mergeDirectMessages(prev, [newMsg]));
 
         // Scenario 4: If user is reading older messages, do not force scroll down
         if (isUserNearBottom()) {
@@ -306,6 +299,30 @@ export function CustomerChatClient({
     handleIncomingMessageRef.current = handleIncomingMessage;
   }, [handleIncomingMessage]);
 
+  const syncInFlightRef = useRef<Set<string>>(new Set());
+  const syncConversationDelta = useCallback(async (convoId: string) => {
+    if (!convoId || syncInFlightRef.current.has(convoId)) return;
+    syncInFlightRef.current.add(convoId);
+    try {
+      const isCurrent = selectedConvoIdRef.current === convoId;
+      const cur = isCurrent ? messagesRef.current : [];
+      const lastPersisted = [...cur].reverse().find((m) => !m.id.startsWith("temp-"));
+      const afterIso = lastPersisted?.created_at ?? null;
+      const afterId = lastPersisted?.id ?? null;
+
+      const res = await getLatestMessagesDeltaAction(convoId, afterIso, afterId);
+      if (res?.success && res.data && res.data.length > 0) {
+        for (const m of res.data) {
+          handleIncomingMessageRef.current(m);
+        }
+      }
+    } catch {
+      // Suppress transient delta sync failures
+    } finally {
+      syncInFlightRef.current.delete(convoId);
+    }
+  }, []);
+
   // --------------------------------------------------------------------------
   // LOAD MESSAGES WITH CURSOR PAGINATION
   // --------------------------------------------------------------------------
@@ -325,14 +342,10 @@ export function CustomerChatClient({
         if (res.success && res.data) {
           setMessages((prev) => {
             // Preserve any newer live messages that arrived while history was loading
-            const loadedIds = new Set(res.data!.map((m) => m.id));
             const newerLive = prev.filter(
-              (m) =>
-                m.conversation_id === convoId &&
-                !m.id.startsWith("temp-") &&
-                !loadedIds.has(m.id)
+              (m) => m.conversation_id === convoId && !m.id.startsWith("temp-")
             );
-            return [...res.data!, ...newerLive];
+            return mergeDirectMessages(res.data!, newerLive);
           });
           setHasMoreMessages(Boolean(res.hasMore));
           setOldestCursor(res.oldestCursor || null);
@@ -394,13 +407,11 @@ export function CustomerChatClient({
     }
   };
 
-  const typingResetTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   useEffect(() => {
     setIsAstrologerTyping(false);
-    if (typingResetTimerRef.current) {
-      clearTimeout(typingResetTimerRef.current);
-      typingResetTimerRef.current = null;
+    const timer = typingResetTimerRef.current;
+    if (timer) {
+      clearTimeout(timer);
     }
     if (selectedConvoId) {
       void loadMessages(selectedConvoId);
@@ -490,10 +501,14 @@ export function CustomerChatClient({
       );
     });
 
+    // Signal-only wake-up (no private message content broadcast over shared channel)
     channel.on("broadcast", { event: "direct_message_sync" }, ({ payload }) => {
-      const data = payload as { message?: DirectMessage };
-      if (data?.message && data.message.sender_id !== currentUserId) {
-        handleIncomingMessageRef.current(data.message);
+      const data = payload as { conversationId?: string; messageId?: string; senderId?: string };
+      if (!data?.conversationId || data.senderId === currentUserId) return;
+      if (data.conversationId === selectedConvoIdRef.current) {
+        void syncConversationDelta(data.conversationId);
+      } else {
+        void resyncConversations();
       }
     });
 
@@ -523,20 +538,9 @@ export function CustomerChatClient({
         // Recover any messages missed while disconnected / subscribing
         const activeId = selectedConvoIdRef.current;
         if (activeId) {
-          const cur = messagesRef.current;
-          const lastMsg = cur[cur.length - 1];
-          const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
-          getLatestMessagesDeltaAction(activeId, afterIso)
-            .then((res) => {
-              if (res?.success && res.data && res.data.length > 0) {
-                for (const m of res.data) {
-                  handleIncomingMessageRef.current(m);
-                }
-              }
-            })
-            .catch(() => {});
+          void syncConversationDelta(activeId);
         }
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         void resyncConversations();
       }
     });
@@ -545,7 +549,7 @@ export function CustomerChatClient({
       channelRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, resyncConversations]);
+  }, [currentUserId, resyncConversations, syncConversationDelta]);
 
   // --------------------------------------------------------------------------
   // BACKGROUND SYNC POLLING & VISIBILITY CATCH-UP
@@ -553,21 +557,8 @@ export function CustomerChatClient({
   useEffect(() => {
     if (!selectedConvoId) return;
 
-    const deltaTimer = setInterval(async () => {
-      try {
-        const cur = messagesRef.current;
-        const lastMsg = cur[cur.length - 1];
-        const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
-
-        const res = await getLatestMessagesDeltaAction(selectedConvoId, afterIso);
-        if (res?.success && res.data && res.data.length > 0) {
-          for (const m of res.data) {
-            handleIncomingMessageRef.current(m);
-          }
-        }
-      } catch {
-        // Suppress background polling network transients without console unhandled rejection
-      }
+    const deltaTimer = setInterval(() => {
+      void syncConversationDelta(selectedConvoId);
     }, 4000);
 
     const convoTimer = setInterval(() => {
@@ -578,7 +569,7 @@ export function CustomerChatClient({
       clearInterval(deltaTimer);
       clearInterval(convoTimer);
     };
-  }, [selectedConvoId, isUserNearBottom, resyncConversations, scrollToBottom]);
+  }, [selectedConvoId, resyncConversations, syncConversationDelta]);
 
   // Reconnection & Focus Catch-up
   useEffect(() => {
@@ -657,7 +648,7 @@ export function CustomerChatClient({
   // SEND MESSAGE (Optimistic + Isolated Re-render)
   // --------------------------------------------------------------------------
   const handleSendMessage = useCallback(
-    async (text: string, attachments: DirectMessageAttachment[]) => {
+    async (text: string, attachments: DirectMessageAttachment[], retryClientMsgId?: string) => {
       if (!selectedConvoId || isSending) return;
 
       if (editingMessage) {
@@ -685,7 +676,8 @@ export function CustomerChatClient({
         return;
       }
 
-      const clientMsgId = "client-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      const clientMsgId =
+        retryClientMsgId || "client-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const replyContext = replyingTo
         ? {
             id: replyingTo.id,
@@ -714,11 +706,21 @@ export function CustomerChatClient({
         reactions: {},
       };
 
-      setMessages((prev) => [...prev, optimisticMsg]);
+      setMessages((prev) => {
+        if (retryClientMsgId) {
+          const exists = prev.some((m) => m.client_message_id === retryClientMsgId);
+          if (exists) {
+            return prev.map((m) =>
+              m.client_message_id === retryClientMsgId ? { ...m, status: "sending" } : m
+            );
+          }
+        }
+        return [...prev, optimisticMsg];
+      });
       setTimeout(() => scrollToBottom(true), 40);
 
       try {
-        let res: any = null;
+        let res: { success?: boolean; data?: DirectMessage; error?: string } | null = null;
         try {
           res = await sendDirectMessageAction(selectedConvoId, text, {
             clientMessageId: clientMsgId,
@@ -769,11 +771,16 @@ export function CustomerChatClient({
             )
           );
 
-          // Instant WebSocket broadcast alongside postgres_changes for zero-latency delivery
+          // Signal-only WebSocket wake-up (no private message content broadcast on shared channel)
           channelRef.current?.send({
             type: "broadcast",
             event: "direct_message_sync",
-            payload: { message: persistedMsg },
+            payload: {
+              conversationId: selectedConvoId,
+              messageId: persistedMsg.id,
+              senderId: currentUserId,
+              createdAt: persistedMsg.created_at,
+            },
           });
 
           setConversations((prev) =>
@@ -1514,32 +1521,44 @@ export function CustomerChatClient({
                 displayMessages.map((msg, index) => {
                   const isMe = msg.sender_role === "customer";
                   const prevMsg = displayMessages[index - 1];
-                  const isSameSender = prevMsg && prevMsg.sender_role === msg.sender_role;
+                  const dayKey = getChatCalendarDayKey(msg.created_at);
+                  const prevDayKey = prevMsg ? getChatCalendarDayKey(prevMsg.created_at) : null;
+                  const showDateSeparator = dayKey !== prevDayKey;
+                  const isSameSender = !showDateSeparator && prevMsg && prevMsg.sender_role === msg.sender_role;
 
                   return (
-                    <ChatMessageItem
-                      key={msg.id}
-                      message={msg}
-                      isMe={isMe}
-                      showSenderName={!isMe && !isSameSender}
-                      senderDisplayName={currentChatAstrologerName}
-                      currentUserId={currentUserId}
-                      activeDropdownMsgId={activeDropdownMsgId}
-                      onToggleDropdown={setActiveDropdownMsgId}
-                      onReply={handleReply}
-                      onStartEdit={handleStartEdit}
-                      onToggleReaction={handleToggleReaction}
-                      onTogglePin={handleTogglePin}
-                      onDelete={handleDeleteMessage}
-                      onReport={setReportingMsgId}
-                      onOpenLightbox={setLightboxUrl}
-                      onRetry={(failedMsg) => {
-                        void handleSendMessage(
-                          failedMsg.message,
-                          failedMsg.attachments || []
-                        );
-                      }}
-                    />
+                    <React.Fragment key={msg.id}>
+                      {showDateSeparator && (
+                        <div className="flex items-center justify-center my-2">
+                          <span className="px-3 py-0.5 rounded-full bg-parchment/80 border border-gold/25 text-[10px] font-semibold tracking-wide text-gold-deep shadow-2xs">
+                            {formatChatDateSeparator(msg.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      <ChatMessageItem
+                        message={msg}
+                        isMe={isMe}
+                        showSenderName={!isMe && !isSameSender}
+                        senderDisplayName={currentChatAstrologerName}
+                        currentUserId={currentUserId}
+                        activeDropdownMsgId={activeDropdownMsgId}
+                        onToggleDropdown={setActiveDropdownMsgId}
+                        onReply={handleReply}
+                        onStartEdit={handleStartEdit}
+                        onToggleReaction={handleToggleReaction}
+                        onTogglePin={handleTogglePin}
+                        onDelete={handleDeleteMessage}
+                        onReport={setReportingMsgId}
+                        onOpenLightbox={setLightboxUrl}
+                        onRetry={(failedMsg) => {
+                          void handleSendMessage(
+                            failedMsg.message,
+                            failedMsg.attachments || [],
+                            failedMsg.client_message_id || undefined
+                          );
+                        }}
+                      />
+                    </React.Fragment>
                   );
                 })
               )}
@@ -1563,6 +1582,21 @@ export function CustomerChatClient({
               count={unreadScrolledCount}
               onClick={() => scrollToBottom(true)}
             />
+
+            {/* Error Banner */}
+            {error && (
+              <div className="mx-4 mb-2 flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="font-bold text-rose-500 hover:text-rose-800 cursor-pointer"
+                  aria-label="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
 
             {/* Isolated Memoized Message Composer (Extreme Typing Performance) */}
             <ChatComposer

@@ -12,6 +12,14 @@ import {
 } from "lucide-react";
 import { buttonStyles } from "@/components/astrologer/ui/Button";
 import { toUtcIsoString, formatExactDateTime } from "@/lib/astrologer/format";
+import {
+  MANUAL_BOOKING_MAX_NOTES_LENGTH,
+  MANUAL_BOOKING_MAX_SERVICE_LENGTH,
+  type ManualBookingFieldErrors,
+  type ManualBookingFormValues,
+  validateManualBookingField,
+  validateManualBookingForm,
+} from "@/lib/astrologer/booking-validation";
 
 interface BookingFormProps {
   initialCustomerId?: string;
@@ -27,7 +35,7 @@ export default function BookingForm({
   initialServiceType = "",
 }: BookingFormProps) {
   const router = useRouter();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ManualBookingFormValues>({
     customer_id: initialCustomerId,
     service_type: initialServiceType || "Vedic Astrology Consultation",
     consultation_mode: "Video",
@@ -35,6 +43,8 @@ export default function BookingForm({
     duration_minutes: 30,
     notes: initialLeadId ? `Scheduled from Lead Enquiry #${initialLeadId.slice(0, 8)}` : "",
   });
+  const [fieldErrors, setFieldErrors] = useState<ManualBookingFieldErrors>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof ManualBookingFormValues, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,35 +52,69 @@ export default function BookingForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
+    const fieldName = name as keyof ManualBookingFormValues;
+    const parsedValue = fieldName === "duration_minutes" ? Number(value) : value;
+
     setForm((prev) => ({
       ...prev,
-      [name]: name === "duration_minutes" ? Number(value) : value,
+      [fieldName]: parsedValue,
     }));
+    setTouched((prev) => ({ ...prev, [fieldName]: true }));
+
+    const nextFieldError = validateManualBookingField(fieldName, parsedValue);
+    setFieldErrors((prev) => {
+      const updated = { ...prev };
+      if (nextFieldError) {
+        updated[fieldName] = nextFieldError;
+      } else {
+        delete updated[fieldName];
+      }
+      return updated;
+    });
+    if (error) setError(null);
+  };
+
+  const handleBlur = (
+    e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const fieldName = e.target.name as keyof ManualBookingFormValues;
+    setTouched((prev) => ({ ...prev, [fieldName]: true }));
+    const err = validateManualBookingField(fieldName, form[fieldName]);
+    setFieldErrors((prev) => {
+      const updated = { ...prev };
+      if (err) updated[fieldName] = err;
+      else delete updated[fieldName];
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
-    if (!form.customer_id.trim()) {
-      setError("Please provide a valid Customer ID.");
-      setLoading(false);
-      return;
-    }
-
-    if (!form.scheduled_at) {
-      setError("Please select a valid scheduled date and time.");
-      setLoading(false);
+    const validation = validateManualBookingForm(form);
+    if (!validation.valid) {
+      setFieldErrors(validation.errors);
+      setTouched({
+        customer_id: true,
+        service_type: true,
+        consultation_mode: true,
+        scheduled_at: true,
+        duration_minutes: true,
+        notes: true,
+      });
+      setError(validation.firstError || "Please correct the highlighted fields.");
       return;
     }
 
     const canonicalScheduledAt = toUtcIsoString(form.scheduled_at);
     if (!canonicalScheduledAt) {
+      setFieldErrors((prev) => ({ ...prev, scheduled_at: "Please select a valid scheduled date and time." }));
       setError("Please select a valid scheduled date and time.");
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
 
     try {
       const res = await fetch("/api/astrologer/create-booking", {
@@ -146,9 +190,18 @@ export default function BookingForm({
             required
             value={form.customer_id}
             onChange={handleChange}
+            onBlur={handleBlur}
+            aria-invalid={Boolean(touched.customer_id && fieldErrors.customer_id)}
             placeholder="e.g. 00000000-0000-0000-0000-000000000000"
-            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+            className={`rounded-xl border bg-white px-3.5 py-2.5 text-xs text-midnight focus:outline-none focus:ring-1 ${
+              touched.customer_id && fieldErrors.customer_id
+                ? "border-rose-400 focus:border-rose-500 focus:ring-rose-400"
+                : "border-line focus:border-gold focus:ring-gold"
+            }`}
           />
+          {touched.customer_id && fieldErrors.customer_id && (
+            <span className="text-[11px] font-medium text-rose-600">{fieldErrors.customer_id}</span>
+          )}
           <span className="text-[11px] text-muted">
             Tip: You can schedule directly from any lead enquiry to pre-fill customer details automatically.
           </span>
@@ -162,12 +215,22 @@ export default function BookingForm({
             name="service_type"
             type="text"
             required
+            maxLength={MANUAL_BOOKING_MAX_SERVICE_LENGTH}
             list="common-services"
             value={form.service_type}
             onChange={handleChange}
+            onBlur={handleBlur}
+            aria-invalid={Boolean(touched.service_type && fieldErrors.service_type)}
             placeholder="e.g. Kundli Matching, Career Consultation"
-            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+            className={`rounded-xl border bg-white px-3.5 py-2.5 text-xs text-midnight focus:outline-none focus:ring-1 ${
+              touched.service_type && fieldErrors.service_type
+                ? "border-rose-400 focus:border-rose-500 focus:ring-rose-400"
+                : "border-line focus:border-gold focus:ring-gold"
+            }`}
           />
+          {touched.service_type && fieldErrors.service_type && (
+            <span className="text-[11px] font-medium text-rose-600">{fieldErrors.service_type}</span>
+          )}
           <datalist id="common-services">
             <option value="Vedic Astrology Consultation" />
             <option value="Kundli Matching & Compatibility" />
@@ -203,15 +266,25 @@ export default function BookingForm({
             required
             value={form.scheduled_at}
             onChange={handleChange}
-            className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+            onBlur={handleBlur}
+            aria-invalid={Boolean(touched.scheduled_at && fieldErrors.scheduled_at)}
+            className={`rounded-xl border bg-white px-3.5 py-2.5 text-xs text-midnight focus:outline-none focus:ring-1 ${
+              touched.scheduled_at && fieldErrors.scheduled_at
+                ? "border-rose-400 focus:border-rose-500 focus:ring-rose-400"
+                : "border-line focus:border-gold focus:ring-gold"
+            }`}
           />
-          {form.scheduled_at && (
+          {touched.scheduled_at && fieldErrors.scheduled_at ? (
+            <p className="text-[11px] font-medium text-rose-600">{fieldErrors.scheduled_at}</p>
+          ) : form.scheduled_at ? (
             <p className="text-[11px] text-muted">
               Scheduled for:{" "}
               <span className="font-semibold text-midnight">
                 {formatExactDateTime(form.scheduled_at)} IST
               </span>
             </p>
+          ) : (
+            <p className="text-[11px] text-muted">Must be at least 5 minutes in advance.</p>
           )}
         </label>
 
@@ -232,15 +305,30 @@ export default function BookingForm({
       </div>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-semibold text-midnight">Astrological Notes & Preparation (Optional)</span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-midnight">Astrological Notes & Preparation (Optional)</span>
+          <span className="text-[11px] text-muted">
+            {form.notes.trim().length}/{MANUAL_BOOKING_MAX_NOTES_LENGTH}
+          </span>
+        </div>
         <textarea
           name="notes"
           rows={3}
+          maxLength={MANUAL_BOOKING_MAX_NOTES_LENGTH}
           value={form.notes}
           onChange={handleChange}
+          onBlur={handleBlur}
+          aria-invalid={Boolean(touched.notes && fieldErrors.notes)}
           placeholder="Add any specific questions or areas of focus for this consultation..."
-          className="rounded-xl border border-line bg-white px-3.5 py-2.5 text-xs text-midnight focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+          className={`rounded-xl border bg-white px-3.5 py-2.5 text-xs text-midnight focus:outline-none focus:ring-1 ${
+            touched.notes && fieldErrors.notes
+              ? "border-rose-400 focus:border-rose-500 focus:ring-rose-400"
+              : "border-line focus:border-gold focus:ring-gold"
+          }`}
         />
+        {touched.notes && fieldErrors.notes && (
+          <span className="text-[11px] font-medium text-rose-600">{fieldErrors.notes}</span>
+        )}
       </label>
 
       <div className="flex items-center justify-end gap-3 pt-4 border-t border-gold/15">

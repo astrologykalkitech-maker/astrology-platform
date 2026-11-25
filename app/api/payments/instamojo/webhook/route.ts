@@ -10,6 +10,27 @@ import { calculateCommissionBreakdown, generateReceiptNumber } from "@/lib/finan
 import { createInAppNotification } from "@/lib/notifications";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 
+async function failSettlementAndWebhook(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  claimId: string | undefined,
+  eventRecordId: string | undefined,
+  message: string
+) {
+  if (claimId) {
+    await supabase.rpc("fail_payment_settlement", {
+      p_claim_id: claimId,
+      p_failure_message: message,
+    });
+  }
+  if (eventRecordId) {
+    await supabase.rpc("fail_payment_webhook_event", {
+      p_event_record_id: eventRecordId,
+      p_error_message: message,
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -189,6 +210,7 @@ export async function POST(req: NextRequest) {
       .eq("payment_id", paymentId)
       .maybeSingle();
     if (existingPaymentError) {
+      await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, existingPaymentError.message);
       return NextResponse.json({ error: "Unable to check existing payment record" }, { status: 500 });
     }
 
@@ -199,6 +221,7 @@ export async function POST(req: NextRequest) {
         Number(existingPayment.amount_paise) !== amountInPaise ||
         existingPayment.status !== "successful"
       ) {
+        await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, "Payment ID bound to different transaction");
         return NextResponse.json({ error: "Payment ID is already bound to a different transaction" }, { status: 409 });
       }
       paymentRecord = existingPayment;
@@ -226,6 +249,7 @@ export async function POST(req: NextRequest) {
 
       if (payInsertErr || !insertedPayment) {
         console.error("[Instamojo Webhook] Error recording payment:", payInsertErr?.message);
+        await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, payInsertErr?.message || "Unable to record verified payment");
         return NextResponse.json({ error: "Unable to record verified payment" }, { status: 500 });
       }
       paymentRecord = insertedPayment;
@@ -238,19 +262,26 @@ export async function POST(req: NextRequest) {
       .eq("id", order.id)
       .in("status", ["created", "pending", "successful"]);
     if (orderUpdateError) {
+      await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, orderUpdateError.message);
       return NextResponse.json({ error: "Unable to record verified payment status" }, { status: 500 });
     }
 
     // 4. Handle Entity Specific Activation
     if (order.entity_type === "consultation") {
       const bookingId = order.entity_id;
-      await supabase
+      const { error: bookingUpdateErr } = await supabase
         .from("customer_bookings")
         .update({
           status: "confirmed",
+          payment_status: "paid",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", bookingId);
+        .eq("id", bookingId)
+        .in("status", ["pending", "confirmed"]);
+      if (bookingUpdateErr) {
+        await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, bookingUpdateErr.message);
+        return NextResponse.json({ error: "Payment verified but booking confirmation failed" }, { status: 500 });
+      }
 
       let commissionPercent = 10.0;
       if (order.astrologer_id) {
@@ -268,13 +299,17 @@ export async function POST(req: NextRequest) {
 
       const breakdown = calculateCommissionBreakdown(amountInPaise, commissionPercent);
       if (paymentRecord.id) {
-        await recordConsultationPaymentInLedger({
+        const ledgerRes = await recordConsultationPaymentInLedger({
           paymentId: paymentRecord.id,
           grossPaise: breakdown.grossPaise,
           platformFeePaise: breakdown.platformFeePaise,
           astrologerPayablePaise: breakdown.consultantPayablePaise,
           description: `Consultation payment for booking ${bookingId} (Receipt ${paymentRecord.receipt_number})`,
         });
+        if (!ledgerRes.success) {
+          await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, ledgerRes.error || "Ledger posting failed");
+          return NextResponse.json({ error: "Payment verified but ledger posting failed" }, { status: 500 });
+        }
       }
 
       if (order.customer_id) {
@@ -342,33 +377,52 @@ export async function POST(req: NextRequest) {
       }
 
       if (!resolvedPlanId) {
+        await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, "Unable to resolve target subscription plan");
         return NextResponse.json({ error: "Unable to resolve target subscription plan" }, { status: 500 });
       }
 
-      const now = new Date();
-      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const { data: currentSub } = await supabase
+        .from("astrologer_subscriptions")
+        .select("id, last_payment_id")
+        .eq("astrologer_id", order.astrologer_id)
+        .maybeSingle();
 
-      await supabase.from("astrologer_subscriptions").upsert(
-        {
-          astrologer_id: order.astrologer_id,
-          plan_id: resolvedPlanId,
-          status: "active",
-          current_period_start: now.toISOString(),
-          current_period_end: periodEnd.toISOString(),
-          leads_allocated: planRecord?.lead_quota || 10,
-          leads_consumed: 0,
-          last_payment_id: paymentRecord?.id || null,
-          updated_at: now.toISOString(),
-        },
-        { onConflict: "astrologer_id" }
-      );
+      if (currentSub?.last_payment_id !== paymentRecord.id) {
+        const now = new Date();
+        const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        const { error: subUpsertErr } = await supabase.from("astrologer_subscriptions").upsert(
+          {
+            astrologer_id: order.astrologer_id,
+            plan_id: resolvedPlanId,
+            status: "active",
+            current_period_start: now.toISOString(),
+            current_period_end: periodEnd.toISOString(),
+            leads_allocated: planRecord?.lead_quota || 10,
+            leads_consumed: 0,
+            is_complimentary: false,
+            complimentary_reason: null,
+            last_payment_id: paymentRecord?.id || null,
+            updated_at: now.toISOString(),
+          },
+          { onConflict: "astrologer_id" }
+        );
+        if (subUpsertErr) {
+          await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, subUpsertErr.message);
+          return NextResponse.json({ error: "Payment verified but subscription activation failed" }, { status: 500 });
+        }
+      }
 
       if (paymentRecord.id) {
-        await recordSubscriptionPaymentInLedger({
+        const ledgerRes = await recordSubscriptionPaymentInLedger({
           paymentId: paymentRecord.id,
           amountPaise: amountInPaise,
           description: `Astrologer subscription for plan ${planRecord?.name || "Professional"} (Receipt ${paymentRecord.receipt_number})`,
         });
+        if (!ledgerRes.success) {
+          await failSettlementAndWebhook(supabase, settlementClaimRow.claim_id, eventClaimRow.event_record_id, ledgerRes.error || "Subscription ledger posting failed");
+          return NextResponse.json({ error: "Payment verified but subscription ledger posting failed" }, { status: 500 });
+        }
       }
     } else if (order.entity_type === "astrologer_wallet_recharge") {
       // Astrologer Operating Wallet recharge via Instamojo

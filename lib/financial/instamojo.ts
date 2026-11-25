@@ -41,6 +41,11 @@ export interface PaymentRequestResult {
  */
 export function getInstamojoConfig(): InstamojoConfig {
   const envSetting = (process.env.INSTAMOJO_ENV || process.env.INSTAMOJO_ENVIRONMENT || "").toLowerCase();
+  if (process.env.NODE_ENV === "production" && envSetting !== "production" && envSetting !== "sandbox") {
+    throw new Error(
+      "INSTAMOJO_ENV must be explicitly set to 'production' or 'sandbox' in production deployments."
+    );
+  }
   const isProduction = envSetting === "production";
   const explicitVersion = (process.env.INSTAMOJO_API_VERSION || "v1.1").toLowerCase() === "v2" ? "v2" : "v1.1";
 

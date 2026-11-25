@@ -14,6 +14,7 @@ type PaymentRequest = {
   entity_type?: unknown;
   booking_id?: unknown;
   plan_id?: unknown;
+  payment_method?: unknown;
 };
 
 export async function POST(req: NextRequest) {
@@ -47,6 +48,16 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as PaymentRequest;
     const entityType = body.entity_type;
+
+    if (body.payment_method === "card" || body.payment_method === "net_banking") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Card and Netbanking payments are processed via Instamojo, not JyotishSetu Pay UPI.",
+        },
+        { status: 400 }
+      );
+    }
 
     if (entityType !== "consultation" && entityType !== "subscription") {
       return NextResponse.json(
@@ -161,10 +172,10 @@ export async function POST(req: NextRequest) {
 
       const { data: activeOrders, error: orderError } = await supabase
         .from("payment_orders")
-        .select("id")
+        .select("id, status")
         .eq("entity_type", "consultation")
         .eq("entity_id", booking.id)
-        .eq("status", "successful")
+        .in("status", ["created", "pending", "successful"])
         .limit(1);
       if (orderError) {
         console.error("[Karmic Ascension Pay] Existing gateway order lookup failed:", orderError);
@@ -175,10 +186,25 @@ export async function POST(req: NextRequest) {
       }
       if (activeOrders?.length) {
         return NextResponse.json(
-          { success: false, error: "This booking already has a verified platform payment." },
+          {
+            success: false,
+            error:
+              activeOrders[0].status === "successful"
+                ? "This booking already has a verified platform payment."
+                : "An Instamojo payment session is already active for this booking.",
+          },
           { status: 409 }
         );
       }
+
+      // Expire any stale created/pending intents for this booking before creating a new one
+      await supabase
+        .from("payment_intents")
+        .update({ status: "expired", updated_at: new Date().toISOString() })
+        .eq("booking_id", booking.id)
+        .eq("entity_type", "consultation")
+        .in("status", ["created", "pending"])
+        .lte("expires_at", new Date().toISOString());
 
       const { data: activeIntents, error: activeIntentError } = await supabase
         .from("payment_intents")
@@ -312,7 +338,7 @@ export async function POST(req: NextRequest) {
       currency: "INR",
       status: "created",
       client_secret: generateClientSecret(intentId),
-      payment_method_allowed: ["upi_qr", "upi_intent", "net_banking", "card"],
+      payment_method_allowed: ["upi_qr", "upi_intent"],
       metadata: { source: "jyotish_pay_manual_review" },
       created_at: now.toISOString(),
       expires_at: expiresAt,
@@ -335,9 +361,15 @@ export async function POST(req: NextRequest) {
     const { error: intentError } = await supabase.from("payment_intents").insert(intentRecord);
     if (intentError) {
       console.error("[Karmic Ascension Pay] Payment intent insert failed:", intentError);
+      const isConflict = intentError.code === "23505";
       return NextResponse.json(
-        { success: false, error: "Could not create a persistent payment intent. Please try again." },
-        { status: 503 }
+        {
+          success: false,
+          error: isConflict
+            ? "A payment session is already active for this booking."
+            : "Could not create a persistent payment intent. Please try again.",
+        },
+        { status: isConflict ? 409 : 503 }
       );
     }
 

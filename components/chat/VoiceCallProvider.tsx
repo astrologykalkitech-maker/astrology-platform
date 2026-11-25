@@ -28,6 +28,7 @@ import {
   updateVoiceCallStatusAction,
 } from "@/app/actions/voice-calls";
 import { createClient } from "@/lib/supabase/client";
+import { classifyMediaError } from "@/lib/media/permissions";
 import type { VoiceCall } from "@/lib/types/database.types";
 import type { AccountPresenceRole } from "@/lib/chat/presence";
 import { getVoiceCallDurationSeconds } from "@/lib/chat/voice-call";
@@ -137,7 +138,14 @@ function VoiceCallRoom({
           return;
         }
 
-        await room.localParticipant.setMicrophoneEnabled(true);
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        } catch (micErr) {
+          const classified = classifyMediaError(micErr, "microphone");
+          setIsMuted(true);
+          setError(classified.message);
+        }
+
         const statusResult = await updateVoiceCallStatusAction(call.id, "active");
         if (!statusResult.success) {
           throw new Error(statusResult.error || "Unable to join the call.");
@@ -190,8 +198,11 @@ function VoiceCallRoom({
     try {
       await roomRef.current?.localParticipant.setMicrophoneEnabled(!nextMuted);
       setIsMuted(nextMuted);
+      if (!nextMuted) {
+        setError(null);
+      }
     } catch (toggleError) {
-      setError(toggleError instanceof Error ? toggleError.message : "Unable to change microphone.");
+      setError(classifyMediaError(toggleError, "microphone").message);
     }
   };
 

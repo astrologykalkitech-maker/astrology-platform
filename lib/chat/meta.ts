@@ -139,3 +139,98 @@ export function encodeDirectMessageMeta(meta: Partial<DirectMessageMetaPayload>)
   });
 }
 
+/**
+ * Safely parses a UTC/ISO timestamp into a Date, returning null if invalid.
+ */
+export function parseSafeChatDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Returns a local-timezone calendar day key (YYYY-MM-DD) for grouping messages by day.
+ */
+export function getChatCalendarDayKey(iso: string | null | undefined): string {
+  const d = parseSafeChatDate(iso);
+  if (!d) return "unknown";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Formats a date separator label ("TODAY", "YESTERDAY", or "24 November 2026")
+ * in the viewer's local timezone.
+ */
+export function formatChatDateSeparator(
+  iso: string | null | undefined,
+  now: Date = new Date()
+): string {
+  const d = parseSafeChatDate(iso);
+  if (!d) return "TODAY";
+
+  const msgKey = getChatCalendarDayKey(d.toISOString());
+  const todayKey = getChatCalendarDayKey(now.toISOString());
+  if (msgKey === todayKey) return "TODAY";
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterdayKey = getChatCalendarDayKey(yesterday.toISOString());
+  if (msgKey === yesterdayKey) return "YESTERDAY";
+
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/**
+ * Formats an individual message timestamp in the viewer's local timezone (e.g. "10:35 AM").
+ */
+export function formatChatMessageTime(iso: string | null | undefined): string {
+  const d = parseSafeChatDate(iso);
+  if (!d) return "--:--";
+  return d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Merges incoming persisted messages into an existing list, reconciling optimistic
+ * temp- messages by client_message_id, deduplicating by id, and sorting chronologically.
+ */
+export function mergeDirectMessages(
+  existing: DirectMessage[],
+  incoming: DirectMessage[]
+): DirectMessage[] {
+  const next = [...existing];
+  for (const msg of incoming) {
+    if (!msg) continue;
+    if (msg.client_message_id) {
+      const idx = next.findIndex(
+        (m) => m.client_message_id === msg.client_message_id || m.id === msg.id
+      );
+      if (idx !== -1) {
+        next[idx] = msg;
+        continue;
+      }
+    }
+    const idIdx = next.findIndex((m) => m.id === msg.id);
+    if (idIdx !== -1) {
+      next[idIdx] = msg;
+      continue;
+    }
+    next.push(msg);
+  }
+  next.sort((a, b) => {
+    const tA = parseSafeChatDate(a.created_at)?.getTime() ?? 0;
+    const tB = parseSafeChatDate(b.created_at)?.getTime() ?? 0;
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+  return next;
+}
+

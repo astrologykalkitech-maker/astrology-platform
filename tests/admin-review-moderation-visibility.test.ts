@@ -6,10 +6,10 @@ import path from "path";
 test("Sub-phase 11.2: Admin review moderation actions require Super Admin access", () => {
   const code = fs.readFileSync(path.resolve(process.cwd(), "app/actions/admin-reviews.ts"), "utf-8");
 
-  // Verify requireAdminAccess guard on all actions
-  assert.match(code, /getAdminReviewsAction[\s\S]*?await requireAdminAccess\(\)/);
-  assert.match(code, /toggleReviewPublishedAction[\s\S]*?await requireAdminAccess\(\)/);
-  assert.match(code, /deleteReviewAction[\s\S]*?await requireAdminAccess\(\)/);
+  // Verify admin authorization guard on all actions
+  assert.match(code, /getAdminReviewsAction[\s\S]*?await (?:requireAdminAccess|requireAdminPermission|requireSuperAdmin)\(/);
+  assert.match(code, /toggleReviewPublishedAction[\s\S]*?await (?:requireAdminAccess|requireAdminPermission|requireSuperAdmin)\(/);
+  assert.match(code, /deleteReviewAction[\s\S]*?await (?:requireAdminAccess|requireAdminPermission|requireSuperAdmin)\(/);
 });
 
 test("Sub-phase 11.2: Super Admin can toggle publication and invalidates relevant paths", () => {

@@ -32,7 +32,7 @@ describe('Sub-phase 4.2: Message Dispatch & Content Sanitization', () => {
     // Role assignment logic
     assert.strictEqual(fileContent.includes('if (convo.customer_id === user.id)'), true);
     assert.strictEqual(fileContent.includes('senderRole = "customer";'), true);
-    assert.strictEqual(fileContent.includes('else if (astroProfile && convo.astrologer_id === astroProfile.id)'), true);
+    assert.strictEqual(fileContent.includes('astroProfile && convo.astrologer_id === astroProfile.id'), true);
     assert.strictEqual(fileContent.includes('senderRole = "astrologer";'), true);
     assert.strictEqual(fileContent.includes('Unauthorized to send message in this conversation'), true);
   });

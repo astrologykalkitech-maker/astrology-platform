@@ -167,11 +167,22 @@ export async function activateSubscriptionOnPayment(params: {
     return { success: false, error: "Payment plan not found." };
   }
 
+  // 2. Idempotency check: prevent duplicate activation for the same paymentId
+  const { data: existingSub } = await supabase
+    .from("astrologer_subscriptions")
+    .select("id, last_payment_id")
+    .eq("astrologer_id", params.astrologerId)
+    .maybeSingle();
+
+  if (existingSub?.last_payment_id === params.paymentId) {
+    return { success: true };
+  }
+
   const periodDays = billingCycle === "annual" ? 365 : billingCycle === "quarterly" ? 90 : 30;
   const now = new Date();
   const periodEnd = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000);
 
-  // 2. Upsert subscription record
+  // 3. Upsert subscription record (clearing any prior complimentary flags)
   const { error: upsertErr } = await supabase
     .from("astrologer_subscriptions")
     .upsert(
@@ -185,6 +196,8 @@ export async function activateSubscriptionOnPayment(params: {
         auto_renew: false, // Strict policy: No auto-debit
         leads_allocated: plan.lead_quota || 0,
         leads_consumed: 0,
+        is_complimentary: false,
+        complimentary_reason: null,
         last_payment_id: params.paymentId,
         updated_at: now.toISOString(),
       },

@@ -121,7 +121,7 @@ export async function getAstrologerEffectiveSubscription(
         subscription_id: sub.id,
         action: "downgraded",
         previous_plan_id: currentPlan.id,
-        new_plan_id: fallbackFreePlan.id,
+        new_plan_id: effectiveFreePlan.id === "free-plan-default" ? null : effectiveFreePlan.id,
         previous_status: "active",
         new_status: "expired",
         actor_role: "system",
@@ -134,16 +134,16 @@ export async function getAstrologerEffectiveSubscription(
 
     return {
       subscription: { ...sub, status: "expired" },
-      plan: fallbackFreePlan,
+      plan: effectiveFreePlan,
       isDowngradedFromExpiry: true,
     };
   }
 
-  // If status is cancelled, expired, or suspended, effective plan is always Free!
-  if (["cancelled", "expired", "suspended", "payment_failed"].includes(sub.status)) {
+  // If status is cancelled, expired, suspended, payment_failed, or past_due, effective plan is always Free!
+  if (["cancelled", "expired", "suspended", "payment_failed", "past_due"].includes(sub.status)) {
     return {
       subscription: sub,
-      plan: fallbackFreePlan,
+      plan: effectiveFreePlan,
       isDowngradedFromExpiry: false,
     };
   }

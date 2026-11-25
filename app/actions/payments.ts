@@ -223,24 +223,34 @@ export async function initiateSubscriptionPaymentAction(payload: {
       };
     }
 
-    // PAID PLAN: Initialize pending subscription record (past_due) and create payment order
+    // PAID PLAN: Preserve any existing active/complimentary subscription; only initialize pending row if none exists
     const orderNumber = generateOrderNumber();
 
-    const { data: subRecord } = await supabase
+    const { data: existingSub } = await supabase
       .from("astrologer_subscriptions")
-      .upsert(
-        {
+      .select("id, status")
+      .eq("astrologer_id", profile.id)
+      .maybeSingle();
+
+    let orderEntityId = existingSub?.id ?? null;
+
+    if (!orderEntityId) {
+      const { data: subRecord, error: subErr } = await supabase
+        .from("astrologer_subscriptions")
+        .insert({
           astrologer_id: profile.id,
           plan_id: plan.id,
           status: "past_due",
           auto_renew: false,
-        },
-        { onConflict: "astrologer_id" }
-      )
-      .select("id")
-      .maybeSingle();
+        })
+        .select("id")
+        .maybeSingle();
 
-    const orderEntityId = subRecord?.id || plan.id;
+      if (subErr || !subRecord) {
+        return { success: false, error: `Failed to initialize subscription: ${subErr?.message || "unknown error"}` };
+      }
+      orderEntityId = subRecord.id;
+    }
 
     const { data: order, error: orderErr } = await supabase
       .from("payment_orders")
@@ -321,6 +331,7 @@ export async function initiateSubscriptionPaymentAction(payload: {
 export async function requestCustomerRefundAction(payload: {
   paymentId: string;
   reason: string;
+  amountPaise?: number;
 }): Promise<AuthResult<boolean>> {
   try {
     const { user } = await requireCustomerContext();
@@ -347,18 +358,37 @@ export async function requestCustomerRefundAction(payload: {
       return { success: false, error: "Payment record not found or unauthorized." };
     }
 
-    // Check if an active or processed refund request already exists for this payment
-    const { data: existingRefund } = await supabase
-      .from("refund_requests")
-      .select("id, status")
-      .eq("payment_id", payment.id)
-      .in("status", ["requested", "approved", "processed"])
-      .maybeSingle();
+    const requestedAmountPaise =
+      payload.amountPaise !== undefined ? Math.round(Number(payload.amountPaise)) : Number(payment.amount_paise);
+    if (!Number.isSafeInteger(requestedAmountPaise) || requestedAmountPaise <= 0) {
+      return { success: false, error: "Refund amount must be a positive integer in paise." };
+    }
 
-    if (existingRefund) {
+    // Check prior active or processed refunds for cumulative ceiling and pending duplicate guard
+    const { data: priorRefunds } = await supabase
+      .from("refund_requests")
+      .select("id, status, amount_paise")
+      .eq("payment_id", payment.id)
+      .in("status", ["requested", "approved", "processing", "processed"]);
+
+    const pendingRefund = (priorRefunds || []).find((r: { status: string }) =>
+      ["requested", "approved", "processing"].includes(r.status)
+    );
+    if (pendingRefund) {
       return {
         success: false,
-        error: `A refund request for this payment is already ${existingRefund.status}.`,
+        error: `A refund request for this payment is already ${pendingRefund.status}.`,
+      };
+    }
+
+    const priorRefundedTotal = (priorRefunds || []).reduce(
+      (sum: number, r: { amount_paise?: number }) => sum + Number(r.amount_paise || 0),
+      0
+    );
+    if (priorRefundedTotal + requestedAmountPaise > Number(payment.amount_paise)) {
+      return {
+        success: false,
+        error: "Requested refund exceeds remaining refundable balance for this payment.",
       };
     }
 
@@ -366,7 +396,7 @@ export async function requestCustomerRefundAction(payload: {
       payment_id: payment.id,
       order_id: payment.order_id,
       customer_id: user.id,
-      amount_paise: payment.amount_paise,
+      amount_paise: requestedAmountPaise,
       reason: payload.reason,
       status: "requested",
     });

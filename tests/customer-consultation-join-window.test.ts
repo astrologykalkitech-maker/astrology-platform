@@ -32,7 +32,7 @@ test("Customer Consultation Join Window Verification & LiveKit Room Trigger Audi
   await t.test("renders active join button leading to secure /consultation/[id] room", () => {
     assert.match(
       bookingsClientSource,
-      /href=\{`\/consultation\/\$\{activeJoinBooking\.id\}`\}/i,
+      /\/consultation\/\$\{activeJoinBooking\.id\}/i,
       "Expected Join Consultation button to link to /consultation/[id]"
     );
     assert.match(

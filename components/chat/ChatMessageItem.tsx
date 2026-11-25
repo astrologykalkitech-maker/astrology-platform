@@ -16,7 +16,7 @@ import {
   Flag,
   MoreVertical,
 } from "lucide-react";
-import type { DirectMessage } from "@/lib/chat/meta";
+import { formatChatMessageTime, type DirectMessage } from "@/lib/chat/meta";
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -246,12 +246,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             }`}
           >
             {message.is_edited && <span className="italic mr-0.5">(edited)</span>}
-            <span>
-              {new Date(message.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
+            <span>{formatChatMessageTime(message.created_at)}</span>
 
             {isMe && (
               <span>
