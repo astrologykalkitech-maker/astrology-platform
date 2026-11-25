@@ -89,6 +89,7 @@ export function ConsultationRoomClient({
   partnerName,
 }: Props) {
   const router = useRouter();
+  const isAudioOnlyMode = consultationMode === "Call" || consultationMode?.toLowerCase() === "voice";
 
   // Pre-join vs Active Meeting
   const [hasJoined, setHasJoined] = useState(false);
@@ -98,7 +99,7 @@ export function ConsultationRoomClient({
 
   // Media state
   const [isMicOn, setIsMicOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(consultationMode !== "Call");
+  const [isVideoOn, setIsVideoOn] = useState(!isAudioOnlyMode);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
 
@@ -108,7 +109,7 @@ export function ConsultationRoomClient({
   const [selectedAudioId, setSelectedAudioId] = useState<string>("");
   const [selectedVideoId, setSelectedVideoId] = useState<string>("");
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [cameraStatus, setCameraStatus] = useState<DeviceStatus>("requesting");
+  const [cameraStatus, setCameraStatus] = useState<DeviceStatus>(isAudioOnlyMode ? "off" : "requesting");
   const [micStatus, setMicStatus] = useState<DeviceStatus>("requesting");
   const [permissionErrorMessage, setPermissionErrorMessage] = useState<string | null>(null);
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
@@ -347,7 +348,7 @@ export function ConsultationRoomClient({
       }
 
       setPermissionErrorMessage(null);
-      setCameraStatus("requesting");
+      setCameraStatus(isAudioOnlyMode ? "off" : "requesting");
       setMicStatus("requesting");
 
       if (previewStreamRef.current) {
@@ -355,7 +356,7 @@ export function ConsultationRoomClient({
         previewStreamRef.current = null;
       }
 
-      const wantVideo = consultationMode !== "Call" && isVideoOn;
+      const wantVideo = !isAudioOnlyMode && isVideoOn;
       const audioConstraints: boolean | MediaTrackConstraints = requestedAudioId
         ? { deviceId: { exact: requestedAudioId } }
         : true;
@@ -777,7 +778,7 @@ export function ConsultationRoomClient({
       await room.connect(tokenResult.serverUrl, tokenResult.token);
 
       // Publish local tracks
-      if (isVideoOn && consultationMode !== "Call" && cameraStatus !== "denied") {
+      if (isVideoOn && !isAudioOnlyMode && cameraStatus !== "denied") {
         try {
           await room.localParticipant.setCameraEnabled(true);
         } catch (camErr) {
@@ -863,7 +864,7 @@ export function ConsultationRoomClient({
   };
 
   const toggleVideo = async () => {
-    if (consultationMode === "Call") return;
+    if (isAudioOnlyMode) return;
     if (!roomRef.current) {
       setIsVideoOn((prev) => !prev);
       return;
@@ -995,7 +996,7 @@ export function ConsultationRoomClient({
         <div className="max-w-4xl mx-auto w-full my-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 flex flex-col items-center">
             <div className="relative w-full aspect-video bg-midnight/90 rounded-2xl border-2 border-gold/40 shadow-2xl overflow-hidden flex items-center justify-center">
-              {isVideoOn && consultationMode !== "Call" && cameraStatus === "ready" ? (
+              {isVideoOn && !isAudioOnlyMode && cameraStatus === "ready" ? (
                 <video
                   ref={(el) => {
                     localPreviewVideoRef.current = el;
@@ -1016,7 +1017,14 @@ export function ConsultationRoomClient({
                   <div className="h-20 w-20 rounded-full bg-gold/20 flex items-center justify-center text-2xl font-bold text-gold border border-gold/40 mb-3">
                     {partnerName.slice(0, 2).toUpperCase()}
                   </div>
-                  {cameraStatus === "requesting" ? (
+                  {isAudioOnlyMode ? (
+                    <>
+                      <p className="text-sm font-semibold text-white">Audio Consultation Ready</p>
+                      <p className="text-xs text-parchment/70 mt-1">
+                        High-definition voice call channel with {partnerName}. Camera is disabled for voice calls.
+                      </p>
+                    </>
+                  ) : cameraStatus === "requesting" ? (
                     <div className="flex items-center gap-2 text-gold-light text-xs">
                       <Loader2 className="h-4 w-4 animate-spin text-gold" />
                       <span>Requesting camera access…</span>
@@ -1077,7 +1085,7 @@ export function ConsultationRoomClient({
                   {isMicOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4 text-white" />}
                 </button>
 
-                {consultationMode !== "Call" && (
+                {!isAudioOnlyMode && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1114,7 +1122,7 @@ export function ConsultationRoomClient({
                 <span>Microphone: {micStatus === "ready" ? "Available" : "Connecting…"}</span>
               </div>
 
-              {consultationMode !== "Call" && (
+              {!isAudioOnlyMode && (
                 <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full bg-midnight/70 border border-gold/20">
                   {cameraStatus === "ready" ? (
                     <CheckCircle2 className="h-3 w-3 text-emerald-400" />
@@ -1175,7 +1183,7 @@ export function ConsultationRoomClient({
                 </select>
               </div>
 
-              {consultationMode !== "Call" && (
+              {!isAudioOnlyMode && (
                 <div>
                   <label className="text-[11px] font-semibold text-parchment/90 block mb-1">Camera</label>
                   <select
@@ -1388,7 +1396,7 @@ export function ConsultationRoomClient({
             </div>
 
             <div className="absolute bottom-4 right-4 w-36 sm:w-48 aspect-video rounded-xl border-2 border-gold/60 bg-midnight/90 shadow-2xl overflow-hidden z-20">
-              {isVideoOn && consultationMode !== "Call" ? (
+              {isVideoOn && !isAudioOnlyMode ? (
                 <video
                   ref={(el) => {
                     localRoomVideoRef.current = el;
@@ -1406,7 +1414,7 @@ export function ConsultationRoomClient({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-midnight text-xs font-semibold text-gold">
-                  You (Video Muted)
+                  {isAudioOnlyMode ? "You (Voice Only)" : "You (Video Muted)"}
                 </div>
               )}
               <div className="absolute bottom-1.5 left-1.5 bg-midnight/80 px-1.5 py-0.5 rounded text-[10px] text-white flex items-center gap-1">
@@ -1581,7 +1589,7 @@ export function ConsultationRoomClient({
             {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
           </button>
 
-          {consultationMode !== "Call" && (
+          {!isAudioOnlyMode && (
             <button
               type="button"
               onClick={toggleVideo}

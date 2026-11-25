@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/auth/admin-guard";
 import { createInstamojoRefund } from "@/lib/financial/instamojo";
 import { createDoubleEntryJournal } from "@/lib/financial/ledger";
+import { createInAppNotification } from "@/lib/notifications";
 import { ACCOUNT_CODES } from "@/lib/financial/types";
 import { generateSettlementNumber } from "@/lib/financial/pricing";
 import type { AuthResult } from "@/lib/types/auth.types";
@@ -40,6 +41,21 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       verified_at: string;
       entity_type: string;
     }>;
+    refundRequests: Array<{
+      id: string;
+      payment_id: string;
+      order_id: string;
+      customer_id: string;
+      customer_name: string;
+      amount_paise: number;
+      reason: string;
+      status: string;
+      instamojo_refund_id: string | null;
+      rejection_reason: string | null;
+      created_at: string;
+      reviewed_at: string | null;
+      payment_receipt_number?: string | null;
+    }>;
   }>
 > {
   try {
@@ -71,6 +87,27 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       .order("verified_at", { ascending: false })
       .limit(20);
 
+    // Fetch all refund requests with customer profile
+    const { data: refunds } = await supabase
+      .from("refund_requests")
+      .select(`
+        id,
+        payment_id,
+        order_id,
+        customer_id,
+        amount_paise,
+        reason,
+        status,
+        instamojo_refund_id,
+        rejection_reason,
+        created_at,
+        reviewed_at,
+        customer:profiles!refund_requests_customer_id_fkey(full_name),
+        payment:payments!refund_requests_payment_id_fkey(receipt_number)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
     interface PaymentRow {
       id: string;
       receipt_number: string;
@@ -96,6 +133,26 @@ export async function getSuperAdminFinancialMetrics(): Promise<
       };
     });
 
+    const formattedRefunds = ((refunds || []) as any[]).map((r) => {
+      const customerData = Array.isArray(r.customer) ? r.customer[0] : r.customer;
+      const paymentData = Array.isArray(r.payment) ? r.payment[0] : r.payment;
+      return {
+        id: r.id,
+        payment_id: r.payment_id,
+        order_id: r.order_id,
+        customer_id: r.customer_id,
+        customer_name: customerData?.full_name || "Customer",
+        amount_paise: r.amount_paise,
+        reason: r.reason,
+        status: r.status,
+        instamojo_refund_id: r.instamojo_refund_id,
+        rejection_reason: r.rejection_reason,
+        created_at: r.created_at,
+        reviewed_at: r.reviewed_at,
+        payment_receipt_number: paymentData?.receipt_number || null,
+      };
+    });
+
     return {
       success: true,
       data: {
@@ -105,6 +162,7 @@ export async function getSuperAdminFinancialMetrics(): Promise<
         astrologerPayableLiabilityPaise: accMap.get(ACCOUNT_CODES.ASTROLOGER_PAYABLE) || 0,
         accounts: accList,
         recentPayments: formattedPayments,
+        refundRequests: formattedRefunds,
       },
     };
   } catch (err) {
@@ -199,50 +257,110 @@ export async function processRefundDecisionAction(payload: {
         })
         .eq("id", request.id);
 
+      // In-app notification to customer
+      try {
+        await createInAppNotification({
+          recipientUserId: request.customer_id,
+          title: "Refund Request Declined",
+          message: `Your refund request was declined: ${payload.rejectionReason || "Declined by platform administration"}`,
+          linkUrl: "/customer/billing",
+          eventType: "refund_rejected",
+          metadata: { refund_request_id: request.id },
+        });
+      } catch {
+        // Non-blocking notification
+      }
+
       revalidatePath("/super-admin/financials");
       return { success: true, data: true };
     }
 
-    // Decision: Approve -> Call Instamojo Refund API
-    const paymentData = Array.isArray(request.payment) ? request.payment[0] : request.payment;
-    if (!paymentData?.payment_id) {
-      return { success: false, error: "Gateway payment ID not found for refund." };
-    }
-
-    const mojoRefund = await createInstamojoRefund({
-      paymentId: paymentData.payment_id,
-      type: "RFD",
-      body: request.reason || "Customer refund requested and approved",
-      refundAmount: request.amount_paise / 100,
-    });
-
-    if (!mojoRefund.success || !mojoRefund.data) {
+    // Decision: Approve -> Atomically claim refund request before calling Instamojo Refund API
+    const isRetryWithGatewayRef = request.status === "processing" && Boolean(request.instamojo_refund_id);
+    if (request.status !== "requested" && !isRetryWithGatewayRef) {
       return {
         success: false,
-        error: mojoRefund.error || "Failed to process refund with Instamojo API.",
+        error: `Refund request cannot be approved in status '${request.status}'.`,
       };
     }
 
+    if (!isRetryWithGatewayRef) {
+      const { data: claimed, error: claimErr } = await supabase
+        .from("refund_requests")
+        .update({
+          status: "processing",
+          reviewed_by: adminContext.user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id)
+        .eq("status", "requested")
+        .select("id")
+        .maybeSingle();
+
+      if (claimErr || !claimed) {
+        return {
+          success: false,
+          error: "Refund request was already claimed or processed by another request.",
+        };
+      }
+    }
+
+    const paymentData = Array.isArray(request.payment) ? request.payment[0] : request.payment;
+    if (!paymentData?.payment_id) {
+      await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
+      return { success: false, error: "Gateway payment ID not found for refund." };
+    }
+
+    let gatewayRefundId: string | null = request.instamojo_refund_id || null;
+    if (!gatewayRefundId) {
+      const mojoRefund = await createInstamojoRefund({
+        paymentId: paymentData.payment_id,
+        type: "RFD",
+        body: request.reason || "Customer refund requested and approved",
+        refundAmount: request.amount_paise / 100,
+      });
+
+      if (!mojoRefund.success || !mojoRefund.data) {
+        await supabase.from("refund_requests").update({ status: "requested" }).eq("id", request.id);
+        return {
+          success: false,
+          error: mojoRefund.error || "Failed to process refund with Instamojo API.",
+        };
+      }
+      gatewayRefundId = mojoRefund.data.id;
+    }
+
     // Invoke atomic customer refund RPC (handles pre-release, post-release, deficits, and universal locking)
-    // Stage 2C.2: Identity is derived securely from auth.uid() inside the database function
     const { data: atomicResult, error: atomicErr } = await supabase.rpc(
       "process_customer_refund_atomic",
       {
         p_refund_request_id: request.id,
-        p_provider_refund_id: mojoRefund.data.id,
+        p_provider_refund_id: gatewayRefundId,
       }
     );
 
-    if (atomicErr) {
-      console.error("[processRefundDecisionAction] Atomic refund RPC error:", atomicErr.message);
-      return { success: false, error: atomicErr.message };
+    if (atomicErr || !atomicResult?.success) {
+      const errMsg = atomicErr?.message || atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.";
+      console.error("[processRefundDecisionAction] Atomic refund RPC error:", errMsg);
+      await supabase
+        .from("refund_requests")
+        .update({ instamojo_refund_id: gatewayRefundId, updated_at: new Date().toISOString() })
+        .eq("id", request.id);
+      return { success: false, error: errMsg };
     }
 
-    if (!atomicResult || !atomicResult.success) {
-      return {
-        success: false,
-        error: atomicResult?.error || "Failed to finalize customer refund in double-entry ledger.",
-      };
+    // In-app notification to customer on approved refund
+    try {
+      await createInAppNotification({
+        recipientUserId: request.customer_id,
+        title: "Refund Approved & Processed",
+        message: `Your refund request has been approved and processed successfully back to your original source.`,
+        linkUrl: "/customer/billing",
+        eventType: "refund_approved",
+        metadata: { refund_request_id: request.id },
+      });
+    } catch {
+      // Non-blocking notification
     }
 
     revalidatePath("/super-admin/financials");

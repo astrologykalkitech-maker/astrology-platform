@@ -15,7 +15,7 @@ describe('Sub-phase 6.5: Refunds, Cancellation Reimbursement & Dispute Processin
     assert.match(content, /orderData\?\.customer_id\s*!==\s*user\.id/i, 'Must verify payment record belongs to requesting customer');
 
     // Duplicate check
-    assert.match(content, /\.in\(\s*["']status["'],\s*\["requested",\s*"approved",\s*"processed"\]\s*\)/i, 'Must prevent duplicate refund requests for the same payment');
+    assert.match(content, /\.in\(\s*["']status["'],\s*\["requested",\s*"approved",\s*(?:"processing",\s*)?"processed"\]\s*\)/i, 'Must prevent duplicate refund requests for the same payment');
     assert.match(content, /status:\s*["']requested["']/i, 'Must insert refund request with status requested');
     assert.match(content, /revalidatePath\(\s*["']\/customer\/billing["']\s*\)/i, 'Must revalidate billing route');
   });

@@ -9,6 +9,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { success: false, error: "Wallet recharge simulation is strictly disabled in production." },
+        { status: 403 }
+      );
+    }
+
     // 1. Authenticate user
     const session = await getAuthSession();
     if (!session || !session.user) {

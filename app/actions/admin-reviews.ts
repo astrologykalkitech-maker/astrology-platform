@@ -6,7 +6,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdminAccess } from "@/lib/auth/admin-guard";
+import { requireAdminAccess, requireAdminPermission, requireSuperAdmin } from "@/lib/auth/admin-guard";
+import { logAdminAction } from "@/lib/admin/audit";
 import type { AuthResult } from "@/lib/types/auth.types";
 import { isValidUUID } from "@/lib/validations/lead";
 
@@ -63,6 +64,10 @@ export async function getAdminReviewsAction(
 
     if (filter.rating && filter.rating >= 1 && filter.rating <= 5) {
       query = query.eq("rating", filter.rating);
+    }
+
+    if (filter.search && filter.search.trim().length > 0) {
+      query = query.ilike("review_text", `%${filter.search.trim()}%`);
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -146,13 +151,19 @@ export async function toggleReviewPublishedAction(
   isPublished: boolean
 ): Promise<AuthResult<{ id: string; is_published: boolean }>> {
   try {
-    await requireAdminAccess();
+    const { user, profile } = await requireAdminPermission("listing.review");
 
     if (!isValidUUID(reviewId)) {
       return { success: false, error: "Invalid review ID format." };
     }
 
     const supabase = await createAdminClient("main");
+
+    const { data: beforeReview } = await supabase
+      .from("consultation_reviews")
+      .select("id, is_published, astrologer_id, customer_id")
+      .eq("id", reviewId)
+      .maybeSingle();
 
     const { error } = await supabase
       .from("consultation_reviews")
@@ -166,8 +177,24 @@ export async function toggleReviewPublishedAction(
       return { success: false, error: `Failed to update review visibility: ${error.message}` };
     }
 
+    try {
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: isPublished ? "review.publish" : "review.hide",
+        targetType: "review",
+        targetId: reviewId,
+        beforeState: { is_published: beforeReview?.is_published },
+        afterState: { is_published: isPublished },
+        outcome: "success",
+      });
+    } catch {
+      // Non-blocking audit log
+    }
+
     revalidatePath("/super-admin/reviews");
     revalidatePath("/astrologer/reviews");
+    revalidatePath("/customer/astrologers");
     return { success: true, data: { id: reviewId, is_published: isPublished } };
   } catch (err) {
     return {
@@ -181,13 +208,19 @@ export async function deleteReviewAction(
   reviewId: string
 ): Promise<AuthResult<{ id: string; deleted: boolean }>> {
   try {
-    await requireAdminAccess();
+    const { user, profile } = await requireSuperAdmin();
 
     if (!isValidUUID(reviewId)) {
       return { success: false, error: "Invalid review ID format." };
     }
 
     const supabase = await createAdminClient("main");
+
+    const { data: beforeReview } = await supabase
+      .from("consultation_reviews")
+      .select("id, is_published, astrologer_id, customer_id")
+      .eq("id", reviewId)
+      .maybeSingle();
 
     const { error } = await supabase
       .from("consultation_reviews")
@@ -198,8 +231,24 @@ export async function deleteReviewAction(
       return { success: false, error: `Failed to delete review: ${error.message}` };
     }
 
+    try {
+      await logAdminAction({
+        actorId: user.id,
+        actorRole: profile.role,
+        action: "review.delete",
+        targetType: "review",
+        targetId: reviewId,
+        beforeState: beforeReview,
+        afterState: { deleted: true },
+        outcome: "success",
+      });
+    } catch {
+      // Non-blocking audit log
+    }
+
     revalidatePath("/super-admin/reviews");
     revalidatePath("/astrologer/reviews");
+    revalidatePath("/customer/astrologers");
     return { success: true, data: { id: reviewId, deleted: true } };
   } catch (err) {
     return {

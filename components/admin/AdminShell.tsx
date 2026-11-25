@@ -5,6 +5,7 @@ import { AdminHeader } from "./AdminHeader";
 import { AdminSidebar } from "./AdminSidebar";
 import type { AdminPermissionKey, UserRole } from "@/lib/types/database.types";
 import { SessionLifecycleGuard } from "@/components/auth/SessionLifecycleGuard";
+import { RealtimeSuperAdminSync } from "@/components/admin/RealtimeSuperAdminSync";
 
 interface AdminShellProps {
   children: ReactNode;
@@ -37,6 +38,7 @@ export function AdminShell({
   return (
     <div className="h-screen flex flex-col portal-bg text-ink antialiased overflow-hidden">
       <SessionLifecycleGuard userId={userId || role} role={role} loginPath={isSuperAdmin ? "/super-admin" : "/admin"} />
+      {isSuperAdmin && <RealtimeSuperAdminSync />}
       {/* Accessibility: Skip to Content */}
       <a
         href="#admin-main-content"

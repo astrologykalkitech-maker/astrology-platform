@@ -139,13 +139,17 @@ export async function sendAstrologerReplyToAdminAction(
       .maybeSingle();
 
     if (ticket) {
-      await admin.from("support_messages").insert({
+      const { error: msgErr } = await admin.from("support_messages").insert({
         ticket_id: ticket.id,
         sender_id: user.id,
         sender_name: profile.full_name || "Vedic Astrologer",
         sender_role: "astrologer",
         message: text,
       });
+
+      if (msgErr) {
+        return { success: false, error: msgErr.message || "Failed to deliver support message." };
+      }
 
       await admin
         .from("support_tickets")
@@ -188,13 +192,17 @@ export async function sendAstrologerReplyToAdminAction(
       return { success: false, error: tErr?.message || "Failed to create reply thread." };
     }
 
-    await admin.from("support_messages").insert({
+    const { error: newMsgErr } = await admin.from("support_messages").insert({
       ticket_id: newTicket.id,
       sender_id: user.id,
       sender_name: profile.full_name || "Vedic Astrologer",
       sender_role: "astrologer",
       message: text,
     });
+
+    if (newMsgErr) {
+      return { success: false, error: newMsgErr.message || "Failed to deliver support message." };
+    }
 
     return { success: true, data: { success: true } };
   } catch (err) {

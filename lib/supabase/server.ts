@@ -73,17 +73,10 @@ export async function createClient(target: "main" | "admin" = "main") {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            const isDeleting = options?.maxAge === 0;
-            // When setting an active session cookie, omit maxAge & expires so the cookie acts as a Session Cookie
-            // (cleared automatically by the browser when the user closes the website/browser session).
-            const sessionOptions = isDeleting
-              ? options
-              : {
-                  ...options,
-                  maxAge: undefined,
-                  expires: undefined,
-                };
-            cookieStore.set(name, value, sessionOptions);
+            cookieStore.set(name, value, {
+              ...options,
+              maxAge: options?.maxAge ?? 60 * 60 * 24 * 7, // 7 days durable session
+            });
           });
         } catch {
           // Server Components cannot always write cookies.

@@ -11,6 +11,20 @@ import {
 import { recordConsultationPaymentInLedger, recordSubscriptionPaymentInLedger } from "@/lib/financial/ledger";
 import { calculateCommissionBreakdown, generateReceiptNumber } from "@/lib/financial/pricing";
 
+async function failSettlementClaim(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  claimId: string | undefined,
+  message: string
+) {
+  if (claimId) {
+    await supabase.rpc("fail_payment_settlement", {
+      p_claim_id: claimId,
+      p_failure_message: message,
+    });
+  }
+}
+
 function isNonEmptyIdentifier(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 128;
 }
@@ -246,6 +260,7 @@ export async function POST(req: NextRequest) {
 
       if (payInsertError || !insertedPayment) {
         console.error("[Instamojo Verify] Could not record verified payment:", payInsertError?.message);
+        await failSettlementClaim(supabase, settlementClaimRow.claim_id, payInsertError?.message || "Unable to record verified payment");
         return NextResponse.json({ error: "Unable to record verified payment" }, { status: 500 });
       }
       payRecord = insertedPayment;
@@ -260,9 +275,11 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
     if (orderUpdateError) {
       console.error("[Instamojo Verify] Could not update order:", orderUpdateError.message);
+      await failSettlementClaim(supabase, settlementClaimRow.claim_id, orderUpdateError.message);
       return NextResponse.json({ error: "Unable to record verified order status" }, { status: 500 });
     }
     if (!updatedOrder) {
+      await failSettlementClaim(supabase, settlementClaimRow.claim_id, "Order changed during payment verification");
       return NextResponse.json({ error: "Order changed during payment verification" }, { status: 409 });
     }
 
@@ -349,43 +366,57 @@ export async function POST(req: NextRequest) {
               current_period_start: now.toISOString(),
               current_period_end: periodEnd.toISOString(),
               leads_allocated: (Number(sub.leads_allocated) || 0) + (plan?.lead_quota || 0),
+              leads_consumed: 0,
+              is_complimentary: false,
+              complimentary_reason: null,
               last_payment_id: payRecord.id,
               updated_at: now.toISOString(),
             })
             .eq("id", sub.id);
           if (subscriptionUpdateError) {
             console.error("[Instamojo Verify] Subscription activation failed:", subscriptionUpdateError.message);
+            await failSettlementClaim(supabase, settlementClaimRow.claim_id, subscriptionUpdateError.message);
             return NextResponse.json({ error: "Payment verified but subscription activation failed" }, { status: 500 });
           }
         }
       } else {
+        await failSettlementClaim(supabase, settlementClaimRow.claim_id, "Subscription record could not be resolved");
         return NextResponse.json({ error: "Payment verified but subscription record could not be resolved" }, { status: 500 });
       }
 
-      await recordSubscriptionPaymentInLedger({
+      const subLedgerRes = await recordSubscriptionPaymentInLedger({
         paymentId: payRecord.id,
         amountPaise,
         description: `Subscription activated for plan ${plan?.name || "Professional"} via verify endpoint`,
       });
+      if (!subLedgerRes.success) {
+        await failSettlementClaim(supabase, settlementClaimRow.claim_id, subLedgerRes.error || "Subscription ledger posting failed");
+        return NextResponse.json({ error: "Payment verified but subscription ledger posting failed" }, { status: 500 });
+      }
     } else {
       const { error: bookingUpdateError } = await supabase
         .from("customer_bookings")
-        .update({ status: "confirmed", updated_at: new Date().toISOString() })
+        .update({ status: "confirmed", payment_status: "paid", updated_at: new Date().toISOString() })
         .eq("id", order.entity_id)
-        .eq("status", "pending");
+        .in("status", ["pending", "confirmed"]);
       if (bookingUpdateError) {
         console.error("[Instamojo Verify] Booking confirmation failed:", bookingUpdateError.message);
+        await failSettlementClaim(supabase, settlementClaimRow.claim_id, bookingUpdateError.message);
         return NextResponse.json({ error: "Payment verified but booking confirmation failed" }, { status: 500 });
       }
 
       const breakdown = calculateCommissionBreakdown(amountPaise, 10.0);
-      await recordConsultationPaymentInLedger({
+      const consultLedgerRes = await recordConsultationPaymentInLedger({
         paymentId: payRecord.id,
         grossPaise: breakdown.grossPaise,
         platformFeePaise: breakdown.platformFeePaise,
         astrologerPayablePaise: breakdown.consultantPayablePaise,
         description: `Consultation confirmed for booking ${order.entity_id} via verify endpoint`,
       });
+      if (!consultLedgerRes.success) {
+        await failSettlementClaim(supabase, settlementClaimRow.claim_id, consultLedgerRes.error || "Consultation ledger posting failed");
+        return NextResponse.json({ error: "Payment verified but ledger posting failed" }, { status: 500 });
+      }
     }
 
     await supabase.rpc("complete_payment_settlement", {

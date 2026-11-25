@@ -113,87 +113,25 @@ export async function applyCustomerReferralCode(referralCode: string): Promise<{
 
     const admin = await createAdminClient("main");
 
-    // 1. Verify referrer exists
-    const { data: referrerProfile } = await admin
-      .from("customer_referral_profiles")
-      .select("customer_id, referral_code, total_referred_count, total_rewards_earned_paise")
-      .eq("referral_code", code)
-      .maybeSingle();
+    // Execute atomic referral reward RPC
+    const { data: rpcResult, error: rpcErr } = await admin.rpc(
+      "claim_customer_referral_reward",
+      {
+        p_referral_code: code,
+        p_reward_amount_paise: 5000,
+      }
+    );
 
-    if (!referrerProfile) {
-      return { success: false, error: "Referral code not found." };
+    if (rpcErr) {
+      return { success: false, error: rpcErr.message || "Failed to process referral code." };
     }
-
-    // Prevent self-referral
-    if (referrerProfile.customer_id === user.id) {
-      return { success: false, error: "You cannot refer yourself." };
-    }
-
-    // 2. Check if customer already claimed a referral
-    const { data: existingClaim } = await admin
-      .from("customer_referral_claims")
-      .select("id")
-      .eq("referred_id", user.id)
-      .maybeSingle();
-
-    if (existingClaim) {
-      return { success: false, error: "You have already claimed a referral blessing." };
-    }
-
-    const rewardPaise = 5000; // ₹50 reward for both parties
-    const nowIso = new Date().toISOString();
-
-    // 3. Insert claim
-    const { error: claimErr } = await admin
-      .from("customer_referral_claims")
-      .insert({
-        referrer_id: referrerProfile.customer_id,
-        referred_id: user.id,
-        referral_code: code,
-        status: "completed",
-        reward_amount_paise: rewardPaise,
-        credited_at: nowIso,
-      });
-
-    if (claimErr) {
-      return { success: false, error: "Failed to apply referral code." };
-    }
-
-    // 4. Update referrer metrics
-    await admin
-      .from("customer_referral_profiles")
-      .update({
-        total_referred_count: referrerProfile.total_referred_count + 1,
-        total_rewards_earned_paise: referrerProfile.total_rewards_earned_paise + rewardPaise,
-        updated_at: nowIso,
-      })
-      .eq("customer_id", referrerProfile.customer_id);
-
-    // 5. Credit promotional wallet balance for both users via authoritative wallet engine
-    await creditCustomerWallet({
-      customerId: user.id,
-      amountPaise: rewardPaise,
-      creditType: "PROMO_CREDIT",
-      idempotencyKey: `ref_welcome_${user.id}`,
-      description: `Welcome Blessing Referral Reward from code ${code}`,
-      metadata: { referral_code: code, referrer_id: referrerProfile.customer_id },
-    });
-
-    await creditCustomerWallet({
-      customerId: referrerProfile.customer_id,
-      amountPaise: rewardPaise,
-      creditType: "PROMO_CREDIT",
-      idempotencyKey: `ref_referrer_${referrerProfile.customer_id}_${user.id}`,
-      description: `Referral Reward for welcoming new seeker to Karmic Ascension`,
-      metadata: { referral_code: code, referred_id: user.id },
-    });
 
     revalidatePath("/customer/offers");
     revalidatePath("/customer/billing");
 
     return {
       success: true,
-      message: `Referral blessing applied! ₹50 promotional credit has been added to your wallet.`,
+      message: (rpcResult as any)?.message || "Referral blessing applied! ₹50 promotional credit has been added to your wallet.",
     };
   } catch (err: any) {
     return { success: false, error: err?.message || "Failed to process referral code." };

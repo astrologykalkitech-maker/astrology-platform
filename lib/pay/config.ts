@@ -1,12 +1,31 @@
 import { JyotishGatewayConfig } from "./types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export const DEFAULT_SANDBOX_MERCHANT_VPA = "karmicascension@upi";
+
 export function getJyotishPayConfig(): JyotishGatewayConfig {
-  const mode = (process.env.JYOTISH_PAY_MODE || process.env.PAYMENT_GATEWAY_MODE || "sandbox").toLowerCase() as "sandbox" | "live";
-  
+  const rawMode = (process.env.JYOTISH_PAY_MODE || process.env.PAYMENT_GATEWAY_MODE || "").toLowerCase();
+  if (process.env.NODE_ENV === "production" && rawMode !== "live" && rawMode !== "sandbox") {
+    throw new Error(
+      "JYOTISH_PAY_MODE must be explicitly set to 'live' or 'sandbox' in production deployments."
+    );
+  }
+  const mode = (rawMode || "sandbox") as "sandbox" | "live";
+  const configuredVpa = (process.env.JYOTISH_PAY_VPA || process.env.NEXT_PUBLIC_JYOTISH_PAY_VPA || "").trim();
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    mode === "live" &&
+    (!configuredVpa || configuredVpa === DEFAULT_SANDBOX_MERCHANT_VPA)
+  ) {
+    throw new Error(
+      "JYOTISH_PAY_VPA must be explicitly configured with a real merchant VPA in live production mode."
+    );
+  }
+
   return {
     mode,
-    merchantVpa: (process.env.JYOTISH_PAY_VPA || process.env.NEXT_PUBLIC_JYOTISH_PAY_VPA || "karmicascension@upi").trim(),
+    merchantVpa: configuredVpa || DEFAULT_SANDBOX_MERCHANT_VPA,
     merchantName: (process.env.JYOTISH_PAY_MERCHANT_NAME || "Karmic Ascension Astrology Services").trim(),
     merchantCode: (process.env.JYOTISH_PAY_MCC || "8299").trim(), // 8299/8999 for Merchant, 0000 for Personal
     appBaseUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",

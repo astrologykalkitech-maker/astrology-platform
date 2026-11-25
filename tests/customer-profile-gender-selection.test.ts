@@ -21,13 +21,13 @@ describe("Sub-phase 2.9: Gender Selection & Vedic Chart Calculation Data Quality
   it("passes validated gender parameter to RPC and fallback update", () => {
     assert.match(
       actionsContent,
-      /p_gender:\s*payload\.gender\s*\|\|\s*null/,
-      "Must pass payload.gender or null to update_customer_profile RPC"
+      /p_gender:\s*resolvedGender/,
+      "Must pass resolvedGender to update_customer_profile RPC"
     );
     assert.match(
       actionsContent,
-      /gender:\s*payload\.gender\s*\|\|\s*null/,
-      "Must pass payload.gender or null to direct profile update"
+      /gender:\s*resolvedGender/,
+      "Must pass resolvedGender to direct profile update"
     );
   });
 

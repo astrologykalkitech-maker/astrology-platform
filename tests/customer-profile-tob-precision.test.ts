@@ -13,7 +13,7 @@ describe("Sub-phase 2.7: Time of Birth Input & Precision Verification", () => {
   it("handles time_of_birth in updateCustomerProfileAction and performs AES-256-GCM encryption", () => {
     assert.match(
       actionsContent,
-      /if \(payload\.time_of_birth\) \{\s*encryptedTob = encryptCustomerBirthData\(user\.id, "time_of_birth", payload\.time_of_birth\)\.ciphertext;\s*\}/,
+      /if \(payload\.time_of_birth !== undefined\) \{\s*encryptedTob = payload\.time_of_birth\s*\?\s*encryptCustomerBirthData\(user\.id, "time_of_birth", payload\.time_of_birth\)\.ciphertext/,
       "updateCustomerProfileAction must encrypt time_of_birth with customer UUID bound AAD"
     );
   });
@@ -21,7 +21,7 @@ describe("Sub-phase 2.7: Time of Birth Input & Precision Verification", () => {
   it("suppresses plaintext time_of_birth in RPC and database write paths", () => {
     assert.match(
       actionsContent,
-      /p_time_of_birth: isEncrypted \? null : \(payload\.time_of_birth \|\| null\)/,
+      /p_time_of_birth: isEncrypted \? null : resolvedTob/,
       "Must send null to RPC plaintext parameter when encryption is configured"
     );
   });

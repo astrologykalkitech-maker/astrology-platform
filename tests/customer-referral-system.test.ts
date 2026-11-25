@@ -28,9 +28,7 @@ describe("Sub-phase 3.1: Customer Referral & Loyalty Rewards Architecture Test",
     const code = fs.readFileSync(actionPath, "utf-8");
 
     assert.match(code, /requireCustomer\(\)/, "Must require customer authentication");
-    assert.match(code, /creditCustomerWallet\(/, "Must credit wallet promotional balance via wallet-engine");
-    assert.match(code, /PROMO_CREDIT/, "Credit type must be PROMO_CREDIT");
-    assert.match(code, /referrerProfile\.customer_id === user\.id/, "Must prevent self-referrals");
+    assert.match(code, /claim_customer_referral_reward/, "Must invoke atomic referral reward RPC");
   });
 
   it("3. Offers page replaced placeholder with live interactive CustomerReferralClient", () => {

@@ -38,9 +38,60 @@ export function SuperAdminFinancialsClient({
       verified_at: string;
       entity_type: string;
     }>;
+    refundRequests?: Array<{
+      id: string;
+      payment_id: string;
+      order_id: string;
+      customer_id: string;
+      customer_name: string;
+      amount_paise: number;
+      reason: string;
+      status: string;
+      instamojo_refund_id: string | null;
+      rejection_reason: string | null;
+      created_at: string;
+      reviewed_at: string | null;
+      payment_receipt_number?: string | null;
+    }>;
   };
 }) {
-  const [activeTab, setActiveTab] = useState<"overview" | "settlement" | "accounts">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "refunds" | "settlement" | "accounts">("overview");
+
+  // Refund Management State
+  const [refundDecisionLoading, setRefundDecisionLoading] = useState<string | null>(null);
+  const [refundMsg, setRefundMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleRefundDecision = async (
+    refundRequestId: string,
+    decision: "approve" | "reject",
+    rejectionReason?: string
+  ) => {
+    try {
+      setRefundDecisionLoading(refundRequestId);
+      setRefundMsg(null);
+      const res = await processRefundDecisionAction({
+        refundRequestId,
+        decision,
+        rejectionReason,
+      });
+
+      if (res.success) {
+        setRefundMsg({
+          type: "success",
+          text: `Refund request successfully ${decision === "approve" ? "approved and processed" : "rejected"}.`,
+        });
+      } else {
+        setRefundMsg({
+          type: "error",
+          text: res.error || `Failed to ${decision} refund request.`,
+        });
+      }
+    } catch {
+      setRefundMsg({ type: "error", text: "Network error processing refund decision." });
+    } finally {
+      setRefundDecisionLoading(null);
+    }
+  };
 
   // Settlement Form State
   const [astrologerId, setAstrologerId] = useState("");
@@ -145,6 +196,21 @@ export function SuperAdminFinancialsClient({
           Recent Verified Payments
         </button>
         <button
+          onClick={() => setActiveTab("refunds")}
+          className={`pb-2 transition-colors relative ${
+            activeTab === "refunds"
+              ? "border-b-2 border-gold text-midnight"
+              : "text-muted hover:text-midnight"
+          }`}
+        >
+          Refund Requests Desk
+          {metrics.refundRequests && metrics.refundRequests.filter((r) => r.status === "requested").length > 0 && (
+            <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 py-0.2 text-[10px] text-white">
+              {metrics.refundRequests.filter((r) => r.status === "requested").length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab("settlement")}
           className={`pb-2 transition-colors ${
             activeTab === "settlement"
@@ -217,6 +283,117 @@ export function SuperAdminFinancialsClient({
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Tab: Refund Requests Desk */}
+      {activeTab === "refunds" && (
+        <div className="space-y-4">
+          {refundMsg && (
+            <div
+              className={`flex items-center gap-2 rounded-xl p-3 text-xs ${
+                refundMsg.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "bg-red-50 text-red-800 border border-red-200"
+              }`}
+            >
+              {refundMsg.type === "success" ? (
+                <CheckCircle className="h-4 w-4 shrink-0" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+              )}
+              <span>{refundMsg.text}</span>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-gold/25 bg-white shadow-sm overflow-x-auto table-scrollbar">
+            <table className="w-full min-w-[750px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-gold/15 bg-parchment/40 text-[11px] font-semibold text-midnight">
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Customer</th>
+                  <th className="py-3 px-4">Receipt / Ref</th>
+                  <th className="py-3 px-4">Reason</th>
+                  <th className="py-3 px-4 text-right">Amount</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gold/10 text-ink/80">
+                {!metrics.refundRequests || metrics.refundRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted">
+                      No refund requests submitted.
+                    </td>
+                  </tr>
+                ) : (
+                  metrics.refundRequests.map((r) => (
+                    <tr key={r.id} className="hover:bg-gold/5 transition-colors">
+                      <td className="py-3 px-4 text-muted whitespace-nowrap">
+                        {formatExactDateTime(r.created_at)}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-midnight whitespace-nowrap">
+                        {r.customer_name}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-muted">
+                        {r.payment_receipt_number || r.payment_id.slice(0, 8)}
+                      </td>
+                      <td className="py-3 px-4 text-ink/90 max-w-xs truncate" title={r.reason}>
+                        {r.reason}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-midnight whitespace-nowrap">
+                        {formatPaiseToInr(r.amount_paise)}
+                      </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${
+                            r.status === "requested"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : r.status === "processed" || r.status === "approved"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        {r.status === "requested" ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              disabled={refundDecisionLoading === r.id}
+                              onClick={() => handleRefundDecision(r.id, "approve")}
+                              className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {refundDecisionLoading === r.id ? "Processing..." : "Approve"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={refundDecisionLoading === r.id}
+                              onClick={() => {
+                                const reason = window.prompt("Reason for rejecting refund request:");
+                                if (reason !== null) {
+                                  handleRefundDecision(r.id, "reject", reason || "Declined by admin");
+                                }
+                              }}
+                              className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-muted">
+                            {r.reviewed_at ? formatExactDateTime(r.reviewed_at) : "Settled"}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

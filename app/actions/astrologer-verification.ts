@@ -197,6 +197,135 @@ export async function getAstrologerVerificationOverview(targetAstrologerId?: str
 }
 
 /**
+ * Astrologer uploads a verification document file (PDF, PNG, JPG, WebP) to storage
+ * and automatically attaches it to verification documents and stage.
+ */
+export async function uploadVerificationDocumentAction(
+  formData: FormData
+): Promise<{ success: boolean; data?: VerificationDocumentRecord; error?: string }> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, error: "Authentication required" };
+    }
+
+    const file = formData.get("file") as File | null;
+    const documentType = (formData.get("document_type") as string) || "other";
+    const title = (formData.get("title") as string) || file?.name || "Verification Document";
+    const stageName = (formData.get("stage_name") as VerificationStageName) || "documents";
+
+    if (!file) {
+      return { success: false, error: "No document file provided." };
+    }
+
+    // Max 15MB for verification files (PDFs, identity certificates)
+    const MAX_DOC_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_DOC_SIZE) {
+      return { success: false, error: "File exceeds maximum allowed size of 15 MB." };
+    }
+
+    const allowedMimeTypes = new Set([
+      "application/pdf",
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ]);
+
+    const mime = file.type.toLowerCase();
+    if (mime && !allowedMimeTypes.has(mime)) {
+      return {
+        success: false,
+        error: "Invalid file type. Allowed formats: PDF, JPEG, PNG, WebP.",
+      };
+    }
+
+    const admin = await createAdminClient("main");
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Ensure bucket exists or handle upload cleanly
+    const bucketName = "verification-documents";
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || (mime === "application/pdf" ? "pdf" : "jpg");
+    const sanitizedExt = ["pdf", "jpg", "jpeg", "png", "webp"].includes(fileExt) ? fileExt : "pdf";
+    const storagePath = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${sanitizedExt}`;
+
+    let publicOrSignedUrl = "";
+
+    try {
+      const { data: uploadData, error: uploadErr } = await admin.storage
+        .from(bucketName)
+        .upload(storagePath, buffer, {
+          contentType: mime || "application/octet-stream",
+          upsert: true,
+        });
+
+      if (!uploadErr && uploadData) {
+        const { data: urlData } = admin.storage.from(bucketName).getPublicUrl(storagePath);
+        publicOrSignedUrl = urlData?.publicUrl || storagePath;
+      } else {
+        // Fallback to chat-attachments if verification-documents bucket is pending creation
+        const { data: fbUpload, error: fbErr } = await admin.storage
+          .from("chat-attachments")
+          .upload(`verification/${storagePath}`, buffer, {
+            contentType: mime || "application/octet-stream",
+            upsert: true,
+          });
+
+        if (!fbErr && fbUpload) {
+          const { data: fbUrl } = admin.storage.from("chat-attachments").getPublicUrl(`verification/${storagePath}`);
+          publicOrSignedUrl = fbUrl?.publicUrl || storagePath;
+        } else {
+          publicOrSignedUrl = storagePath;
+        }
+      }
+    } catch {
+      publicOrSignedUrl = storagePath;
+    }
+
+    // Insert into astrologer_verification_documents
+    const { data: docRecord, error: docInsertErr } = await admin
+      .from("astrologer_verification_documents")
+      .insert({
+        astrologer_id: user.id,
+        document_type: documentType,
+        title: title.trim(),
+        file_path: publicOrSignedUrl,
+        file_size_bytes: file.size,
+        mime_type: mime || "application/octet-stream",
+        verification_status: "pending",
+      })
+      .select()
+      .single();
+
+    if (docInsertErr) {
+      console.error("[uploadVerificationDocumentAction] doc insert error:", docInsertErr);
+      return { success: false, error: docInsertErr.message };
+    }
+
+    // Also link stage as submitted
+    await submitVerificationStageAction(stageName, {
+      title: title.trim(),
+      document_type: documentType,
+      file_path: publicOrSignedUrl,
+      document_id: docRecord?.id,
+      submitted_at: new Date().toISOString(),
+    });
+
+    revalidatePath("/astrologer/profile");
+    revalidatePath("/super-admin/verification");
+
+    return {
+      success: true,
+      data: docRecord as VerificationDocumentRecord,
+    };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to upload verification document";
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
  * Astrologer submits a verification stage with metadata.
  */
 export async function submitVerificationStageAction(
@@ -229,7 +358,41 @@ export async function submitVerificationStageAction(
       return { success: false, error: error.message };
     }
 
+    // If submitted, create a document row if metadata contains file_path & title
+    if (metadata?.file_path && typeof metadata.file_path === "string") {
+      await admin.from("astrologer_verification_documents").insert({
+        astrologer_id: user.id,
+        document_type: (metadata.document_type as string) || "other",
+        title: (metadata.title as string) || `${stageName} Document`,
+        file_path: metadata.file_path,
+        verification_status: "pending",
+      });
+    }
+
+    // If profile approval_status is currently 'draft' or 'pending', advance to 'under_review'
+    const { data: currentProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id, approval_status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (
+      currentProfile &&
+      (currentProfile.approval_status === "draft" ||
+        currentProfile.approval_status === "pending" ||
+        currentProfile.approval_status === "changes_requested")
+    ) {
+      await admin
+        .from("astrologer_profiles")
+        .update({
+          approval_status: "under_review",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", currentProfile.id);
+    }
+
     revalidatePath("/astrologer/profile");
+    revalidatePath("/super-admin/verification");
     return { success: true };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Failed to submit verification stage";
@@ -968,3 +1131,226 @@ export async function scheduleAstrologerInterviewAction({
     return { success: false, error: errorMsg };
   }
 }
+
+/**
+ * Records or updates an assessment for a test consultation stage.
+ */
+export async function evaluateAstrologerTestConsultationAction({
+  astrologerId,
+  accuracyScore,
+  empathyScore,
+  protocolScore,
+  feedback,
+  status = "passed",
+}: {
+  astrologerId: string;
+  accuracyScore: number;
+  empathyScore: number;
+  protocolScore: number;
+  feedback?: string;
+  status?: "passed" | "failed" | "completed" | "evaluated";
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const adminSession = await resolveAdminSession();
+    if (!adminSession) {
+      return { success: false, error: "Authentication required: Super Admin privileges are required." };
+    }
+
+    const admin = await createAdminClient("main");
+    const target = await resolveAstrologerTarget(admin, astrologerId);
+    if (!target) return { success: false, error: "Astrologer profile not found" };
+
+    const { error: testErr } = await admin.from("astrologer_test_consultations").insert({
+      astrologer_id: target.userId,
+      evaluator_id: adminSession.user.id,
+      scheduled_at: new Date().toISOString(),
+      status,
+      accuracy_score: accuracyScore,
+      empathy_score: empathyScore,
+      protocol_adherence_score: protocolScore,
+      feedback: feedback ? feedback.trim() : null,
+    });
+
+    if (testErr) {
+      console.error("[evaluateAstrologerTestConsultationAction Error]", testErr);
+      return { success: false, error: testErr.message };
+    }
+
+    // Update test_consultation stage status
+    const stageStatus: VerificationStatus = status === "passed" ? "approved" : status === "failed" ? "rejected" : "under_review";
+    await updateVerificationStageReviewAction({
+      astrologerId: target.userId,
+      stageName: "test_consultation",
+      status: stageStatus,
+      reviewerNotes: feedback || `Test consultation evaluation: ${status} (Score: ${accuracyScore}/10)`,
+    });
+
+    revalidatePath("/super-admin/verification", "page");
+    revalidatePath("/astrologer/profile", "page");
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to evaluate test consultation";
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Initiates or updates a probation period for an astrologer.
+ */
+export async function updateAstrologerProbationAction({
+  astrologerId,
+  endDate,
+  status = "active",
+  performanceNotes,
+}: {
+  astrologerId: string;
+  endDate: string;
+  status?: "active" | "extended" | "completed_approved" | "failed_rejected";
+  performanceNotes?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const adminSession = await resolveAdminSession();
+    if (!adminSession) {
+      return { success: false, error: "Authentication required: Super Admin privileges are required." };
+    }
+
+    const admin = await createAdminClient("main");
+    const target = await resolveAstrologerTarget(admin, astrologerId);
+    if (!target) return { success: false, error: "Astrologer profile not found" };
+
+    const { error: probErr } = await admin.from("astrologer_probations").upsert({
+      astrologer_id: target.userId,
+      supervisor_id: adminSession.user.id,
+      end_date: endDate,
+      status,
+      performance_notes: performanceNotes ? performanceNotes.trim() : null,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (probErr) {
+      console.error("[updateAstrologerProbationAction Error]", probErr);
+      return { success: false, error: probErr.message };
+    }
+
+    // Synchronize probation stage in checklist
+    const stageStatus: VerificationStatus =
+      status === "completed_approved"
+        ? "approved"
+        : status === "failed_rejected"
+        ? "rejected"
+        : "under_review";
+
+    await updateVerificationStageReviewAction({
+      astrologerId: target.userId,
+      stageName: "probation",
+      status: stageStatus,
+      reviewerNotes: performanceNotes || `Probation status: ${status}`,
+    });
+
+    revalidatePath("/super-admin/verification", "page");
+    revalidatePath("/astrologer/profile", "page");
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to update probation";
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Super Admin or Consultant Admin reviews and updates the verification status of an individual document.
+ */
+export async function updateVerificationDocumentReviewAction({
+  documentId,
+  verificationStatus,
+  rejectionReason,
+}: {
+  documentId: string;
+  verificationStatus: "verified" | "rejected" | "under_review";
+  rejectionReason?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const adminSession = await resolveAdminSession();
+    if (!adminSession) {
+      return {
+        success: false,
+        error: "Authentication required: Super Admin privileges are required to review documents.",
+      };
+    }
+
+    if (verificationStatus === "rejected" && (!rejectionReason || !rejectionReason.trim())) {
+      return {
+        success: false,
+        error: "Rejection reason is required when rejecting a document.",
+      };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: doc, error: fetchErr } = await admin
+      .from("astrologer_verification_documents")
+      .select("id, astrologer_id, document_type, title, verification_status")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (fetchErr || !doc) {
+      return { success: false, error: "Verification document not found." };
+    }
+
+    const { error: updateErr } = await admin
+      .from("astrologer_verification_documents")
+      .update({
+        verification_status: verificationStatus,
+        rejection_reason: verificationStatus === "rejected" ? rejectionReason?.trim() || null : null,
+        reviewed_by: adminSession.user.id,
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", documentId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    // Notify astrologer of document decision
+    try {
+      await createInAppNotification({
+        recipientUserId: doc.astrologer_id,
+        title: verificationStatus === "verified" ? "KYC Document Verified" : "KYC Document Update",
+        message:
+          verificationStatus === "verified"
+            ? `Your document "${doc.title}" has been successfully verified.`
+            : `Your document "${doc.title}" was rejected: ${rejectionReason || "Please re-upload a clear copy."}`,
+        linkUrl: "/astrologer/profile",
+        eventType: `doc_${verificationStatus}`,
+        metadata: { document_id: documentId, document_type: doc.document_type },
+      });
+    } catch {
+      // Non-blocking notification
+    }
+
+    // Audit log document review
+    try {
+      await logAdminAction({
+        actorId: adminSession.user.id,
+        actorRole: adminSession.profile.role,
+        action: `verification.document_${verificationStatus}`,
+        targetType: "astrologer_document",
+        targetId: documentId,
+        reason: rejectionReason || `Document marked as ${verificationStatus}`,
+        beforeState: { status: doc.verification_status },
+        afterState: { status: verificationStatus },
+        outcome: "success",
+      });
+    } catch {
+      // Non-blocking audit log
+    }
+
+    revalidatePath("/super-admin/verification", "page");
+    revalidatePath("/astrologer/profile", "page");
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to review document";
+    return { success: false, error: errorMsg };
+  }
+}
+

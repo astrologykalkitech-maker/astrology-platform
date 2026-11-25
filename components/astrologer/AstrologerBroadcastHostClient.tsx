@@ -22,6 +22,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Room, RoomEvent, createLocalTracks, LocalVideoTrack, LocalAudioTrack, setLogLevel } from "livekit-client";
+import { classifyMediaError, type MediaPermissionIssue } from "@/lib/media/permissions";
 import {
   createLiveBroadcast,
   confirmBroadcastLive,
@@ -93,6 +94,7 @@ export function AstrologerBroadcastHostClient({
   // Media state
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
+  const [mediaPermissionIssue, setMediaPermissionIssue] = useState<MediaPermissionIssue | null>(null);
   const [viewerCount, setViewerCount] = useState<number | null>(null);
 
   // Comments state
@@ -185,29 +187,22 @@ export function AstrologerBroadcastHostClient({
 
     setLoading(true);
     setError(null);
-    setStreamStatus("preparing");
+    setMediaPermissionIssue(null);
+    setStreamStatus("requesting_permissions");
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setMediaPermissionIssue("unsupported_context");
+      setError("Camera/microphone access requires a supported browser over HTTPS or localhost.");
+      setStreamStatus("failed");
+      setLoading(false);
+      return;
+    }
+
+    let videoTrack: LocalVideoTrack | undefined;
+    let audioTrack: LocalAudioTrack | undefined;
 
     try {
-      // 1. Create Broadcast Session & Get Host Token
-      const res = await createLiveBroadcast({
-        title: title.trim(),
-        description: description.trim(),
-        topic: topic.trim(),
-      });
-
-      if (!res.success || !res.broadcast || !res.tokenResult) {
-        throw new Error(res.error || "Failed to initialize broadcast session.");
-      }
-
-      const activeBroadcast = res.broadcast;
-      const tokenResult: BroadcastTokenResult = res.tokenResult;
-      setBroadcast(activeBroadcast);
-
-      // 2. Request Camera & Mic Permissions
-      setStreamStatus("requesting_permissions");
-      let videoTrack: LocalVideoTrack | undefined;
-      let audioTrack: LocalAudioTrack | undefined;
-
+      // 1. Acquire Camera & Mic tracks BEFORE creating a live broadcast DB row
       try {
         const tracks = await createLocalTracks({
           audio: true,
@@ -217,40 +212,50 @@ export function AstrologerBroadcastHostClient({
         });
         videoTrack = tracks.find((t) => t.kind === "video") as LocalVideoTrack | undefined;
         audioTrack = tracks.find((t) => t.kind === "audio") as LocalAudioTrack | undefined;
-      } catch (trackErr: any) {
-        // Fallback 1: Try video with lower constraints or audio-only
+        setIsCameraOn(Boolean(videoTrack));
+        setIsMicOn(Boolean(audioTrack));
+      } catch (trackErr: unknown) {
+        // Fallback: try audio-only if camera is missing/busy, but still surface permission blocks
+        const primaryClassified = classifyMediaError(trackErr, "camera_or_mic");
+        if (primaryClassified.issue === "permission_denied") {
+          setMediaPermissionIssue("permission_denied");
+          setError(primaryClassified.message);
+          setStreamStatus("failed");
+          setLoading(false);
+          return;
+        }
         try {
           const fallbackTracks = await createLocalTracks({ audio: true, video: false });
           audioTrack = fallbackTracks.find((t) => t.kind === "audio") as LocalAudioTrack | undefined;
-        } catch (audioOnlyErr: any) {
-          // If user blocked permission or no media devices available
-          if (
-            trackErr?.name === "NotAllowedError" ||
-            trackErr?.name === "PermissionDeniedError" ||
-            trackErr?.message?.includes("Permission denied") ||
-            audioOnlyErr?.name === "NotAllowedError" ||
-            audioOnlyErr?.message?.includes("Permission denied")
-          ) {
-            setError(
-              "Camera or microphone permission was blocked. Please click the lock or camera icon in your browser address bar to allow access, then click 'Go Live Now' again."
-            );
-          } else if (
-            trackErr?.name === "NotFoundError" ||
-            trackErr?.name === "DevicesNotFoundError" ||
-            audioOnlyErr?.name === "NotFoundError"
-          ) {
-            setError(
-              "No camera or microphone found. Please connect an audio input or webcam and refresh the page."
-            );
-          } else {
-            setError(trackErr?.message || "Could not access camera or microphone.");
-          }
+          setIsCameraOn(false);
+          setIsMicOn(Boolean(audioTrack));
+        } catch (audioOnlyErr: unknown) {
+          const classified = classifyMediaError(audioOnlyErr, "camera_or_mic");
+          setMediaPermissionIssue(classified.issue);
+          setError(classified.message);
           setStreamStatus("failed");
           setLoading(false);
           return;
         }
       }
 
+      // 2. Create Broadcast Session & Get Host Token only after media is verified
+      setStreamStatus("preparing");
+      const res = await createLiveBroadcast({
+        title: title.trim(),
+        description: description.trim(),
+        topic: topic.trim(),
+      });
+
+      if (!res.success || !res.broadcast || !res.tokenResult) {
+        videoTrack?.stop();
+        audioTrack?.stop();
+        throw new Error(res.error || "Failed to initialize broadcast session.");
+      }
+
+      const activeBroadcast = res.broadcast;
+      const tokenResult: BroadcastTokenResult = res.tokenResult;
+      setBroadcast(activeBroadcast);
       localTracksRef.current = { videoTrack, audioTrack };
 
       // Attach video to local monitor preview

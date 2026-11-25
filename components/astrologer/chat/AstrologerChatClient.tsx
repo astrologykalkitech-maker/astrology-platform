@@ -44,6 +44,9 @@ import {
 import {
   type DirectMessage,
   type DirectMessageAttachment,
+  formatChatDateSeparator,
+  getChatCalendarDayKey,
+  mergeDirectMessages,
   parseDirectMessageRow,
 } from "@/lib/chat/meta";
 import { createClient } from "@/lib/supabase/client";
@@ -71,21 +74,23 @@ interface AstrologerChatClientProps {
   initialConversations: ConversationSummary[];
   initialSeekers: EligibleSeeker[];
   currentUserId: string;
+  initialSelectedConversationId?: string | null;
 }
 
 export function AstrologerChatClient({
   initialConversations,
   initialSeekers,
   currentUserId,
+  initialSelectedConversationId,
 }: AstrologerChatClientProps) {
   // Navigation & tabs
   const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
   const [seekers, setSeekers] = useState<EligibleSeeker[]>(initialSeekers);
   const [activeTab, setActiveTab] = useState<"seekers" | "chats">(
-    initialConversations.length > 0 ? "chats" : "seekers"
+    initialSelectedConversationId || initialConversations.length > 0 ? "chats" : "seekers"
   );
   const [selectedConvoId, setSelectedConvoId] = useState<string | null>(
-    initialConversations[0]?.id || null
+    initialSelectedConversationId || initialConversations[0]?.id || null
   );
   const [selectedSeeker, setSelectedSeeker] = useState<EligibleSeeker | null>(null);
 
@@ -135,6 +140,7 @@ export function AstrologerChatClient({
   const selectedConvoIdRef = useRef<string | null>(selectedConvoId);
   const messagesRef = useRef<DirectMessage[]>(messages);
   const processedIncomingMessageIdsRef = useRef(new Set<string>());
+  const typingResetTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pendingRingingConversationIdsRef = useRef(new Set<string>());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
@@ -238,6 +244,14 @@ export function AstrologerChatClient({
         isCurrentChat
       );
 
+      if (newMsg.sender_role === "customer") {
+        setIsSeekerTyping(false);
+        if (typingResetTimerRef.current) {
+          clearTimeout(typingResetTimerRef.current);
+          typingResetTimerRef.current = null;
+        }
+      }
+
       if (notificationSound === "chime") {
         if (!isMuted) {
           void soundNotificationService.playMessageSound(newMsg.id);
@@ -247,20 +261,7 @@ export function AstrologerChatClient({
       }
 
       if (isCurrentChat) {
-        setMessages((prev) => {
-          if (newMsg.client_message_id) {
-            const tempIndex = prev.findIndex(
-              (m) => m.client_message_id === newMsg.client_message_id
-            );
-            if (tempIndex !== -1) {
-              const updated = [...prev];
-              updated[tempIndex] = newMsg;
-              return updated;
-            }
-          }
-          if (prev.some((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
+        setMessages((prev) => mergeDirectMessages(prev, [newMsg]));
 
         if (isUserNearBottom()) {
           setTimeout(() => scrollToBottom(true), 60);
@@ -345,6 +346,35 @@ export function AstrologerChatClient({
     [isMuted, isUserNearBottom, resyncConversations, resyncSeekers, scrollToBottom]
   );
 
+  const handleIncomingMessageRef = useRef(handleIncomingMessage);
+  useEffect(() => {
+    handleIncomingMessageRef.current = handleIncomingMessage;
+  }, [handleIncomingMessage]);
+
+  const syncInFlightRef = useRef<Set<string>>(new Set());
+  const syncConversationDelta = useCallback(async (convoId: string) => {
+    if (!convoId || syncInFlightRef.current.has(convoId)) return;
+    syncInFlightRef.current.add(convoId);
+    try {
+      const isCurrent = selectedConvoIdRef.current === convoId;
+      const cur = isCurrent ? messagesRef.current : [];
+      const lastPersisted = [...cur].reverse().find((m) => !m.id.startsWith("temp-"));
+      const afterIso = lastPersisted?.created_at ?? null;
+      const afterId = lastPersisted?.id ?? null;
+
+      const res = await getLatestMessagesDeltaAction(convoId, afterIso, afterId);
+      if (res?.success && res.data && res.data.length > 0) {
+        for (const m of res.data) {
+          handleIncomingMessageRef.current(m);
+        }
+      }
+    } catch {
+      // Suppress transient delta sync failures
+    } finally {
+      syncInFlightRef.current.delete(convoId);
+    }
+  }, []);
+
   // --------------------------------------------------------------------------
   // LOAD MESSAGES WITH CURSOR PAGINATION
   // --------------------------------------------------------------------------
@@ -369,8 +399,15 @@ export function AstrologerChatClient({
 
       try {
         const res = await getConversationMessagesAction(convoId, null, 50);
+        if (selectedConvoIdRef.current !== convoId) return;
         if (res.success && res.data) {
-          setMessages(res.data);
+          setMessages((prev) => {
+            // Preserve any newer live messages that arrived while history was loading
+            const newerLive = prev.filter(
+              (m) => m.conversation_id === convoId && !m.id.startsWith("temp-")
+            );
+            return mergeDirectMessages(res.data!, newerLive);
+          });
           setHasMoreMessages(Boolean(res.hasMore));
           setOldestCursor(res.oldestCursor || null);
 
@@ -434,6 +471,11 @@ export function AstrologerChatClient({
   };
 
   useEffect(() => {
+    setIsSeekerTyping(false);
+    const timer = typingResetTimerRef.current;
+    if (timer) {
+      clearTimeout(timer);
+    }
     if (selectedConvoId) {
       void loadMessages(selectedConvoId);
     }
@@ -462,7 +504,17 @@ export function AstrologerChatClient({
         data.conversationId === selectedConvoIdRef.current &&
         data.role === "customer"
       ) {
+        if (typingResetTimerRef.current) {
+          clearTimeout(typingResetTimerRef.current);
+          typingResetTimerRef.current = null;
+        }
         setIsSeekerTyping(data.isTyping);
+        if (data.isTyping) {
+          typingResetTimerRef.current = setTimeout(() => {
+            setIsSeekerTyping(false);
+            typingResetTimerRef.current = null;
+          }, 3500);
+        }
       }
     });
 
@@ -511,13 +563,25 @@ export function AstrologerChatClient({
       );
     });
 
+    // Signal-only wake-up (no private message content broadcast over shared channel)
+    channel.on("broadcast", { event: "direct_message_sync" }, ({ payload }) => {
+      const data = payload as { conversationId?: string; messageId?: string; senderId?: string };
+      if (!data?.conversationId || data.senderId === currentUserId) return;
+      if (data.conversationId === selectedConvoIdRef.current) {
+        void syncConversationDelta(data.conversationId);
+      } else {
+        void resyncConversations();
+        void resyncSeekers();
+      }
+    });
+
     // 2. Database WAL Postgres Changes Listener
     channel.on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "direct_messages" },
       (payload) => {
         const message = parseDirectMessageRow(payload.new, currentUserId);
-        if (message) handleIncomingMessage(message);
+        if (message) handleIncomingMessageRef.current(message);
       }
     );
 
@@ -566,7 +630,13 @@ export function AstrologerChatClient({
 
     channel.subscribe((status) => {
       setIsRealtimeConnected(status === "SUBSCRIBED");
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      if (status === "SUBSCRIBED") {
+        // Recover any messages missed while disconnected / subscribing
+        const activeId = selectedConvoIdRef.current;
+        if (activeId) {
+          void syncConversationDelta(activeId);
+        }
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
         void resyncSeekers();
         void resyncConversations();
       }
@@ -581,7 +651,7 @@ export function AstrologerChatClient({
       pendingRingingConversationIds.clear();
       void supabase.removeChannel(channel);
     };
-  }, [currentUserId, handleIncomingMessage, resyncConversations, resyncSeekers]);
+  }, [currentUserId, resyncConversations, resyncSeekers, syncConversationDelta]);
 
   // --------------------------------------------------------------------------
   // BACKGROUND SYNC POLLING & VISIBILITY CATCH-UP
@@ -589,29 +659,8 @@ export function AstrologerChatClient({
   useEffect(() => {
     if (!selectedConvoId) return;
 
-    const deltaTimer = setInterval(async () => {
-      try {
-        const cur = messagesRef.current;
-        const lastMsg = cur[cur.length - 1];
-        const afterIso = lastMsg && !lastMsg.id.startsWith("temp-") ? lastMsg.created_at : null;
-
-        const res = await getLatestMessagesDeltaAction(selectedConvoId, afterIso);
-        if (res?.success && res.data && res.data.length > 0) {
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const trulyNew = res.data!.filter((m) => !existingIds.has(m.id));
-            if (trulyNew.length === 0) return prev;
-            return [...prev, ...trulyNew];
-          });
-          if (isUserNearBottom()) {
-            setTimeout(() => scrollToBottom(true), 60);
-          } else {
-            setUnreadScrolledCount((prev) => prev + res.data!.length);
-          }
-        }
-      } catch {
-        // Suppress background polling network transients without console unhandled rejection
-      }
+    const deltaTimer = setInterval(() => {
+      void syncConversationDelta(selectedConvoId);
     }, 4000);
 
     const convoTimer = setInterval(() => {
@@ -622,7 +671,7 @@ export function AstrologerChatClient({
       clearInterval(deltaTimer);
       clearInterval(convoTimer);
     };
-  }, [selectedConvoId, isUserNearBottom, resyncConversations, scrollToBottom]);
+  }, [selectedConvoId, resyncConversations, syncConversationDelta]);
 
   useEffect(() => {
     function handleVisibility() {
@@ -703,7 +752,7 @@ export function AstrologerChatClient({
   // SEND MESSAGE (Optimistic + Isolated Re-render)
   // --------------------------------------------------------------------------
   const handleSendMessage = useCallback(
-    async (text: string, attachments: DirectMessageAttachment[]) => {
+    async (text: string, attachments: DirectMessageAttachment[], retryClientMsgId?: string) => {
       if (!selectedConvoId || isSending) return;
 
       // Handle Edit Mode
@@ -733,7 +782,8 @@ export function AstrologerChatClient({
       }
 
       // New Message Flow
-      const clientMsgId = "client-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      const clientMsgId =
+        retryClientMsgId || "client-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
       const replyContext = replyingTo
         ? {
             id: replyingTo.id,
@@ -750,7 +800,7 @@ export function AstrologerChatClient({
         id: "temp-" + Date.now(),
         client_message_id: clientMsgId,
         conversation_id: selectedConvoId,
-        sender_id: "",
+        sender_id: currentUserId,
         sender_role: "astrologer",
         message: text || (attachments.length > 0 ? `Sent ${attachments.length} attachment(s)` : ""),
         attachment_url: attachments[0]?.url || null,
@@ -762,19 +812,34 @@ export function AstrologerChatClient({
         reactions: {},
       };
 
-      setMessages((prev) => [...prev, optimisticMsg]);
+      setMessages((prev) => {
+        if (retryClientMsgId) {
+          const exists = prev.some((m) => m.client_message_id === retryClientMsgId);
+          if (exists) {
+            return prev.map((m) =>
+              m.client_message_id === retryClientMsgId ? { ...m, status: "sending" } : m
+            );
+          }
+        }
+        return [...prev, optimisticMsg];
+      });
       setTimeout(() => scrollToBottom(true), 40);
 
       try {
-        let res: any = null;
+        let res: { success?: boolean; data?: DirectMessage; error?: string } | null = null;
         try {
           res = await sendDirectMessageAction(selectedConvoId, text, {
             clientMessageId: clientMsgId,
             replyToMessageId: replyContext?.id,
             attachments: attachments,
           });
-        } catch (actionErr) {
-          // Fallback to standard HTTP route if Server Action tunnel drops or is intercepted by hosting proxy
+        } catch {
+          // Fallback to standard HTTP route if Server Action tunnel drops or throws
+          res = null;
+        }
+
+        // Invoke fallback route if Server Action threw or returned an unsuccessful result
+        if (!res?.success) {
           const apiFetch = await fetch("/api/chat/send", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -788,11 +853,14 @@ export function AstrologerChatClient({
               },
             }),
           });
-          res = await apiFetch.json().catch(() => null);
+          const apiRes = await apiFetch.json().catch(() => null);
+          if (apiRes) {
+            res = apiRes;
+          }
         }
 
-        if (!res.success || !res.data) {
-          setError(res.error || "Failed to deliver message");
+        if (!res?.success || !res?.data) {
+          setError(res?.error || "Failed to deliver message");
           setMessages((prev) =>
             prev.map((m) =>
               m.client_message_id === clientMsgId ? { ...m, status: "failed" } : m
@@ -808,6 +876,18 @@ export function AstrologerChatClient({
                 : m
             )
           );
+
+          // Signal-only WebSocket wake-up (no private message content broadcast on shared channel)
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "direct_message_sync",
+            payload: {
+              conversationId: selectedConvoId,
+              messageId: persistedMsg.id,
+              senderId: currentUserId,
+              createdAt: persistedMsg.created_at,
+            },
+          });
 
           // Update sidebar conversations preview
           setConversations((prev) =>
@@ -846,7 +926,7 @@ export function AstrologerChatClient({
         setIsSending(false);
       }
     },
-    [editingMessage, isSending, replyingTo, scrollToBottom, selectedConvoId]
+    [currentUserId, editingMessage, isSending, replyingTo, scrollToBottom, selectedConvoId]
   );
 
   // --------------------------------------------------------------------------
@@ -1404,7 +1484,7 @@ export function AstrologerChatClient({
                     )}
                     {isSeekerTyping && (
                       <span className="text-gold-deep font-semibold italic ml-2 animate-pulse">
-                        Seeker is typing…
+                        Customer is typing…
                       </span>
                     )}
                   </p>
@@ -1551,28 +1631,58 @@ export function AstrologerChatClient({
                 displayMessages.map((msg, index) => {
                   const isMe = msg.sender_role === "astrologer";
                   const prevMsg = displayMessages[index - 1];
-                  const isSameSender = prevMsg && prevMsg.sender_role === msg.sender_role;
+                  const dayKey = getChatCalendarDayKey(msg.created_at);
+                  const prevDayKey = prevMsg ? getChatCalendarDayKey(prevMsg.created_at) : null;
+                  const showDateSeparator = dayKey !== prevDayKey;
+                  const isSameSender = !showDateSeparator && prevMsg && prevMsg.sender_role === msg.sender_role;
 
                   return (
-                    <ChatMessageItem
-                      key={msg.id}
-                      message={msg}
-                      isMe={isMe}
-                      showSenderName={!isMe && !isSameSender}
-                      senderDisplayName={currentChatSeekerName}
-                      currentUserId=""
-                      activeDropdownMsgId={activeDropdownMsgId}
-                      onToggleDropdown={setActiveDropdownMsgId}
-                      onReply={handleReply}
-                      onStartEdit={handleStartEdit}
-                      onToggleReaction={handleToggleReaction}
-                      onTogglePin={handleTogglePin}
-                      onDelete={handleDeleteMessage}
-                      onReport={setReportingMsgId}
-                      onOpenLightbox={setLightboxUrl}
-                    />
+                    <React.Fragment key={msg.id}>
+                      {showDateSeparator && (
+                        <div className="flex items-center justify-center my-2">
+                          <span className="px-3 py-0.5 rounded-full bg-parchment/80 border border-gold/25 text-[10px] font-semibold tracking-wide text-gold-deep shadow-2xs">
+                            {formatChatDateSeparator(msg.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      <ChatMessageItem
+                        message={msg}
+                        isMe={isMe}
+                        showSenderName={!isMe && !isSameSender}
+                        senderDisplayName={currentChatSeekerName}
+                        currentUserId={currentUserId}
+                        activeDropdownMsgId={activeDropdownMsgId}
+                        onToggleDropdown={setActiveDropdownMsgId}
+                        onReply={handleReply}
+                        onStartEdit={handleStartEdit}
+                        onToggleReaction={handleToggleReaction}
+                        onTogglePin={handleTogglePin}
+                        onDelete={handleDeleteMessage}
+                        onReport={setReportingMsgId}
+                        onOpenLightbox={setLightboxUrl}
+                        onRetry={(failedMsg) => {
+                          void handleSendMessage(
+                            failedMsg.message,
+                            failedMsg.attachments || [],
+                            failedMsg.client_message_id || undefined
+                          );
+                        }}
+                      />
+                    </React.Fragment>
                   );
                 })
+              )}
+              {isSeekerTyping && (
+                <div className="flex items-center gap-2 px-1 py-1.5 animate-in fade-in duration-150">
+                  <div className="inline-flex items-center gap-2 rounded-2xl rounded-bl-sm border border-gold/25 bg-parchment/70 px-3.5 py-2 text-xs text-midnight shadow-xs">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:0ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:150ms]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-gold-deep animate-bounce [animation-delay:300ms]" />
+                    </span>
+                    <span className="font-medium text-gold-deep">Customer is typing…</span>
+                  </div>
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1582,6 +1692,21 @@ export function AstrologerChatClient({
               count={unreadScrolledCount}
               onClick={() => scrollToBottom(true)}
             />
+
+            {/* Error Banner */}
+            {error && (
+              <div className="mx-4 mb-2 flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setError(null)}
+                  className="font-bold text-rose-500 hover:text-rose-800 cursor-pointer"
+                  aria-label="Dismiss error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
 
             {/* Isolated Memoized Message Composer (Extreme Typing Performance) */}
             <ChatComposer

@@ -69,6 +69,7 @@ export default function AstrologerSupportInteractiveClient() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -252,15 +253,37 @@ export default function AstrologerSupportInteractiveClient() {
     }
   }
 
+  // Live sync open ticket messages & status every 4s
+  useEffect(() => {
+    if (!selectedTicket) return;
+    const activeTicketId = selectedTicket.id;
+    const timer = setInterval(async () => {
+      try {
+        const res = await getSupportTicketDetailsAction(activeTicketId);
+        if (res.success && res.data) {
+          setTicketMessages(res.data.messages);
+          setSelectedTicket(res.data.ticket);
+        }
+      } catch {
+        // Suppress transient polling errors
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [selectedTicket?.id]);
+
   // View Ticket Details
   async function handleOpenTicket(ticket: SupportTicket) {
     setSelectedTicket(ticket);
+    setReplyError(null);
     setLoadingDetails(true);
     const res = await getSupportTicketDetailsAction(ticket.id);
     setLoadingDetails(false);
 
     if (res.success && res.data) {
       setTicketMessages(res.data.messages);
+      setSelectedTicket(res.data.ticket);
+    } else if (!res.success) {
+      setReplyError(res.error || "Failed to load ticket conversation.");
     }
   }
 
@@ -270,6 +293,7 @@ export default function AstrologerSupportInteractiveClient() {
     if (!replyText.trim() || !selectedTicket || sendingReply) return;
 
     setSendingReply(true);
+    setReplyError(null);
     const res = await addSupportTicketMessageAction({
       ticketId: selectedTicket.id,
       message: replyText.trim(),
@@ -279,6 +303,9 @@ export default function AstrologerSupportInteractiveClient() {
     if (res.success && res.data) {
       setTicketMessages((prev) => [...prev, res.data!]);
       setReplyText("");
+      loadTickets();
+    } else {
+      setReplyError(res.error || "Failed to send reply. Please try again.");
     }
   }
 
@@ -648,6 +675,11 @@ export default function AstrologerSupportInteractiveClient() {
                 </div>
 
                 {/* Reply Footer */}
+                {replyError && (
+                  <div className="px-4 py-2 bg-rose-50 border-t border-rose-200 text-xs text-rose-700 font-medium shrink-0">
+                    {replyError}
+                  </div>
+                )}
                 <form onSubmit={handleSendReply} className="p-3 border-t border-line bg-parchment/20 flex gap-2 shrink-0">
                   <input
                     type="text"

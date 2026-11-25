@@ -87,7 +87,7 @@ export function SessionLifecycleGuard({
 
     channel?.addEventListener("message", handleMessage);
 
-    // Track active tab count in localStorage to detect the true final tab closing
+    // Track active tab count in localStorage
     const TAB_COUNT_KEY = "karmicascension_open_tabs_count";
     const incrementTab = () => {
       const current = parseInt(localStorage.getItem(TAB_COUNT_KEY) || "0", 10);
@@ -98,15 +98,9 @@ export function SessionLifecycleGuard({
       const current = parseInt(localStorage.getItem(TAB_COUNT_KEY) || "1", 10);
       const updated = Math.max(0, current - 1);
       localStorage.setItem(TAB_COUNT_KEY, String(updated));
-
-      // If this was the last remaining tab being closed, trigger logout beacon
-      if (updated === 0) {
-        localStorage.setItem(SESSION_CLOSED_FLAG, "true");
-        // Dispatch sendBeacon to cleanly terminate server cookies on closing
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon("/api/auth/signout");
-        }
-      }
+      // NOTE: We deliberately do NOT send an aggressive `/api/auth/signout` beacon on beforeunload.
+      // In web apps, beforeunload fires on simple page reloads, tab navigation, opening links,
+      // and mobile browser suspensions, which causes users to be unexpectedly logged out while still using the app.
     };
 
     incrementTab();

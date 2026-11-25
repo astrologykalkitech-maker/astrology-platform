@@ -103,7 +103,7 @@ export function SuperAdminReconciliationClient({
                   <td className="p-3.5">
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        o.status === "completed"
+                        ["completed", "successful", "succeeded", "paid"].includes(o.status)
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : o.status === "pending"
                           ? "bg-amber-50 text-amber-800 border border-amber-200"

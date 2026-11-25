@@ -105,7 +105,8 @@ export async function getOrCreateConsultationMeeting(
       return { success: false, error: "This consultation has not been confirmed yet." };
     }
 
-    if (booking.consultation_mode === "video" && booking.payment_mode !== "pay_at_drop") {
+    const isVideoConsultation = (booking.consultation_mode || "").toLowerCase() === "video";
+    if (isVideoConsultation && booking.payment_mode !== "pay_at_drop") {
       let hasVerifiedDirectPayment = false;
       let hasSuccessfulPlatformPayment = false;
 
@@ -191,7 +192,7 @@ export async function getOrCreateConsultationMeeting(
     }
 
     if (!meeting) {
-      const opaqueRoomName = `karmicascension_${crypto.randomBytes(12).toString("hex")}`;
+      const opaqueRoomName = `karmicascension_consultation_${crypto.randomBytes(12).toString("hex")}`;
       const { data: newMeeting, error: createErr } = await admin
         .from("consultation_meetings")
         .insert({

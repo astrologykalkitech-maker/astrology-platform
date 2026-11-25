@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import type { AuthResult } from "@/lib/types/auth.types";
 import type { BookingStatus, ConsultationMode, CustomerBooking } from "@/lib/types/database.types";
 import { isValidUUID } from "@/lib/validations/lead";
+import { checkBookingTransition, meetingStatusForBooking } from "@/lib/consultation/booking-lifecycle";
 
 export interface AdminBookingItem extends CustomerBooking {
   customer_name?: string;
@@ -69,10 +70,9 @@ export async function getAdminBookings(
     const { data: rawBookings, count, error } = await query;
 
     if (error) {
-      // Table may not have been created yet on fresh databases
       return {
-        success: true,
-        data: { bookings: [], totalCount: 0 },
+        success: false,
+        error: `Database query failed: ${error.message} (${error.code || "DB_ERROR"})`,
       };
     }
 
@@ -173,6 +173,14 @@ export async function updateAdminBookingStatus(params: {
       return { success: false, error: "Booking record not found." };
     }
 
+    // Enforce authoritative booking lifecycle (prevent reopening terminal states)
+    const transition = checkBookingTransition(beforeBooking.status as BookingStatus, params.status, {
+      scheduledAt: beforeBooking.scheduled_at,
+    });
+    if (!transition.allowed) {
+      return { success: false, error: transition.reason };
+    }
+
     const updatePayload: Record<string, unknown> = {
       status: params.status,
       updated_at: new Date().toISOString(),
@@ -196,6 +204,23 @@ export async function updateAdminBookingStatus(params: {
 
     if (updateErr) {
       return { success: false, error: updateErr.message };
+    }
+
+    // Keep consultation_meetings state in sync with terminal booking states
+    const targetMeetingStatus = meetingStatusForBooking(params.status);
+    if (targetMeetingStatus) {
+      try {
+        await supabase
+          .from("consultation_meetings")
+          .update({
+            status: targetMeetingStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("booking_id", params.bookingId)
+          .in("status", ["scheduled", "waiting", "active"]);
+      } catch {
+        // Non-blocking meeting state sync
+      }
     }
 
     // Record audit event

@@ -53,7 +53,7 @@ test("Customer Video & Voice Consultation Room Authorization & LiveKit Token Sec
   await t.test("generates cryptographically random opaque room names and short-lived tokens", () => {
     assert.match(
       meetingActionSource,
-      /const\s+opaqueRoomName\s*=\s*`karmicascension_\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`/i,
+      /const\s+opaqueRoomName\s*=\s*`karmicascension_(?:consultation_)?\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`/i,
       "Expected cryptographically random room name generation"
     );
     assert.match(

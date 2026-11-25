@@ -218,6 +218,8 @@ export interface CustomerBooking {
   status: BookingStatus;
   price: number;
   payment_mode?: "direct_consultant" | "pay_at_drop" | "platform_gateway" | null;
+  payment_status?: "pending" | "paid" | "failed" | "refunded" | null;
+  direct_payment_status?: "pending" | "partial" | "paid" | "declared" | "confirmed" | "waived" | "disputed" | null;
   astrologer_upi_vpa?: string | null;
   direct_payment?: {
     id: string;

@@ -444,18 +444,42 @@ export async function requestAstrologerDataExportAction() {
 
     const admin = await createAdminClient("main");
 
-    const [profileRes, astroProfileRes, bookingsRes, pujasRes, reviewsRes, consentRes] = await Promise.all([
+    // First fetch astrologer profile to get the astrologer profile ID if it exists
+    const astroProfileRes = await admin
+      .from("astrologer_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const astroProfileId = astroProfileRes.data?.id;
+
+    const [profileRes, bookingsRes, pujasRes, reviewsRes, consentRes] = await Promise.all([
       admin.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-      admin.from("astrologer_profiles").select("*").eq("user_id", user.id).maybeSingle(),
-      admin.from("customer_bookings").select("id, scheduled_at, status, consultation_mode, duration_minutes, fee_amount, created_at").eq("astrologer_id", user.id),
-      admin.from("puja_bookings").select("id, preferred_date, time_slot, status, created_at").eq("astrologer_id", user.id),
-      admin.from("astrologer_reviews").select("id, rating, review_text, created_at").eq("astrologer_id", user.id),
+      astroProfileId
+        ? admin
+            .from("customer_bookings")
+            .select("id, scheduled_at, status, consultation_mode, duration_minutes, price, created_at")
+            .eq("astrologer_id", astroProfileId)
+        : Promise.resolve({ data: [] }),
+      astroProfileId
+        ? admin
+            .from("puja_bookings")
+            .select("id, preferred_date, time_slot, status, created_at")
+            .eq("astrologer_id", astroProfileId)
+        : Promise.resolve({ data: [] }),
+      astroProfileId
+        ? admin
+            .from("consultation_reviews")
+            .select("id, rating, review_text, created_at")
+            .eq("astrologer_id", astroProfileId)
+        : Promise.resolve({ data: [] }),
       admin.from("privacy_consents").select("*").eq("user_id", user.id),
     ]);
 
     const exportPackage = {
       exportTimestamp: new Date().toISOString(),
       userId: user.id,
+      astrologerProfileId: astroProfileId || null,
       accountType: "astrologer",
       profile: profileRes.data || null,
       professionalDetails: astroProfileRes.data || null,

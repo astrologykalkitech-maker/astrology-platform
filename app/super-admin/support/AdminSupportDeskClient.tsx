@@ -109,6 +109,24 @@ export default function AdminSupportDeskClient() {
     }
   }
 
+  // Live sync open ticket messages & status in Super Admin Desk every 4s
+  useEffect(() => {
+    if (!activeTicket) return;
+    const activeTicketId = activeTicket.id;
+    const timer = setInterval(async () => {
+      try {
+        const res = await getSupportTicketDetailsAction(activeTicketId);
+        if (res.success && res.data) {
+          setTicketMessages(res.data.messages);
+          setActiveTicket(res.data.ticket);
+        }
+      } catch {
+        // Suppress transient polling errors
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [activeTicket?.id]);
+
   // Send Admin Reply or Internal Note
   async function handleSendReply(e: React.FormEvent) {
     e.preventDefault();

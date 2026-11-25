@@ -64,7 +64,7 @@ test("Customer Consultation Enquiry Initiation & Prefill System Audit (Sub-phase
     );
     assert.match(
       customerActionsSource,
-      /status:\s*resolvedAstrologerId\s*\?\s*["']assigned["']\s*:\s*["']new["']/i,
+      /createdLeadStatus\s*=\s*resolvedAstrologerId[\s\S]*?\?\s*["']assigned["']\s*:\s*["']new["']/i,
       "Expected status assigned when direct astrologer or new for platform"
     );
   });

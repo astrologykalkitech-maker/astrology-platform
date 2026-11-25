@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Shield,
   UserCheck,
@@ -18,14 +18,22 @@ import {
   HelpCircle,
   Sparkles,
   RefreshCw,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import {
+  getAstrologerVerificationOverview,
   updateVerificationStageReviewAction,
+  updateVerificationDocumentReviewAction,
   approveAstrologerWithSyncAction,
   reconcileAstrologerVerificationAndListingsAction,
   scheduleAstrologerInterviewAction,
+  evaluateAstrologerTestConsultationAction,
+  updateAstrologerProbationAction,
   type VerificationStageName,
   type VerificationStatus,
+  type VerificationDocumentRecord,
+  type VerificationStageRecord,
 } from "@/app/actions/astrologer-verification";
 
 export function SuperAdminVerificationReviewClient({
@@ -45,7 +53,35 @@ export function SuperAdminVerificationReviewClient({
   const [isReconciling, setIsReconciling] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const [applicantStages, setApplicantStages] = useState<VerificationStageRecord[]>([]);
+  const [applicantDocs, setApplicantDocs] = useState<VerificationDocumentRecord[]>([]);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
   const selectedAstrologer = localAstrologers.find((a) => a.id === selectedAstrologerId) || null;
+
+  // Load applicant verification overview details (stages & uploaded documents)
+  useEffect(() => {
+    if (!selectedAstrologer) return;
+    let isMounted = true;
+    const fetchOverview = async () => {
+      setIsLoadingDetails(true);
+      try {
+        const res = await getAstrologerVerificationOverview(selectedAstrologer.id);
+        if (isMounted && res.success && res.data) {
+          setApplicantStages(res.data.stages || []);
+          setApplicantDocs(res.data.documents || []);
+        }
+      } catch (err) {
+        console.error("Failed to load applicant verification details:", err);
+      } finally {
+        if (isMounted) setIsLoadingDetails(false);
+      }
+    };
+    fetchOverview();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedAstrologerId]);
 
   const STAGES: { key: VerificationStageName; label: string }[] = [
     { key: "registration", label: "Registration" },
@@ -99,6 +135,12 @@ export function SuperAdminVerificationReviewClient({
               : a
           )
         );
+
+        // Refresh details
+        const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+        if (refreshed.success && refreshed.data) {
+          setApplicantStages(refreshed.data.stages || []);
+        }
       } else {
         setActionMessage({
           type: "error",
@@ -174,10 +216,60 @@ export function SuperAdminVerificationReviewClient({
             return a;
           })
         );
+
+        // Refresh stages
+        const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+        if (refreshed.success && refreshed.data) {
+          setApplicantStages(refreshed.data.stages || []);
+        }
       } else {
         setActionMessage({
           type: "error",
           text: res.error || "Failed to update stage review.",
+        });
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateDocumentStatus = async (
+    docId: string,
+    status: "verified" | "rejected" | "under_review"
+  ) => {
+    let rejectionReason: string | undefined = undefined;
+    if (status === "rejected") {
+      const reason = window.prompt("Enter rejection reason for this document:");
+      if (!reason || !reason.trim()) {
+        alert("Rejection reason is required.");
+        return;
+      }
+      rejectionReason = reason.trim();
+    }
+
+    setIsUpdating(true);
+    try {
+      const res = await updateVerificationDocumentReviewAction({
+        documentId: docId,
+        verificationStatus: status,
+        rejectionReason,
+      });
+
+      if (res.success) {
+        setActionMessage({
+          type: "success",
+          text: `Document review status updated to ${status}.`,
+        });
+        if (selectedAstrologer) {
+          const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+          if (refreshed.success && refreshed.data) {
+            setApplicantDocs(refreshed.data.documents || []);
+          }
+        }
+      } else {
+        setActionMessage({
+          type: "error",
+          text: res.error || "Failed to review document.",
         });
       }
     } finally {
@@ -414,60 +506,179 @@ export function SuperAdminVerificationReviewClient({
                 </div>
 
                 <div className="space-y-2">
-                  {STAGES.map((s) => (
-                    <div
-                      key={s.key}
-                      className="flex items-center justify-between p-3 rounded-xl bg-parchment/30 border border-gold/15 text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2
-                          className={`h-4 w-4 ${isApproved ? "text-emerald-600" : "text-gold-deep"}`}
-                        />
-                        <span className="font-semibold text-midnight">{s.label}</span>
+                  {STAGES.map((s) => {
+                    const recordedStage = applicantStages.find((st) => st.stage_name === s.key);
+                    const stageStatus = recordedStage?.status || (isApproved ? "approved" : "not_started");
+                    return (
+                      <div
+                        key={s.key}
+                        className="flex items-center justify-between p-3 rounded-xl bg-parchment/30 border border-gold/15 text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2
+                            className={`h-4 w-4 ${
+                              stageStatus === "approved"
+                                ? "text-emerald-600"
+                                : stageStatus === "changes_requested"
+                                ? "text-amber-500"
+                                : stageStatus === "rejected"
+                                ? "text-red-500"
+                                : "text-gold-deep"
+                            }`}
+                          />
+                          <div>
+                            <span className="font-semibold text-midnight">{s.label}</span>
+                            <span
+                              className={`ml-2 inline-block px-1.5 py-0.2 text-[9px] uppercase font-bold rounded-sm ${
+                                stageStatus === "approved"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : stageStatus === "submitted" || stageStatus === "under_review"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : stageStatus === "rejected"
+                                  ? "bg-red-100 text-red-800"
+                                  : stageStatus === "changes_requested"
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {stageStatus.replace("_", " ")}
+                            </span>
+                            {recordedStage?.reviewer_notes && (
+                              <p className="text-[10px] text-muted italic mt-0.5">
+                                Note: {recordedStage.reviewer_notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* Approve Button */}
+                          <button
+                            onClick={() => handleUpdateStage(s.key, "approved")}
+                            disabled={isUpdating || isApproved}
+                            title={
+                              isApproved
+                                ? "This astrologer has already been verified and approved."
+                                : `Approve ${s.label}`
+                            }
+                            className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition ${
+                              isApproved
+                                ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
+                                : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs"
+                            }`}
+                          >
+                            Approve
+                          </button>
+
+                          {/* Request Edits Button */}
+                          <button
+                            onClick={() => handleUpdateStage(s.key, "changes_requested")}
+                            disabled={isUpdating}
+                            title={`Request revisions/edits for ${s.label}`}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-bold text-[10px] hover:bg-amber-600 transition shadow-xs"
+                          >
+                            Request Edits
+                          </button>
+
+                          {/* Reject Button */}
+                          <button
+                            onClick={() => handleUpdateStage(s.key, "rejected")}
+                            disabled={isUpdating}
+                            title={`Reject ${s.label}`}
+                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold text-[10px] hover:bg-red-700 transition shadow-xs"
+                          >
+                            Reject
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Approve Button */}
-                        <button
-                          onClick={() => handleUpdateStage(s.key, "approved")}
-                          disabled={isUpdating || isApproved}
-                          title={
-                            isApproved
-                              ? "This astrologer has already been verified and approved."
-                              : `Approve ${s.label}`
-                          }
-                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition ${
-                            isApproved
-                              ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs"
-                          }`}
-                        >
-                          Approve
-                        </button>
-
-                        {/* Request Edits Button */}
-                        <button
-                          onClick={() => handleUpdateStage(s.key, "changes_requested")}
-                          disabled={isUpdating}
-                          title={`Request revisions/edits for ${s.label}`}
-                          className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-bold text-[10px] hover:bg-amber-600 transition shadow-xs"
-                        >
-                          Request Edits
-                        </button>
-
-                        {/* Reject Button */}
-                        <button
-                          onClick={() => handleUpdateStage(s.key, "rejected")}
-                          disabled={isUpdating}
-                          title={`Reject ${s.label}`}
-                          className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold text-[10px] hover:bg-red-700 transition shadow-xs"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Uploaded KYC & Credentials Documents Review */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-midnight">
+                    Applicant Uploaded Documents ({applicantDocs.length})
+                  </h3>
+                  {isLoadingDetails && (
+                    <span className="text-[10px] text-muted flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3 animate-spin text-gold-deep" /> Loading documents...
+                    </span>
+                  )}
+                </div>
+
+                {applicantDocs.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-line bg-parchment/20 text-xs text-muted text-center">
+                    No documents uploaded by this applicant yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {applicantDocs.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-white border border-gold/20 text-xs gap-3 shadow-2xs"
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="p-2 rounded-lg bg-parchment text-gold-deep shrink-0 mt-0.5">
+                            <FileText className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-midnight truncate">{doc.title || doc.document_type}</p>
+                            <p className="text-[11px] text-muted">
+                              Category: <span className="font-medium text-ink">{doc.document_type}</span> &bull; Status:{" "}
+                              <span
+                                className={`font-bold ${
+                                  doc.verification_status === "verified"
+                                    ? "text-emerald-700"
+                                    : doc.verification_status === "rejected"
+                                    ? "text-red-700"
+                                    : "text-amber-700"
+                                }`}
+                              >
+                                {doc.verification_status.toUpperCase()}
+                              </span>
+                            </p>
+                            {doc.file_path && (
+                              <a
+                                href={doc.file_path}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-gold-deep hover:underline mt-0.5 font-medium"
+                              >
+                                <span>Inspect Attached File</span>
+                                <ExternalLink className="h-2.5 w-2.5" />
+                              </a>
+                            )}
+                            {doc.rejection_reason && (
+                              <p className="text-[11px] text-red-600 mt-0.5">
+                                Rejection: {doc.rejection_reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => handleUpdateDocumentStatus(doc.id, "verified")}
+                            disabled={isUpdating || doc.verification_status === "verified"}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition disabled:opacity-50 shadow-2xs"
+                          >
+                            Verify Doc
+                          </button>
+                          <button
+                            onClick={() => handleUpdateDocumentStatus(doc.id, "rejected")}
+                            disabled={isUpdating || doc.verification_status === "rejected"}
+                            className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-bold text-[10px] hover:bg-red-700 transition disabled:opacity-50 shadow-2xs"
+                          >
+                            Reject Doc
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Reviewer Notes Field */}
@@ -510,6 +721,106 @@ export function SuperAdminVerificationReviewClient({
                 >
                   Confirm & Schedule Interview
                 </button>
+              </div>
+
+              {/* Test Consultation Assessment & Probation Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-gold/30 bg-white p-4 space-y-2 text-xs">
+                  <h4 className="font-bold text-midnight uppercase tracking-wider">
+                    Evaluate Test Consultation
+                  </h4>
+                  <p className="text-[11px] text-muted">Record simulation score for Jyotish protocol adherence.</p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={async () => {
+                        if (!selectedAstrologer) return;
+                        setIsUpdating(true);
+                        const res = await evaluateAstrologerTestConsultationAction({
+                          astrologerId: selectedAstrologer.id,
+                          accuracyScore: 9,
+                          empathyScore: 9,
+                          protocolScore: 10,
+                          status: "passed",
+                          feedback: "Passed clinical simulation with distinction.",
+                        });
+                        setIsUpdating(false);
+                        if (res.success) {
+                          setActionMessage({ type: "success", text: "Test consultation marked as PASSED." });
+                          const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+                          if (refreshed.success && refreshed.data) setApplicantStages(refreshed.data.stages || []);
+                        } else {
+                          setActionMessage({ type: "error", text: res.error || "Evaluation failed." });
+                        }
+                      }}
+                      disabled={isUpdating}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition"
+                    >
+                      Pass Test Consultation
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!selectedAstrologer) return;
+                        const reason = window.prompt("Enter failure feedback notes:");
+                        if (!reason) return;
+                        setIsUpdating(true);
+                        const res = await evaluateAstrologerTestConsultationAction({
+                          astrologerId: selectedAstrologer.id,
+                          accuracyScore: 4,
+                          empathyScore: 5,
+                          protocolScore: 5,
+                          status: "failed",
+                          feedback: reason,
+                        });
+                        setIsUpdating(false);
+                        if (res.success) {
+                          setActionMessage({ type: "success", text: "Test consultation marked as FAILED." });
+                          const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+                          if (refreshed.success && refreshed.data) setApplicantStages(refreshed.data.stages || []);
+                        } else {
+                          setActionMessage({ type: "error", text: res.error || "Evaluation failed." });
+                        }
+                      }}
+                      disabled={isUpdating}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold text-[11px] hover:bg-red-700 transition"
+                    >
+                      Fail Test Consultation
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gold/30 bg-white p-4 space-y-2 text-xs">
+                  <h4 className="font-bold text-midnight uppercase tracking-wider">
+                    Probationary Tier Clearance
+                  </h4>
+                  <p className="text-[11px] text-muted">Complete or extend monitored client booking tier.</p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={async () => {
+                        if (!selectedAstrologer) return;
+                        setIsUpdating(true);
+                        const oneMonthLater = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+                        const res = await updateAstrologerProbationAction({
+                          astrologerId: selectedAstrologer.id,
+                          endDate: oneMonthLater,
+                          status: "completed_approved",
+                          performanceNotes: "Completed probationary tier satisfactorily.",
+                        });
+                        setIsUpdating(false);
+                        if (res.success) {
+                          setActionMessage({ type: "success", text: "Probation tier successfully COMPLETED & APPROVED." });
+                          const refreshed = await getAstrologerVerificationOverview(selectedAstrologer.id);
+                          if (refreshed.success && refreshed.data) setApplicantStages(refreshed.data.stages || []);
+                        } else {
+                          setActionMessage({ type: "error", text: res.error || "Probation update failed." });
+                        }
+                      }}
+                      disabled={isUpdating}
+                      className="px-3 py-1.5 rounded-lg bg-teal-700 text-white font-bold text-[11px] hover:bg-teal-800 transition"
+                    >
+                      Clear & Complete Probation
+                    </button>
+                  </div>
+                </div>
               </div>
             </>
           ) : (

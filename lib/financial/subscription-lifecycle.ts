@@ -257,6 +257,8 @@ export async function executeAdminPlanChange(
       current_period_end: periodEnd.toISOString(),
       leads_allocated: targetPlan.lead_quota || 0,
       leads_consumed: 0,
+      is_complimentary: Boolean(params.isComplimentaryGrant && targetPlan.price_paise > 0),
+      complimentary_reason: params.isComplimentaryGrant && targetPlan.price_paise > 0 ? params.reason : null,
       admin_internal_notes: `Manual plan change by admin: ${params.reason}`,
       subscription_version: nextVersion,
       updated_at: now.toISOString(),
@@ -385,7 +387,7 @@ export async function executeSubscriptionSuspension(
 
   const nowIso = new Date().toISOString();
 
-  await supabase
+  const { error: suspendErr } = await supabase
     .from("astrologer_subscriptions")
     .update({
       status: "suspended",
@@ -393,6 +395,10 @@ export async function executeSubscriptionSuspension(
       updated_at: nowIso,
     })
     .eq("id", sub.id);
+
+  if (suspendErr) {
+    return { success: false, error: suspendErr.message };
+  }
 
   await supabase.from("subscription_audit_logs").insert({
     astrologer_id: params.astrologerId,
@@ -423,17 +429,32 @@ export async function executeSubscriptionRestoration(
     .single();
 
   if (!sub) return { success: false, error: "Subscription not found." };
+  if (sub.status !== "suspended") {
+    return { success: false, error: `Cannot restore subscription in '${sub.status}' status.` };
+  }
+  if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
+    return {
+      success: false,
+      error: "Subscription period has already expired. Extend or renew instead of restoring.",
+    };
+  }
 
   const nowIso = new Date().toISOString();
+  const restoredStatus = sub.is_complimentary ? "complimentary" : "active";
 
-  await supabase
+  const { error: restoreErr } = await supabase
     .from("astrologer_subscriptions")
     .update({
-      status: "active",
+      status: restoredStatus,
       restored_at: nowIso,
       updated_at: nowIso,
     })
-    .eq("id", sub.id);
+    .eq("id", sub.id)
+    .eq("status", "suspended");
+
+  if (restoreErr) {
+    return { success: false, error: restoreErr.message };
+  }
 
   await supabase.from("subscription_audit_logs").insert({
     astrologer_id: params.astrologerId,
@@ -442,7 +463,7 @@ export async function executeSubscriptionRestoration(
     previous_plan_id: sub.plan_id,
     new_plan_id: sub.plan_id,
     previous_status: sub.status,
-    new_status: "active",
+    new_status: restoredStatus,
     actor_id: params.actorId,
     actor_role: "super_admin",
     reason: params.reason,

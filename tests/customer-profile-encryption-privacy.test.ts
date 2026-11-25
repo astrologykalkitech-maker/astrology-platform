@@ -29,17 +29,17 @@ describe("Sub-phase 1.9: Customer Profile Data Privacy & AES-256-GCM Encryption"
   it("enforces encryption before database write in updateCustomerProfileAction", () => {
     assert.match(
       custContent,
-      /if \(isBeneficiaryEncryptionConfigured\(\)\) \{\s*if \(payload\.date_of_birth\) \{\s*encryptedDob = encryptCustomerBirthData\(user\.id, "date_of_birth", payload\.date_of_birth\)\.ciphertext;/,
+      /if \(isBeneficiaryEncryptionConfigured\(\)\) \{\s*if \(payload\.date_of_birth !== undefined\) \{\s*encryptedDob = payload\.date_of_birth\s*\?\s*encryptCustomerBirthData\(user\.id, "date_of_birth", payload\.date_of_birth\)\.ciphertext/,
       "Must encrypt date_of_birth with user.id bound AAD"
     );
     assert.match(
       custContent,
-      /encryptedTob = encryptCustomerBirthData\(user\.id, "time_of_birth", payload\.time_of_birth\)\.ciphertext;/,
+      /encryptedTob = payload\.time_of_birth\s*\?\s*encryptCustomerBirthData\(user\.id, "time_of_birth", payload\.time_of_birth\)\.ciphertext/,
       "Must encrypt time_of_birth with user.id bound AAD"
     );
     assert.match(
       custContent,
-      /encryptedBirthplace = encryptCustomerBirthData\(user\.id, "birthplace", cleanBirthplace\)\.ciphertext;/,
+      /encryptedBirthplace = cleanBirthplace\s*\?\s*encryptCustomerBirthData\(user\.id, "birthplace", cleanBirthplace\)\.ciphertext/,
       "Must encrypt birthplace with user.id bound AAD"
     );
   });
@@ -47,17 +47,17 @@ describe("Sub-phase 1.9: Customer Profile Data Privacy & AES-256-GCM Encryption"
   it("prevents plaintext PII writes to database when encryption is configured", () => {
     assert.match(
       custContent,
-      /p_date_of_birth: isEncrypted \? null : \(payload\.date_of_birth \|\| null\)/,
+      /p_date_of_birth: isEncrypted \? null : resolvedDob/,
       "RPC must receive null for plaintext date_of_birth when encryption is active"
     );
     assert.match(
       custContent,
-      /p_time_of_birth: isEncrypted \? null : \(payload\.time_of_birth \|\| null\)/,
+      /p_time_of_birth: isEncrypted \? null : resolvedTob/,
       "RPC must receive null for plaintext time_of_birth when encryption is active"
     );
     assert.match(
       custContent,
-      /p_birthplace: isEncrypted \? null : cleanBirthplace/,
+      /p_birthplace: isEncrypted \? null : resolvedBirthplace/,
       "RPC must receive null for plaintext birthplace when encryption is active"
     );
   });

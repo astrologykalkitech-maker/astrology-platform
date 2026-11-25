@@ -4,6 +4,7 @@ import { requireCustomerPage } from "@/lib/auth/customer-guard";
 import {
   getCustomerConversationsAction,
   getEligibleAstrologersAction,
+  getOrCreateBookingConversationAction,
 } from "@/app/actions/direct-chat";
 import { CustomerChatClient } from "@/components/customer/chat/CustomerChatClient";
 
@@ -14,12 +15,41 @@ export const metadata: Metadata = {
   description: "Direct real-time consultation messaging with your verified Vedic astrologers.",
 };
 
-export default async function CustomerChatPage() {
+export default async function CustomerChatPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ bookingId?: string; conversationId?: string }>;
+}) {
   const { user } = await requireCustomerPage();
+  const sp = searchParams ? await searchParams : {};
+  let targetConversationId = sp.conversationId || null;
+
+  if (sp.bookingId && !targetConversationId) {
+    const convoRes = await getOrCreateBookingConversationAction(sp.bookingId);
+    if (convoRes.success && convoRes.conversationId) {
+      targetConversationId = convoRes.conversationId;
+    }
+  }
+
   const [convosRes, astrosRes] = await Promise.all([
     getCustomerConversationsAction(),
     getEligibleAstrologersAction(),
   ]);
+
+  const allConversations = convosRes.data || [];
+  const allAstrologers = astrosRes.data || [];
+
+  // When entering from a specific chat consultation booking, scope strictly to that astrologer's conversation
+  const scopedConversations =
+    sp.bookingId && targetConversationId
+      ? allConversations.filter((c) => c.id === targetConversationId)
+      : allConversations;
+
+  const scopedAstrologerIds = new Set(scopedConversations.map((c) => c.astrologer_id));
+  const scopedAstrologers =
+    sp.bookingId && targetConversationId
+      ? allAstrologers.filter((a) => scopedAstrologerIds.has(a.id))
+      : allAstrologers;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -33,9 +63,10 @@ export default async function CustomerChatPage() {
       </div>
 
       <CustomerChatClient
-        initialConversations={convosRes.data || []}
-        initialAstrologers={astrosRes.data || []}
+        initialConversations={scopedConversations}
+        initialAstrologers={scopedAstrologers}
         currentUserId={user.id}
+        initialSelectedConversationId={targetConversationId}
       />
     </div>
   );

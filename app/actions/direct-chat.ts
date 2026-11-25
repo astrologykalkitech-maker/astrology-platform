@@ -361,6 +361,109 @@ export async function startConversationWithAstrologerAction(
   }
 }
 
+export async function getOrCreateBookingConversationAction(
+  bookingId: string
+): Promise<{ success: boolean; conversationId?: string; error?: string }> {
+  try {
+    const { user, profile } = await requireAuth();
+
+    if (!isValidUUID(bookingId)) {
+      return { success: false, error: "Invalid booking ID" };
+    }
+
+    const admin = await createAdminClient("main");
+
+    const { data: booking, error: bookingErr } = await admin
+      .from("customer_bookings")
+      .select("id, customer_id, astrologer_id, status, consultation_mode")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (bookingErr || !booking) {
+      return { success: false, error: "Booking not found" };
+    }
+
+    const { data: astroProfile } = await admin
+      .from("astrologer_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isCustomer = booking.customer_id === user.id;
+    const isAstrologer = Boolean(astroProfile && booking.astrologer_id === astroProfile.id);
+
+    if (!isCustomer && !isAstrologer && profile.role !== "super_admin") {
+      return { success: false, error: "Unauthorized access to this booking consultation" };
+    }
+
+    // 1. Check for conversation explicitly linked to this booking_id
+    const { data: bookingConvo } = await admin
+      .from("conversations")
+      .select("id")
+      .eq("booking_id", bookingId)
+      .limit(1)
+      .maybeSingle();
+
+    if (bookingConvo) {
+      return { success: true, conversationId: bookingConvo.id };
+    }
+
+    // 2. Check for conversation between this customer and astrologer
+    const { data: participantConvo } = await admin
+      .from("conversations")
+      .select("id, booking_id")
+      .eq("customer_id", booking.customer_id)
+      .eq("astrologer_id", booking.astrologer_id)
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (participantConvo) {
+      // Always rebind conversation to the current booking if it points to an older/different booking
+      if (participantConvo.booking_id !== bookingId) {
+        await admin
+          .from("conversations")
+          .update({ booking_id: bookingId })
+          .eq("id", participantConvo.id);
+      }
+      return { success: true, conversationId: participantConvo.id };
+    }
+
+    // 3. Create new conversation explicitly tied to this booking
+    const { data: created, error: createErr } = await admin
+      .from("conversations")
+      .insert({
+        customer_id: booking.customer_id,
+        astrologer_id: booking.astrologer_id,
+        booking_id: bookingId,
+      })
+      .select("id")
+      .single();
+
+    if (createErr || !created) {
+      // Handle concurrent creation race (unique_conversation_pair) idempotently
+      if (createErr?.code === "23505") {
+        const { data: raceWinner } = await admin
+          .from("conversations")
+          .select("id")
+          .eq("customer_id", booking.customer_id)
+          .eq("astrologer_id", booking.astrologer_id)
+          .limit(1)
+          .maybeSingle();
+        if (raceWinner) {
+          return { success: true, conversationId: raceWinner.id };
+        }
+      }
+      return { success: false, error: createErr?.message || "Failed to initialize booking chat" };
+    }
+
+    return { success: true, conversationId: created.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Error resolving booking conversation";
+    return { success: false, error: msg };
+  }
+}
+
 export async function getAstrologerConversationsAction(): Promise<{
   success: boolean;
   data?: ConversationSummary[];
@@ -535,7 +638,9 @@ export async function getConversationMessagesAction(
       .maybeSingle();
 
     const isCustomer = convo.customer_id === user.id;
-    const isAstrologer = Boolean(astroProfile && convo.astrologer_id === astroProfile.id);
+    const isAstrologer = Boolean(
+      (astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id
+    );
 
     if (!isCustomer && !isAstrologer) {
       return { success: false, error: "Unauthorized access to this conversation" };
@@ -555,6 +660,7 @@ export async function getConversationMessagesAction(
     // Fetch in descending order to get the most recent messages up to cursor
     const { data, error } = await query
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(safeLimit + 1);
 
     if (error) {
@@ -588,7 +694,8 @@ export async function getConversationMessagesAction(
 
 export async function getLatestMessagesDeltaAction(
   conversationId: string,
-  afterTimestamp?: string | null
+  afterTimestamp?: string | null,
+  afterId?: string | null
 ): Promise<{ success: boolean; data?: DirectMessage[]; error?: string }> {
   try {
     const { user } = await requireAuth();
@@ -616,7 +723,9 @@ export async function getLatestMessagesDeltaAction(
       .maybeSingle();
 
     const isCustomer = convo.customer_id === user.id;
-    const isAstrologer = Boolean(astroProfile && convo.astrologer_id === astroProfile.id);
+    const isAstrologer = Boolean(
+      (astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id
+    );
 
     if (!isCustomer && !isAstrologer) {
       return { success: false, error: "Unauthorized access to this conversation" };
@@ -628,11 +737,19 @@ export async function getLatestMessagesDeltaAction(
       .eq("conversation_id", conversationId);
 
     if (afterTimestamp) {
-      query = query.gt("created_at", afterTimestamp);
+      if (afterId && isValidUUID(afterId)) {
+        // Composite tie-breaker cursor so messages sharing the exact same millisecond are never skipped
+        query = query.or(
+          `created_at.gt.${afterTimestamp},and(created_at.eq.${afterTimestamp},id.gt.${afterId})`
+        );
+      } else {
+        query = query.gt("created_at", afterTimestamp);
+      }
     }
 
     const { data, error } = await query
       .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
       .limit(100);
 
     if (error) {
@@ -688,14 +805,89 @@ export async function sendDirectMessageAction(
 
     const admin = await createAdminClient("main");
 
-    const { data: convo } = await admin
+    let convo: {
+      id: string;
+      customer_id: string;
+      astrologer_id: string;
+      booking_id?: string | null;
+      customer_unread_count?: number | null;
+      astrologer_unread_count?: number | null;
+    } | null = null;
+
+    // ── 1. Admin (service-role) lookup – bypasses RLS ──────────────────────
+    const fullConvoRes = await admin
       .from("conversations")
       .select("id, customer_id, astrologer_id, booking_id, customer_unread_count, astrologer_unread_count")
       .eq("id", conversationId)
       .maybeSingle();
 
+    if (!fullConvoRes.error) {
+      convo = fullConvoRes.data;
+    } else if (/does not exist|schema cache|column/i.test(fullConvoRes.error.message)) {
+      const baseConvoRes = await admin
+        .from("conversations")
+        .select("id, customer_id, astrologer_id, customer_unread_count, astrologer_unread_count")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+      if (!baseConvoRes.error) {
+        convo = baseConvoRes.data;
+      } else if (/does not exist|schema cache|column/i.test(baseConvoRes.error.message)) {
+        const minConvoRes = await admin
+          .from("conversations")
+          .select("id, customer_id, astrologer_id")
+          .eq("id", conversationId)
+          .maybeSingle();
+        if (minConvoRes.error) {
+          return { success: false, error: minConvoRes.error.message };
+        }
+        convo = minConvoRes.data;
+      } else {
+        return { success: false, error: baseConvoRes.error.message };
+      }
+    } else {
+      return { success: false, error: fullConvoRes.error.message };
+    }
+
+    // ── 2. User-scoped fallback: if admin query returned no row, try via
+    //       the participant's own authenticated client (honours RLS).
+    //       This covers the case where the service-role key is misconfigured
+    //       or the conversation was created on a different DB replica.
     if (!convo) {
-      return { success: false, error: "Conversation not found" };
+      console.warn(
+        "[sendDirectMessageAction] Admin lookup returned null for conversationId=%s user=%s — trying user-scoped fallback",
+        conversationId,
+        user.id
+      );
+      try {
+        const { createClient: createServerSupabase } = await import("@/lib/supabase/server");
+        const userClient = await createServerSupabase("main");
+        const fallbackRes = await userClient
+          .from("conversations")
+          .select("id, customer_id, astrologer_id, booking_id, customer_unread_count, astrologer_unread_count")
+          .eq("id", conversationId)
+          .maybeSingle();
+        if (!fallbackRes.error && fallbackRes.data) {
+          convo = fallbackRes.data;
+        } else {
+          console.error(
+            "[sendDirectMessageAction] User-scoped fallback also failed: %s | data=%j",
+            fallbackRes.error?.message ?? "no data",
+            fallbackRes.data
+          );
+        }
+      } catch (fallbackErr) {
+        console.error("[sendDirectMessageAction] User-scoped fallback threw:", fallbackErr);
+      }
+    }
+
+    if (!convo) {
+      console.error(
+        "[sendDirectMessageAction] Conversation not found after all lookups. conversationId=%s user=%s",
+        conversationId,
+        user.id
+      );
+      return { success: false, error: "Conversation not found. Please refresh the page and try again." };
     }
 
     const { data: astroProfile } = await admin
@@ -707,21 +899,70 @@ export async function sendDirectMessageAction(
     let senderRole: "customer" | "astrologer";
     if (convo.customer_id === user.id) {
       senderRole = "customer";
-    } else if (astroProfile && convo.astrologer_id === astroProfile.id) {
+    } else if ((astroProfile && convo.astrologer_id === astroProfile.id) || convo.astrologer_id === user.id) {
       senderRole = "astrologer";
     } else {
       return { success: false, error: "Unauthorized to send message in this conversation" };
     }
 
-    // Payment verification guard: if customer is sending in a conversation tied to a paid consultation booking
-    if (senderRole === "customer" && convo.booking_id) {
+    // Consultation lifecycle & payment verification guard:
+    // - Cancelled bookings cannot accept new messages.
+    // - Video consultations require upfront payment before messaging/joining.
+    // - Chat & Voice/Call consultations deduct from the customer's wallet after completion.
+    let bookingForGuard: {
+      id: string;
+      status: string;
+      price: number;
+      payment_mode: string | null;
+      direct_payment_status: string | null;
+      consultation_mode: string | null;
+    } | null = null;
+
+    if (convo.booking_id) {
       const { data: booking } = await admin
         .from("customer_bookings")
-        .select("id, price, payment_mode, payment_status")
+        .select("id, status, price, payment_mode, direct_payment_status, consultation_mode")
         .eq("id", convo.booking_id)
         .maybeSingle();
 
-      if (booking && Number(booking.price) > 0 && booking.payment_mode !== "pay_at_drop") {
+      if (booking?.status === "cancelled") {
+        // Check if a newer active booking exists between the same pair before blocking
+        const { data: activeReplacement } = await admin
+          .from("customer_bookings")
+          .select("id, status, price, payment_mode, direct_payment_status, consultation_mode")
+          .eq("customer_id", convo.customer_id)
+          .eq("astrologer_id", convo.astrologer_id)
+          .in("status", ["confirmed", "pending"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeReplacement) {
+          await admin
+            .from("conversations")
+            .update({ booking_id: activeReplacement.id })
+            .eq("id", convo.id);
+          bookingForGuard = activeReplacement;
+        } else {
+          return {
+            success: false,
+            error: "This consultation booking has been cancelled.",
+          };
+        }
+      } else {
+        bookingForGuard = booking;
+      }
+    }
+
+    if (senderRole === "customer" && convo.booking_id) {
+      const booking = bookingForGuard;
+      const isVideoConsultation = booking?.consultation_mode === "Video";
+      if (
+        booking &&
+        isVideoConsultation &&
+        Number(booking.price) > 0 &&
+        booking.payment_mode !== "pay_at_drop"
+      ) {
         const [directPayRes, orderRes, intentRes] = await Promise.all([
           admin
             .from("direct_consultation_payments")
@@ -746,8 +987,8 @@ export async function sendDirectMessageAction(
         ]);
 
         const isPaid =
-          booking.payment_status === "completed" ||
-          booking.payment_status === "paid" ||
+          booking.direct_payment_status === "paid" ||
+          booking.direct_payment_status === "confirmed" ||
           !!directPayRes.data ||
           !!orderRes.data ||
           !!intentRes.data;
@@ -810,63 +1051,111 @@ export async function sendDirectMessageAction(
     };
     const encodedAttachmentMeta = encodeDirectMessageMeta(metaPayload);
 
-    // 4. Insert message with client_message_id column populated
-    const { data: newMsg, error: insertErr } = await admin
-      .from("direct_messages")
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        sender_role: senderRole,
-        message: trimmed || (attachments.length > 0 ? `Sent ${attachments.length} attachment(s)` : ""),
-        attachment_url: encodedAttachmentMeta,
-        client_message_id: clientMessageId,
-      })
-      .select()
-      .single();
+    const messageBody = trimmed || (attachments.length > 0 ? `Sent ${attachments.length} attachment(s)` : "");
+    const preview = trimmed.slice(0, 80) || (attachments.length > 0 ? "Attachment" : "");
 
-    if (insertErr || !newMsg) {
-      // If unique constraint conflict occurred during concurrent requests, retrieve the existing message
-      if (insertErr?.code === "23505" && clientMessageId) {
-        const { data: conflictMsg } = await admin
+    // 4. Prefer atomic single-transaction RPC (migration 097) for insert + unread counter
+    let newMsg: Record<string, unknown> | null = null;
+    const atomicRpc = await admin.rpc("send_direct_message_atomic", {
+      p_conversation_id: conversationId,
+      p_sender_id: user.id,
+      p_sender_role: senderRole,
+      p_message: messageBody,
+      p_attachment_url: encodedAttachmentMeta,
+      p_client_message_id: clientMessageId,
+      p_preview: preview,
+    });
+
+    if (!atomicRpc.error && atomicRpc.data) {
+      newMsg = atomicRpc.data as Record<string, unknown>;
+    } else {
+      // Fallback if migration 097 has not yet been applied to the target DB
+      let { data: insertedMsg, error: insertErr } = await admin
+        .from("direct_messages")
+        .insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          sender_role: senderRole,
+          message: messageBody,
+          attachment_url: encodedAttachmentMeta,
+          client_message_id: clientMessageId,
+        })
+        .select()
+        .single();
+
+      if (insertErr && /client_message_id|does not exist|schema cache/i.test(insertErr.message)) {
+        const legacyInsert = await admin
           .from("direct_messages")
+          .insert({
+            conversation_id: conversationId,
+            sender_id: user.id,
+            sender_role: senderRole,
+            message: messageBody,
+            attachment_url: encodedAttachmentMeta,
+          })
           .select()
-          .eq("conversation_id", conversationId)
-          .eq("sender_id", user.id)
-          .eq("client_message_id", clientMessageId)
-          .maybeSingle();
-
-        if (conflictMsg) {
-          const parsedConflict = parseDirectMessageRow(conflictMsg, user.id);
-          return { success: true, data: parsedConflict || undefined };
-        }
+          .single();
+        insertedMsg = legacyInsert.data;
+        insertErr = legacyInsert.error;
       }
-      return { success: false, error: insertErr?.message || "Failed to deliver message" };
+
+      if (insertErr || !insertedMsg) {
+        if (insertErr?.code === "23505" && clientMessageId) {
+          const { data: conflictMsg } = await admin
+            .from("direct_messages")
+            .select()
+            .eq("conversation_id", conversationId)
+            .eq("sender_id", user.id)
+            .eq("client_message_id", clientMessageId)
+            .maybeSingle();
+
+          if (conflictMsg) {
+            const parsedConflict = parseDirectMessageRow(conflictMsg, user.id);
+            return { success: true, data: parsedConflict || undefined };
+          }
+        }
+        console.error("[sendDirectMessageAction] direct_messages insert failed:", insertErr?.message);
+        return { success: false, error: insertErr?.message || "Failed to deliver message" };
+      }
+
+      newMsg = insertedMsg;
+      const nowIso = new Date().toISOString();
+      if (senderRole === "customer") {
+        await admin
+          .from("conversations")
+          .update({
+            last_message_at: nowIso,
+            last_message_preview: preview,
+            astrologer_unread_count: (convo.astrologer_unread_count || 0) + 1,
+            updated_at: nowIso,
+          })
+          .eq("id", conversationId);
+      } else {
+        await admin
+          .from("conversations")
+          .update({
+            last_message_at: nowIso,
+            last_message_preview: preview,
+            customer_unread_count: (convo.customer_unread_count || 0) + 1,
+            updated_at: nowIso,
+          })
+          .eq("id", conversationId);
+      }
     }
 
-    // 5. Update conversation summary preview & unread counters
-    const preview = trimmed.slice(0, 80) || (attachments.length > 0 ? "Attachment" : "");
-    const nowIso = new Date().toISOString();
-
-    if (senderRole === "customer") {
-      await admin
-        .from("conversations")
-        .update({
-          last_message_at: nowIso,
-          last_message_preview: preview,
-          astrologer_unread_count: (convo.astrologer_unread_count || 0) + 1,
-          updated_at: nowIso,
-        })
-        .eq("id", conversationId);
-    } else {
-      await admin
-        .from("conversations")
-        .update({
-          last_message_at: nowIso,
-          last_message_preview: preview,
-          customer_unread_count: (convo.customer_unread_count || 0) + 1,
-          updated_at: nowIso,
-        })
-        .eq("id", conversationId);
+    // 5. Stamp actual_started_at on the linked booking on first real message exchange (chat-first billing anchor)
+    if (convo.booking_id && newMsg) {
+      try {
+        await admin
+          .from("customer_bookings")
+          .update({
+            actual_started_at: (newMsg.created_at as string) || new Date().toISOString(),
+          })
+          .eq("id", convo.booking_id)
+          .is("actual_started_at", null);
+      } catch {
+        // Non-blocking if actual_started_at column is not present
+      }
     }
 
     const parsed = parseDirectMessageRow(newMsg, user.id);

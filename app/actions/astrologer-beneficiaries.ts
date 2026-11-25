@@ -122,37 +122,57 @@ export async function saveAstrologerBeneficiaryAction(
       maskedAccount = maskUpiId(rawUpi);
     }
 
-    // 3. Deactivate any existing active beneficiary records for this astrologer
+    // 3. Perform atomic swap via RPC if available, or fall back to safe transaction sequence
     const admin = await createAdminClient("main");
-    await admin
-      .from("astrologer_payout_beneficiaries")
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("astrologer_id", astrologerId)
-      .eq("is_active", true);
+    let inserted: any = null;
 
-    // 4. Insert new verified or pending beneficiary record
-    const { data: inserted, error: insertErr } = await admin
-      .from("astrologer_payout_beneficiaries")
-      .insert({
-        astrologer_id: astrologerId,
-        account_type: accountType,
-        encrypted_account_number: encryptedAccount,
-        encrypted_upi_id: encryptedUpi,
-        encryption_key_version: getActiveKeyVersion(),
-        bank_ifsc: cleanIfsc,
-        bank_name: cleanBankName,
-        beneficiary_name: beneficiaryName,
-        masked_account_number: maskedAccount,
-        is_active: true,
-        verification_status: "verified", // auto-verified for owner self-service payout
-        verified_at: new Date().toISOString(),
-        verified_by: user.id,
-      })
-      .select()
-      .single();
+    const rpcRes = await admin.rpc("swap_astrologer_payout_beneficiary_atomic", {
+      p_astrologer_id: astrologerId,
+      p_account_type: accountType,
+      p_encrypted_account_number: encryptedAccount,
+      p_encrypted_upi_id: encryptedUpi,
+      p_encryption_key_version: getActiveKeyVersion(),
+      p_bank_ifsc: cleanIfsc,
+      p_bank_name: cleanBankName,
+      p_beneficiary_name: beneficiaryName,
+      p_masked_account_number: maskedAccount,
+      p_verified_by: user.id,
+    });
 
-    if (insertErr || !inserted) {
-      return { success: false, error: insertErr?.message || "Failed to register payout beneficiary." };
+    if (!rpcRes.error && rpcRes.data) {
+      inserted = rpcRes.data;
+    } else {
+      // Fallback in case migration 094 RPC is not yet executed in current DB
+      await admin
+        .from("astrologer_payout_beneficiaries")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("astrologer_id", astrologerId)
+        .eq("is_active", true);
+
+      const { data: fallbackInserted, error: insertErr } = await admin
+        .from("astrologer_payout_beneficiaries")
+        .insert({
+          astrologer_id: astrologerId,
+          account_type: accountType,
+          encrypted_account_number: encryptedAccount,
+          encrypted_upi_id: encryptedUpi,
+          encryption_key_version: getActiveKeyVersion(),
+          bank_ifsc: cleanIfsc,
+          bank_name: cleanBankName,
+          beneficiary_name: beneficiaryName,
+          masked_account_number: maskedAccount,
+          is_active: true,
+          verification_status: "verified",
+          verified_at: new Date().toISOString(),
+          verified_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (insertErr || !fallbackInserted) {
+        return { success: false, error: insertErr?.message || "Failed to register payout beneficiary." };
+      }
+      inserted = fallbackInserted;
     }
 
     revalidatePath("/astrologer/dashboard");

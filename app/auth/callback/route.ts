@@ -109,18 +109,11 @@ export async function GET(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookiesToSetList.push({ name, value, options });
-            const isDeleting = options?.maxAge === 0;
-            const sessionOptions = isDeleting
-              ? options
-              : {
-                  ...(options ?? {}),
-                  maxAge: undefined,
-                  expires: undefined,
-                };
             response.cookies.set(name, value, {
               path: "/",
               sameSite: "lax",
-              ...sessionOptions,
+              ...options,
+              maxAge: options?.maxAge ?? 60 * 60 * 24 * 7,
             });
           });
         },
@@ -366,17 +359,11 @@ export async function GET(request: NextRequest) {
   if (cookiesToSetList.length > 0) {
     cookiesToSetList.forEach(({ name, value, options }) => {
       const isDeleting = options?.maxAge === 0;
-      const sessionOptions = isDeleting
-        ? options
-        : {
-            ...(options ?? {}),
-            maxAge: undefined,
-            expires: undefined,
-          };
       redirectResponse.cookies.set(name, value, {
         sameSite: "lax",
-        ...sessionOptions,
         path: "/",
+        ...options,
+        maxAge: isDeleting ? 0 : typeof options?.maxAge === "number" ? options.maxAge : 60 * 60 * 24 * 7,
       });
     });
   }

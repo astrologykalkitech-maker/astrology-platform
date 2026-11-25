@@ -3,6 +3,7 @@ import { getJyotishPayConfig } from "@/lib/pay/config";
 import { isValidJyotishWebhookSignature } from "@/lib/pay/webhook-signature";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { completePaymentIntent } from "@/lib/pay/orchestrator";
+import { verifyJyotishProviderTransaction } from "@/lib/pay/provider-client";
 import { logSecurityEvent } from "@/lib/security/telemetry";
 
 type NormalizedPayment = {
@@ -299,7 +300,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const completion = await completePaymentIntent(claimedIntent, payment.utr, { supabaseClient: supabase });
+    // Independent server-to-server provider lookup when JYOTISH_PAY_PROVIDER_STATUS_URL is configured
+    const providerCheck = await verifyJyotishProviderTransaction({
+      sessionCode: session.session_code,
+      utr: payment.utr,
+      expectedAmountPaise: claimedIntent.amount_paise,
+    });
+    if (providerCheck.configured && !providerCheck.verified) {
+      await supabase
+        .from("payment_intents")
+        .update({ status: "pending", updated_at: new Date().toISOString() })
+        .eq("id", intent.id)
+        .eq("status", "processing");
+      await supabase.rpc("fail_payment_settlement", {
+        p_claim_id: settlementClaimRow.claim_id,
+        p_failure_message: providerCheck.error || "Provider verification failed",
+      });
+      await supabase.rpc("fail_payment_webhook_event", {
+        p_event_record_id: webhookEventClaimRow.event_record_id,
+        p_error_message: providerCheck.error || "Provider verification failed",
+      });
+      return NextResponse.json(
+        { success: false, error: providerCheck.error || "Provider verification failed" },
+        { status: 400 }
+      );
+    }
+
+    const completion = await completePaymentIntent(claimedIntent, providerCheck.utr || payment.utr, { supabaseClient: supabase });
     if (!completion.success) {
       await supabase.rpc("fail_payment_settlement", {
         p_claim_id: settlementClaimRow.claim_id,
@@ -372,12 +399,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await supabase.rpc("complete_payment_settlement", {
+    const { error: settlementCompleteErr } = await supabase.rpc("complete_payment_settlement", {
       p_claim_id: settlementClaimRow.claim_id,
     });
-    await supabase.rpc("complete_payment_webhook_event", {
+    if (settlementCompleteErr) {
+      console.error("[Karmic Ascension Pay] complete_payment_settlement failed:", settlementCompleteErr);
+      return NextResponse.json(
+        { success: false, error: "Payment settlement finalization failed." },
+        { status: 500 }
+      );
+    }
+
+    const { error: webhookCompleteErr } = await supabase.rpc("complete_payment_webhook_event", {
       p_event_record_id: webhookEventClaimRow.event_record_id,
     });
+    if (webhookCompleteErr) {
+      console.error("[Karmic Ascension Pay] complete_payment_webhook_event failed:", webhookCompleteErr);
+      return NextResponse.json(
+        { success: false, error: "Webhook event finalization failed." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -388,6 +430,31 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("[Karmic Ascension Pay] Webhook error:", error);
+    // Recoverable state machine: ensure any processing intent is reverted to pending on unexpected failure
+    try {
+      const supabase = await createAdminClient("main");
+      const rawBody = await req.clone().text().catch(() => "");
+      if (rawBody) {
+        const parsed = JSON.parse(rawBody);
+        const sessionCode = parsed?.sessionCode || parsed?.session_code || parsed?.payload?.payment?.entity?.notes?.session_code;
+        if (sessionCode) {
+          const { data: sess } = await supabase
+            .from("qr_payment_sessions")
+            .select("intent_id")
+            .eq("session_code", sessionCode)
+            .maybeSingle();
+          if (sess?.intent_id) {
+            await supabase
+              .from("payment_intents")
+              .update({ status: "pending", updated_at: new Date().toISOString() })
+              .eq("id", sess.intent_id)
+              .eq("status", "processing");
+          }
+        }
+      }
+    } catch {
+      // Best-effort recovery
+    }
     return NextResponse.json(
       { success: false, error: "Webhook processing failed." },
       { status: 500 }

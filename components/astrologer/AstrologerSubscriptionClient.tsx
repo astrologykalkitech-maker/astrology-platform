@@ -22,6 +22,9 @@ export function AstrologerSubscriptionClient({
   const [selectedPlanForPay, setSelectedPlanForPay] = useState<PaymentPlanRecord | null>(null);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [autoRenew, setAutoRenew] = useState<boolean>(Boolean(subscription?.auto_renew));
+  const [togglingAutoRenew, setTogglingAutoRenew] = useState(false);
+  const [instamojoSubLoading, setInstamojoSubLoading] = useState<string | null>(null);
 
   // Strictly determine active paid status. If no subscription, or if cancelled/expired, fall back strictly to Free plan
   const hasPaidSubscription = subscription && subscription.status === "active" && subscription.plan?.slug === "professional";
@@ -42,11 +45,67 @@ export function AstrologerSubscriptionClient({
     setIsPayModalOpen(true);
   };
 
+  const handleInstamojoUpgrade = async (plan: PaymentPlanRecord) => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setInstamojoSubLoading(plan.id);
+    try {
+      const res = await fetch("/api/payments/instamojo/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          purposeType: "astrologer_subscription",
+          entityId: plan.id,
+          purpose: `Subscription: ${plan.name}`,
+        }),
+      });
+      const data = await res.json();
+      const redirectUrl = data.checkoutUrl || data.longurl;
+      if (res.ok && redirectUrl) {
+        window.location.href = redirectUrl;
+      } else {
+        setErrorMsg(data.error || "Unable to initiate Instamojo subscription checkout.");
+      }
+    } catch {
+      setErrorMsg("Network error connecting to Instamojo gateway.");
+    } finally {
+      setInstamojoSubLoading(null);
+    }
+  };
+
   const handlePaymentSuccess = (receiptNo: string) => {
     setTimeout(() => {
       setIsPayModalOpen(false);
       window.location.reload();
     }, 2500);
+  };
+
+  const handleToggleAutoRenew = async () => {
+    setTogglingAutoRenew(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const next = !autoRenew;
+      const res = await fetch("/api/astrologer/subscription/auto-renew", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoRenew: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update auto-renewal setting.");
+      }
+      setAutoRenew(Boolean(data.autoRenew));
+      setSuccessMsg(
+        data.autoRenew
+          ? "Automated renewal enabled. Your operating wallet will renew this plan at period end."
+          : "Automated renewal disabled. Your plan will expire at the end of the current period."
+      );
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to update auto-renewal.");
+    } finally {
+      setTogglingAutoRenew(false);
+    }
   };
 
   const handleConfirmCancel = async (reason: string, feedback: string) => {
@@ -107,9 +166,20 @@ export function AstrologerSubscriptionClient({
             <p className="text-xs text-muted mt-1">
               Billing Period:{" "}
               {subscription?.current_period_end && subscription.status === "active"
-                ? `Expires on ${formatExactDateTime(subscription.current_period_end)} (Manual Renewal Only)`
+                ? `Expires on ${formatExactDateTime(subscription.current_period_end)} (${autoRenew ? "Auto-Renew ON" : "Manual Renewal"})`
                 : "Continuous Standard Membership"}
             </p>
+            {isPaidActive && (
+              <button
+                type="button"
+                disabled={togglingAutoRenew}
+                onClick={() => void handleToggleAutoRenew()}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gold/30 bg-parchment/60 px-2.5 py-1 text-[11px] font-semibold text-midnight hover:bg-gold/15 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3 w-3 ${togglingAutoRenew ? "animate-spin" : ""}`} />
+                {autoRenew ? "Disable Auto-Renew" : "Enable Auto-Renew (Operating Wallet)"}
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -194,7 +264,7 @@ export function AstrologerSubscriptionClient({
                   </ul>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   <button
                     disabled={isCurrent}
                     onClick={() => handleInitiateUpgrade(plan)}
@@ -204,8 +274,19 @@ export function AstrologerSubscriptionClient({
                         : "bg-gradient-to-b from-[#e0bb6c] to-[#b98a36] text-midnight hover:opacity-95"
                     } disabled:opacity-60`}
                   >
-                    {isCurrent ? "Active Plan" : `Upgrade to ${plan.name}`}
+                    {isCurrent ? "Active Plan" : `Upgrade to ${plan.name} (UPI QR)`}
                   </button>
+                  {!isCurrent && plan.price_paise > 0 && (
+                    <button
+                      type="button"
+                      disabled={instamojoSubLoading === plan.id}
+                      onClick={() => void handleInstamojoUpgrade(plan)}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gold/40 bg-white py-2 px-4 text-xs font-semibold text-midnight hover:bg-parchment/60 disabled:opacity-60"
+                    >
+                      <CreditCard className="h-3.5 w-3.5 text-gold-deep" />
+                      {instamojoSubLoading === plan.id ? "Redirecting..." : "Pay via Card / Netbanking (Instamojo)"}
+                    </button>
+                  )}
                 </div>
               </div>
             );

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createInAppNotification } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCustomerContext } from "@/lib/auth/customer-guard";
 import { requireAstrologer } from "@/lib/auth/session";
@@ -222,24 +223,34 @@ export async function initiateSubscriptionPaymentAction(payload: {
       };
     }
 
-    // PAID PLAN: Initialize pending subscription record (past_due) and create payment order
+    // PAID PLAN: Preserve any existing active/complimentary subscription; only initialize pending row if none exists
     const orderNumber = generateOrderNumber();
 
-    const { data: subRecord } = await supabase
+    const { data: existingSub } = await supabase
       .from("astrologer_subscriptions")
-      .upsert(
-        {
+      .select("id, status")
+      .eq("astrologer_id", profile.id)
+      .maybeSingle();
+
+    let orderEntityId = existingSub?.id ?? null;
+
+    if (!orderEntityId) {
+      const { data: subRecord, error: subErr } = await supabase
+        .from("astrologer_subscriptions")
+        .insert({
           astrologer_id: profile.id,
           plan_id: plan.id,
           status: "past_due",
           auto_renew: false,
-        },
-        { onConflict: "astrologer_id" }
-      )
-      .select("id")
-      .maybeSingle();
+        })
+        .select("id")
+        .maybeSingle();
 
-    const orderEntityId = subRecord?.id || plan.id;
+      if (subErr || !subRecord) {
+        return { success: false, error: `Failed to initialize subscription: ${subErr?.message || "unknown error"}` };
+      }
+      orderEntityId = subRecord.id;
+    }
 
     const { data: order, error: orderErr } = await supabase
       .from("payment_orders")
@@ -320,6 +331,7 @@ export async function initiateSubscriptionPaymentAction(payload: {
 export async function requestCustomerRefundAction(payload: {
   paymentId: string;
   reason: string;
+  amountPaise?: number;
 }): Promise<AuthResult<boolean>> {
   try {
     const { user } = await requireCustomerContext();
@@ -346,18 +358,37 @@ export async function requestCustomerRefundAction(payload: {
       return { success: false, error: "Payment record not found or unauthorized." };
     }
 
-    // Check if an active or processed refund request already exists for this payment
-    const { data: existingRefund } = await supabase
-      .from("refund_requests")
-      .select("id, status")
-      .eq("payment_id", payment.id)
-      .in("status", ["requested", "approved", "processed"])
-      .maybeSingle();
+    const requestedAmountPaise =
+      payload.amountPaise !== undefined ? Math.round(Number(payload.amountPaise)) : Number(payment.amount_paise);
+    if (!Number.isSafeInteger(requestedAmountPaise) || requestedAmountPaise <= 0) {
+      return { success: false, error: "Refund amount must be a positive integer in paise." };
+    }
 
-    if (existingRefund) {
+    // Check prior active or processed refunds for cumulative ceiling and pending duplicate guard
+    const { data: priorRefunds } = await supabase
+      .from("refund_requests")
+      .select("id, status, amount_paise")
+      .eq("payment_id", payment.id)
+      .in("status", ["requested", "approved", "processing", "processed"]);
+
+    const pendingRefund = (priorRefunds || []).find((r: { status: string }) =>
+      ["requested", "approved", "processing"].includes(r.status)
+    );
+    if (pendingRefund) {
       return {
         success: false,
-        error: `A refund request for this payment is already ${existingRefund.status}.`,
+        error: `A refund request for this payment is already ${pendingRefund.status}.`,
+      };
+    }
+
+    const priorRefundedTotal = (priorRefunds || []).reduce(
+      (sum: number, r: { amount_paise?: number }) => sum + Number(r.amount_paise || 0),
+      0
+    );
+    if (priorRefundedTotal + requestedAmountPaise > Number(payment.amount_paise)) {
+      return {
+        success: false,
+        error: "Requested refund exceeds remaining refundable balance for this payment.",
       };
     }
 
@@ -365,7 +396,7 @@ export async function requestCustomerRefundAction(payload: {
       payment_id: payment.id,
       order_id: payment.order_id,
       customer_id: user.id,
-      amount_paise: payment.amount_paise,
+      amount_paise: requestedAmountPaise,
       reason: payload.reason,
       status: "requested",
     });
@@ -374,7 +405,22 @@ export async function requestCustomerRefundAction(payload: {
       return { success: false, error: error.message };
     }
 
+    // In-app notification to customer confirming receipt of refund request
+    try {
+      await createInAppNotification({
+        recipientUserId: user.id,
+        title: "Refund Request Submitted",
+        message: `Your refund request for payment (${(payment.amount_paise / 100).toFixed(2)} INR) has been registered and is under review.`,
+        linkUrl: "/customer/billing",
+        eventType: "refund_requested",
+        metadata: { payment_id: payment.id, reason: payload.reason },
+      });
+    } catch {
+      // Non-blocking notification
+    }
+
     revalidatePath("/customer/billing");
+    revalidatePath("/super-admin/financials");
     return { success: true, data: true };
   } catch (err) {
     return {
@@ -470,10 +516,66 @@ export async function payConsultationViaWalletAction({
       };
     }
 
+    // Credit the astrologer's wallet with the consultation fee
+    try {
+      const { data: bookingData } = await admin
+        .from("customer_bookings")
+        .select("astrologer_id, price")
+        .eq("id", bookingId)
+        .maybeSingle();
+
+      if (bookingData?.astrologer_id) {
+        const { creditAstrologerOperatingWallet } = await import("@/lib/financial/astrologer-wallet-engine");
+        const amountPaise = data.amount_paise || Math.round((bookingData.price || 0) * 100);
+
+        if (amountPaise > 0) {
+          const creditRes = await creditAstrologerOperatingWallet({
+            astrologerId: bookingData.astrologer_id,
+            amountPaise,
+            creditType: "RECHARGE",
+            idempotencyKey: `wallet_pay_astro_credit_${bookingId}`,
+            description: `Consultation fee received via Customer Wallet for booking #${bookingId}`,
+            metadata: {
+              booking_id: bookingId,
+              customer_id: user.id,
+              order_number: data.order_number,
+              receipt_number: data.receipt_number,
+            },
+          });
+
+          if (!creditRes.success) {
+            console.error(
+              `[payConsultationViaWalletAction] Warning: Failed to credit astrologer ${bookingData.astrologer_id} wallet:`,
+              creditRes.error
+            );
+          }
+        }
+      }
+    } catch (creditErr) {
+      console.error("[payConsultationViaWalletAction] Error crediting astrologer wallet:", creditErr);
+    }
+
     // Revalidate paths
     revalidatePath("/customer/billing");
     revalidatePath("/customer/bookings");
     revalidatePath("/customer");
+    revalidatePath("/astrologer/dashboard");
+    revalidatePath("/astrologer/earnings");
+
+    // Send in-app notification to customer and astrologer
+    try {
+      const priceRupees = (Number(data.remaining_available_paise) >= 0 && Number(data.order_number)) ? "consultation" : "fee";
+      await createInAppNotification({
+        recipientUserId: user.id,
+        title: "Consultation Paid via Wallet",
+        message: `Your booking has been confirmed using your customer wallet balance.`,
+        linkUrl: "/customer/bookings",
+        eventType: "wallet_payment_success",
+        metadata: { booking_id: bookingId, order_number: data.order_number },
+      });
+    } catch {
+      // Non-blocking notification
+    }
 
     return {
       success: true,

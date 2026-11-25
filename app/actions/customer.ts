@@ -363,6 +363,8 @@ export async function submitCustomerEnquiryAction(payload: {
 
     let createdLeadId: string | null = null;
 
+    let createdLeadStatus: string = "new";
+
     // Call canonical transactional RPC
     const { data: rpcLead, error: rpcErr } = await supabase.rpc(
       "submit_customer_enquiry",
@@ -384,19 +386,50 @@ export async function submitCustomerEnquiryAction(payload: {
 
     if (rpcLead && !rpcErr) {
       createdLeadId = rpcLead.id;
+      createdLeadStatus = rpcLead.status || (resolvedAstrologerId ? "assigned" : "new");
     } else {
-      // Fallback: direct insert with admin client if RPC is unavailable or encounters schema cache issues
-      console.warn("[Customer Enquiry RPC Fallback to Direct Insert]", rpcErr?.message || "No RPC data");
+      // Import fail-closed RPC check
+      const { isRpcNotInstalledError } = await import("@/lib/admin/audit");
+      const isMissingRpc = isRpcNotInstalledError(rpcErr, "submit_customer_enquiry");
+
+      if (!isMissingRpc) {
+        // Validation, business rule, duplicate, or permission rejection from the RPC must fail-closed!
+        console.warn("[Customer Enquiry RPC Validation/Rejection]", rpcErr?.message);
+        const safeMessage =
+          rpcErr?.message?.includes("wait a moment")
+            ? rpcErr.message
+            : rpcErr?.message?.includes("listing not found")
+            ? "The selected astrologer is not available."
+            : rpcErr?.message || "Failed to submit enquiry. Please verify your input and try again.";
+
+        return {
+          success: false,
+          error: safeMessage,
+        };
+      }
+
+      // Safe Fallback: only if RPC routine is demonstrably not installed in schema
+      console.warn("[Customer Enquiry RPC Missing: Fallback to Direct Insert]", rpcErr?.message);
       try {
         const { createAdminClient } = await import("@/lib/supabase/admin");
         const targetAdmin = await createAdminClient(target);
+
+        // Fetch platform direct lead routing policy to respect configuration
+        const { data: policyRow } = await targetAdmin
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "direct_lead_routing_policy")
+          .maybeSingle();
+
+        const directPolicy = policyRow?.value === "require_moderation" ? "require_moderation" : "immediate_route";
+        createdLeadStatus = resolvedAstrologerId && directPolicy === "immediate_route" ? "assigned" : "new";
 
         const leadPayload: Record<string, unknown> = {
           customer_id: user.id,
           astrologer_id: resolvedAstrologerId,
           subject,
           message,
-          status: resolvedAstrologerId ? "assigned" : "new",
+          status: createdLeadStatus,
           source_type: sourceType,
           source_url: payload.source_url || null,
           contact_email: user.email,
@@ -416,22 +449,15 @@ export async function submitCustomerEnquiryAction(payload: {
 
         if (directErr || !directLead) {
           console.error("[Customer Enquiry Direct Fallback Failed]", directErr);
-          const safeMessage =
-            rpcErr?.message?.includes("wait a moment")
-              ? rpcErr.message
-              : rpcErr?.message?.includes("listing not found")
-              ? "The selected astrologer is not available."
-              : directErr?.message || "Failed to submit enquiry. Please verify your input and try again.";
-
           return {
             success: false,
-            error: safeMessage,
+            error: "Failed to submit enquiry. Please verify your input and try again.",
           };
         }
 
         createdLeadId = directLead.id;
 
-        if (resolvedAstrologerId) {
+        if (resolvedAstrologerId && createdLeadStatus === "assigned") {
           try {
             await targetAdmin
               .from("lead_assignments")
@@ -491,27 +517,47 @@ export async function submitCustomerEnquiryAction(payload: {
           }
         }
 
-        const { error: db2UpsertErr } = await db2Client.from("leads").upsert({
-          id: createdLeadId,
-          customer_id: user.id,
-          astrologer_id: db2AstrologerId,
-          subject,
-          message,
-          status: db2AstrologerId ? "assigned" : "new",
-          source_type: db2AstrologerId ? "direct" : sourceType,
-          priority,
-          customer_name: profile.full_name || "Direct Customer",
-          contact_email: user.email,
+        // Attempt transactional RPC sync_customer_enquiry_to_admin on DB2 first
+        const { error: rpcSyncErr } = await db2Client.rpc("sync_customer_enquiry_to_admin", {
+          p_lead: {
+            id: createdLeadId,
+            customer_id: user.id,
+            astrologer_id: db2AstrologerId,
+            subject,
+            message,
+            status: createdLeadStatus,
+            source_type: db2AstrologerId ? "direct" : sourceType,
+            source_url: payload.source_url || null,
+            priority,
+            contact_email: user.email,
+            customer_name: profile.full_name || "Direct Customer",
+          },
         });
 
-        if (db2UpsertErr) {
-          console.error("[Customer Enquiry DB2 Sync Error]", {
-            leadId: createdLeadId,
-            message: db2UpsertErr.message,
+        // If RPC is missing or fails, use idempotent upsert fallback
+        if (rpcSyncErr) {
+          const { error: db2UpsertErr } = await db2Client.from("leads").upsert({
+            id: createdLeadId,
+            customer_id: user.id,
+            astrologer_id: db2AstrologerId,
+            subject,
+            message,
+            status: createdLeadStatus,
+            source_type: db2AstrologerId ? "direct" : sourceType,
+            priority,
+            customer_name: profile.full_name || "Direct Customer",
+            contact_email: user.email,
           });
+
+          if (db2UpsertErr) {
+            console.error("[Customer Enquiry DB2 Sync Error]", {
+              leadId: createdLeadId,
+              message: db2UpsertErr.message,
+            });
+          }
         }
 
-        if (db2AstrologerId) {
+        if (db2AstrologerId && createdLeadStatus === "assigned") {
           await db2Client.from("lead_assignments").upsert({
             lead_id: createdLeadId,
             astrologer_id: db2AstrologerId,
@@ -646,6 +692,7 @@ export async function getCustomerBookings(): Promise<
         status,
         price,
         payment_mode,
+        direct_payment_status,
         notes,
         cancellation_reason,
         cancelled_at,
@@ -654,7 +701,8 @@ export async function getCustomerBookings(): Promise<
         astrologer:astrologer_id(display_name)
       `)
       .eq("customer_id", user.id)
-      .order("scheduled_at", { ascending: true });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
 
     if (error) {
       return {
@@ -717,6 +765,7 @@ export async function getCustomerBookings(): Promise<
       status: b.status as BookingStatus,
       price: Number(b.price),
       payment_mode: b.payment_mode,
+      direct_payment_status: b.direct_payment_status,
       direct_payment: directPayments.get(b.id) || null,
       notes: b.notes,
       cancellation_reason: b.cancellation_reason,
@@ -828,6 +877,9 @@ export async function createCustomerBookingAction(payload: {
     revalidatePath("/customer/bookings", "page");
     revalidatePath("/customer", "page");
     revalidatePath("/astrologer/bookings", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/super-admin/bookings", "page");
+    revalidatePath("/super-admin", "page");
 
     return {
       success: true,
@@ -956,6 +1008,10 @@ export async function cancelCustomerBookingAction(
     revalidatePath("/customer/bookings", "page");
     revalidatePath("/customer/notification", "page");
     revalidatePath("/customer", "page");
+    revalidatePath("/astrologer/bookings", "page");
+    revalidatePath("/astrologer/dashboard", "page");
+    revalidatePath("/super-admin/bookings", "page");
+    revalidatePath("/super-admin", "page");
 
     return {
       success: true,
@@ -1837,20 +1893,40 @@ export async function updateCustomerProfileAction(payload: {
 
     const supabase = await createClient(target);
 
+    // Fetch existing profile first to ensure partial updates do NOT clear omitted fields
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("full_name, phone, date_of_birth, time_of_birth, birthplace, gender, encrypted_date_of_birth, encrypted_time_of_birth, encrypted_birthplace")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const resolvedName = cleanName !== undefined ? cleanName : (existingProfile?.full_name ?? null);
+    const resolvedPhone = payload.phone !== undefined ? cleanPhone : (existingProfile?.phone ?? null);
+    const resolvedDob = payload.date_of_birth !== undefined ? payload.date_of_birth : (existingProfile?.date_of_birth ?? null);
+    const resolvedTob = payload.time_of_birth !== undefined ? payload.time_of_birth : (existingProfile?.time_of_birth ?? null);
+    const resolvedBirthplace = payload.birthplace !== undefined ? cleanBirthplace : (existingProfile?.birthplace ?? null);
+    const resolvedGender = payload.gender !== undefined ? payload.gender : (existingProfile?.gender ?? null);
+
     // Prepare encrypted birth data if encryption engine is configured
-    let encryptedDob: string | null = null;
-    let encryptedTob: string | null = null;
-    let encryptedBirthplace: string | null = null;
+    let encryptedDob: string | null = existingProfile?.encrypted_date_of_birth ?? null;
+    let encryptedTob: string | null = existingProfile?.encrypted_time_of_birth ?? null;
+    let encryptedBirthplace: string | null = existingProfile?.encrypted_birthplace ?? null;
 
     if (isBeneficiaryEncryptionConfigured()) {
-      if (payload.date_of_birth) {
-        encryptedDob = encryptCustomerBirthData(user.id, "date_of_birth", payload.date_of_birth).ciphertext;
+      if (payload.date_of_birth !== undefined) {
+        encryptedDob = payload.date_of_birth
+          ? encryptCustomerBirthData(user.id, "date_of_birth", payload.date_of_birth).ciphertext
+          : null;
       }
-      if (payload.time_of_birth) {
-        encryptedTob = encryptCustomerBirthData(user.id, "time_of_birth", payload.time_of_birth).ciphertext;
+      if (payload.time_of_birth !== undefined) {
+        encryptedTob = payload.time_of_birth
+          ? encryptCustomerBirthData(user.id, "time_of_birth", payload.time_of_birth).ciphertext
+          : null;
       }
-      if (cleanBirthplace) {
-        encryptedBirthplace = encryptCustomerBirthData(user.id, "birthplace", cleanBirthplace).ciphertext;
+      if (payload.birthplace !== undefined) {
+        encryptedBirthplace = cleanBirthplace
+          ? encryptCustomerBirthData(user.id, "birthplace", cleanBirthplace).ciphertext
+          : null;
       }
     }
 
@@ -1859,23 +1935,23 @@ export async function updateCustomerProfileAction(payload: {
     // plaintext PII is never stored in unencrypted database columns.
     const isEncrypted = isBeneficiaryEncryptionConfigured();
     const { error: rpcErr } = await supabase.rpc("update_customer_profile", {
-      p_full_name: cleanName || null,
-      p_phone: cleanPhone,
-      p_date_of_birth: isEncrypted ? null : (payload.date_of_birth || null),
-      p_time_of_birth: isEncrypted ? null : (payload.time_of_birth || null),
-      p_birthplace: isEncrypted ? null : cleanBirthplace,
-      p_gender: payload.gender || null,
+      p_full_name: resolvedName,
+      p_phone: resolvedPhone,
+      p_date_of_birth: isEncrypted ? null : resolvedDob,
+      p_time_of_birth: isEncrypted ? null : resolvedTob,
+      p_birthplace: isEncrypted ? null : resolvedBirthplace,
+      p_gender: resolvedGender,
     });
 
     if (rpcErr) {
       // Fallback direct update with RLS guard
       const updateData: Record<string, unknown> = {
-        full_name: cleanName || undefined,
-        phone: cleanPhone,
-        date_of_birth: isEncrypted ? null : (payload.date_of_birth || null),
-        time_of_birth: isEncrypted ? null : (payload.time_of_birth || null),
-        birthplace: isEncrypted ? null : cleanBirthplace,
-        gender: payload.gender || null,
+        full_name: resolvedName,
+        phone: resolvedPhone,
+        date_of_birth: isEncrypted ? null : resolvedDob,
+        time_of_birth: isEncrypted ? null : resolvedTob,
+        birthplace: isEncrypted ? null : resolvedBirthplace,
+        gender: resolvedGender,
         updated_at: new Date().toISOString(),
       };
 
@@ -2343,4 +2419,3 @@ export async function getCustomerBillingHistory(): Promise<
     };
   }
 }
-

@@ -4,7 +4,7 @@ import React, { memo, useState, useEffect, useTransition } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
+import { LogOut, ShieldCheck, UserCheck, Menu, Bell } from "lucide-react";
 import { Button } from "@/components/astrologer/ui/Button";
 
 interface AdminHeaderProps {
@@ -103,6 +103,16 @@ function AdminHeaderComponent({ displayName, role, isSuperAdmin, onMenuClick }: 
           <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
           {roleLabel}
         </span>
+
+        {/* Notifications Dispatch & Telemetry Link */}
+        <Link
+          href="/super-admin/notifications-system"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gold/25 bg-white/5 text-ivory/80 transition-colors hover:border-gold hover:bg-gold/15 hover:text-champagne"
+          title="Notification Infrastructure & Dispatch"
+        >
+          <Bell className="h-4 w-4" />
+          <span className="sr-only">Notifications Telemetry</span>
+        </Link>
 
         {/* User Identity */}
         <div className="hidden md:flex flex-col text-right">

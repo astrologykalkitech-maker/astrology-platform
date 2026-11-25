@@ -7,13 +7,13 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Identify caller and enforce rate limiting (30 messages/min)
+    // 1. Identify caller and enforce rate limiting (60 messages/min to match Server Action)
     const user = await getCurrentUser();
     const rateLimitKey = user?.id
       ? `chat:send:user:${user.id}`
       : `chat:send:ip:${extractClientIp(req)}`;
 
-    const rl = await checkRateLimitAsync(rateLimitKey, 30, 60_000);
+    const rl = await checkRateLimitAsync(rateLimitKey, 60, 60_000);
     if (!rl.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many messages sent. Please slow down." },

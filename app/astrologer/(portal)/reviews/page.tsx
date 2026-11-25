@@ -21,7 +21,7 @@ export default async function AstrologerReviewsPage() {
     requireAstrologerPage(),
     getAstrologerReviewsAction(),
   ]);
-  const data = res.success && res.data ? res.data : { reviews: [], averageRating: 5.0, totalReviews: 0 };
+  const data = res.success && res.data ? res.data : { reviews: [], averageRating: 0.0, totalReviews: 0 };
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">

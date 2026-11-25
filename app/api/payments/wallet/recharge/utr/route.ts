@@ -91,43 +91,46 @@ export async function POST(req: NextRequest) {
       }
 
       // Check if there is an existing pending order for this astrologer matching order_number or session_code
-      let targetOrderId: string | null = null;
+      let targetOrder: { id: string; order_number: string; status: string; metadata: Record<string, unknown> | null } | null = null;
       let finalOrderNumber = orderNumber;
 
       if (orderNumberParam) {
         const { data: existing } = await admin
           .from("payment_orders")
-          .select("id, order_number, metadata")
+          .select("id, order_number, status, metadata")
           .eq("order_number", orderNumberParam)
           .eq("entity_type", "astrologer_wallet_recharge")
           .eq("astrologer_id", astroProfile.id)
-          .eq("status", "pending")
           .maybeSingle();
         if (existing) {
-          targetOrderId = existing.id;
+          targetOrder = existing;
           finalOrderNumber = existing.order_number;
         }
       } else if (sessionCode) {
         const { data: existing } = await admin
           .from("payment_orders")
-          .select("id, order_number, metadata")
+          .select("id, order_number, status, metadata")
           .eq("entity_type", "astrologer_wallet_recharge")
           .eq("astrologer_id", astroProfile.id)
           .eq("metadata->>session_code", sessionCode)
-          .eq("status", "pending")
           .maybeSingle();
         if (existing) {
-          targetOrderId = existing.id;
+          targetOrder = existing;
           finalOrderNumber = existing.order_number;
         }
       }
 
-      if (targetOrderId) {
+      if (targetOrder) {
+        if (targetOrder.status === "successful") {
+          return NextResponse.json({ success: false, error: "This recharge order is already settled." }, { status: 409 });
+        }
+
         // Update existing order with submitted UTR and mark for manual verification review
-        const { data: updatedOrder, error: updateErr } = await admin
+        const { error: updateErr } = await admin
           .from("payment_orders")
           .update({
             metadata: {
+              ...((targetOrder.metadata as Record<string, unknown>) || {}),
               utr,
               session_code: sessionCode,
               payment_mode: "upi_manual",
@@ -135,9 +138,7 @@ export async function POST(req: NextRequest) {
             },
             updated_at: new Date().toISOString(),
           })
-          .eq("id", targetOrderId)
-          .select("id, order_number")
-          .single();
+          .eq("id", targetOrder.id);
 
         if (updateErr) {
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
@@ -145,12 +146,11 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          orderNumber: updatedOrder.order_number,
+          orderNumber: targetOrder.order_number,
           status: "pending_verification",
           message: "Your 12-digit UTR has been submitted for verification. Wallet balance will be credited once verified.",
         });
       }
-
       // Record direct payment / UTR claim in 'pending' status — NEVER auto-credit!
       const { data: order, error: orderErr } = await admin
         .from("payment_orders")
@@ -184,43 +184,46 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Customer role
-      let targetOrderId: string | null = null;
+      let targetOrder: { id: string; order_number: string; status: string; metadata: Record<string, unknown> | null } | null = null;
       let finalOrderNumber = orderNumber;
 
       if (orderNumberParam) {
         const { data: existing } = await admin
           .from("payment_orders")
-          .select("id, order_number, metadata")
+          .select("id, order_number, status, metadata")
           .eq("order_number", orderNumberParam)
           .eq("entity_type", "customer_wallet_recharge")
           .eq("customer_id", user.id)
-          .eq("status", "pending")
           .maybeSingle();
         if (existing) {
-          targetOrderId = existing.id;
+          targetOrder = existing;
           finalOrderNumber = existing.order_number;
         }
       } else if (sessionCode) {
         const { data: existing } = await admin
           .from("payment_orders")
-          .select("id, order_number, metadata")
+          .select("id, order_number, status, metadata")
           .eq("entity_type", "customer_wallet_recharge")
           .eq("customer_id", user.id)
           .eq("metadata->>session_code", sessionCode)
-          .eq("status", "pending")
           .maybeSingle();
         if (existing) {
-          targetOrderId = existing.id;
+          targetOrder = existing;
           finalOrderNumber = existing.order_number;
         }
       }
 
-      if (targetOrderId) {
+      if (targetOrder) {
+        if (targetOrder.status === "successful") {
+          return NextResponse.json({ success: false, error: "This recharge order is already settled." }, { status: 409 });
+        }
+
         // Update existing order with submitted UTR and mark for manual verification review
-        const { data: updatedOrder, error: updateErr } = await admin
+        const { error: updateErr } = await admin
           .from("payment_orders")
           .update({
             metadata: {
+              ...((targetOrder.metadata as Record<string, unknown>) || {}),
               utr,
               session_code: sessionCode,
               payment_mode: "upi_manual",
@@ -228,9 +231,7 @@ export async function POST(req: NextRequest) {
             },
             updated_at: new Date().toISOString(),
           })
-          .eq("id", targetOrderId)
-          .select("id, order_number")
-          .single();
+          .eq("id", targetOrder.id);
 
         if (updateErr) {
           return NextResponse.json({ success: false, error: updateErr.message }, { status: 500 });
@@ -238,7 +239,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          orderNumber: updatedOrder.order_number,
+          orderNumber: targetOrder.order_number,
           status: "pending_verification",
           message: "Your 12-digit UTR has been submitted for verification. Wallet balance will be credited once verified.",
         });

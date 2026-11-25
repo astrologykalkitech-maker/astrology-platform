@@ -16,7 +16,7 @@ import {
   Flag,
   MoreVertical,
 } from "lucide-react";
-import type { DirectMessage } from "@/lib/chat/meta";
+import { formatChatMessageTime, type DirectMessage } from "@/lib/chat/meta";
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -35,6 +35,7 @@ interface ChatMessageItemProps {
   onDelete: (msgId: string, type: "for_me" | "for_everyone") => void;
   onReport: (msgId: string) => void;
   onOpenLightbox: (url: string) => void;
+  onRetry?: (msg: DirectMessage) => void;
 }
 
 export const ChatMessageItem = memo(function ChatMessageItem({
@@ -52,6 +53,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   onDelete,
   onReport,
   onOpenLightbox,
+  onRetry,
 }: ChatMessageItemProps) {
   const isDropdownOpen = activeDropdownMsgId === message.id;
 
@@ -244,12 +246,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             }`}
           >
             {message.is_edited && <span className="italic mr-0.5">(edited)</span>}
-            <span>
-              {new Date(message.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
+            <span>{formatChatMessageTime(message.created_at)}</span>
 
             {isMe && (
               <span>
@@ -260,7 +257,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 ) : message.status === "delivered" ? (
                   <CheckCheck className="h-3 w-3 text-muted" />
                 ) : message.status === "failed" ? (
-                  <AlertCircle className="h-3 w-3 text-rose-500" />
+                  <span className="inline-flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3 text-rose-500" />
+                    {onRetry && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRetry(message);
+                        }}
+                        className="text-[9px] font-semibold text-rose-400 hover:text-white underline cursor-pointer"
+                        title="Retry sending"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </span>
                 ) : (
                   <Check className="h-3 w-3 text-muted" />
                 )}

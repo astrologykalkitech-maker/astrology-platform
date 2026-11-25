@@ -1,35 +1,34 @@
-import { BarChart3, TrendingUp, Sparkles } from "lucide-react";
+import { BarChart3, TrendingUp, Sparkles, AlertTriangle } from "lucide-react";
 import { getPlatformOverviewMetrics } from "@/app/actions/admin-analytics";
 
 export default async function SuperAdminAnalyticsPage() {
   const res = await getPlatformOverviewMetrics();
-  const m = res.success
-    ? res.data
-    : {
-        totalLeads: 0,
-        leadsToday: 0,
-        unassignedLeads: 0,
-        assignedLeads: 0,
-        contactedLeads: 0,
-        convertedLeads: 0,
-        closedLeads: 0,
-        invalidLeads: 0,
-        duplicateLeads: 0,
-        platformGeneratedLeads: 0,
-        directLeads: 0,
-        pendingListings: 0,
-        approvedListings: 0,
-        changesRequestedListings: 0,
-        suspendedListings: 0,
-        totalListings: 0,
-        activeConsultants: 0,
-        totalCustomers: 0,
-        totalBookings: 0,
-        pendingBookings: 0,
-        confirmedBookings: 0,
-        completedBookings: 0,
-        cancelledBookings: 0,
-      };
+  if (!res.success || !res.data) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-midnight flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-gold" />
+            Platform Performance & Live Telemetry
+          </h1>
+          <p className="text-xs text-muted">
+            Transparent metrics aggregated directly from verified platform database records.
+          </p>
+        </div>
+        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+          <div>
+            <p className="font-semibold">Unable to load platform analytics</p>
+            <p className="text-xs text-red-700 mt-1">
+              {res.error || "A database error prevented loading live metrics. Please refresh or check system logs."}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const m = res.data;
 
   const conversionRate =
     m.totalLeads > 0 ? Math.round((m.convertedLeads / m.totalLeads) * 100) : 0;

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveConsultationRoute } from "./provider";
 
 export interface ScheduleReminderOptions {
   bookingId: string;
@@ -274,7 +275,11 @@ export async function processDueConsultationReminders(): Promise<{
             ? `Your ${booking.consultation_mode} consultation with ${astroName} starts in 15 minutes. Click here to prepare your room.`
             : `Your ${booking.consultation_mode} consultation session starts in 15 minutes. Click here to join your room.`;
 
-        const linkUrl = `/consultation/${job.booking_id}`;
+        const linkUrl = resolveConsultationRoute(
+          job.booking_id,
+          booking.consultation_mode,
+          job.recipient_role === "customer" ? "customer" : "astrologer"
+        ).route;
 
         // In-app notification (the platform's single notification table is customer_notifications,
         // keyed by the recipient's user id for customers and astrologers alike)

@@ -34,13 +34,15 @@ export async function createAdminClient(target: "main" | "admin" = "admin") {
   const isMain = target === "main";
 
   // Resolve service role key — strictly from server-only env vars (no NEXT_PUBLIC_)
+  // Supports both canonical ADMIN_SUPABASE_SERVICE_ROLE_KEY and documented DB2_SUPABASE_SERVICE_ROLE_KEY alias
   const serviceRoleKey = isMain
     ? (process.env.DB1_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
-    : (process.env.ADMIN_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+    : (process.env.ADMIN_SUPABASE_SERVICE_ROLE_KEY || process.env.DB2_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+  // Supports both canonical ADMIN_SUPABASE_URL and documented DB2_SUPABASE_URL alias
   const supabaseUrl = isMain
     ? process.env.NEXT_PUBLIC_SUPABASE_URL
-    : (process.env.ADMIN_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+    : (process.env.ADMIN_SUPABASE_URL || process.env.DB2_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
 
   if (!serviceRoleKey || !supabaseUrl) {
     throw new Error(

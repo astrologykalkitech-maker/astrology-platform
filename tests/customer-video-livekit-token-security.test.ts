@@ -36,11 +36,11 @@ describe("Sub-phase 1.8: Video/Voice Consultation Authorization & LiveKit Token 
     );
   });
 
-  it("verifies video payment status prior to token generation", () => {
+  it("verifies video payment status prior to token generation (case-insensitive)", () => {
     assert.match(
       meetingContent,
-      /if \(booking\.consultation_mode === "video" && booking\.payment_mode !== "pay_at_drop"\)/,
-      "Must inspect payment for video consultations"
+      /const isVideoConsultation = \(booking\.consultation_mode \|\| ""\)\.toLowerCase\(\) === "video";\s*if \(isVideoConsultation && booking\.payment_mode !== "pay_at_drop"\)/,
+      "Must inspect payment for video consultations with case-normalization"
     );
     assert.match(
       meetingContent,
@@ -60,7 +60,7 @@ describe("Sub-phase 1.8: Video/Voice Consultation Authorization & LiveKit Token 
   it("generates opaque room names and short-lived tokens with secure participant identity", () => {
     assert.match(
       meetingContent,
-      /const opaqueRoomName = `karmicascension_\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`;/,
+      /const opaqueRoomName = `karmicascension_(?:consultation_)?\$\{crypto\.randomBytes\(12\)\.toString\("hex"\)\}`;/,
       "Room names must be opaque cryptographically random hex strings"
     );
     assert.match(
